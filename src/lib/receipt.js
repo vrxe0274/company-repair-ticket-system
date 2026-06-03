@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { format } from 'date-fns'
-import vrxeLogo from '/public/vrxe-logo.png'
+const vrxeLogo = '/vrxe-logo.png'
 
 /**
  * Generate a receipt number for a ticket
