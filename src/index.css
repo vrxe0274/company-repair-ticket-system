@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { @apply bg-white text-gray-900 font-body antialiased; }
+}
+
+@layer components {
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply inline-flex items-center gap-2
+           bg-brand-600 hover:bg-brand-700 active:bg-brand-800
+           text-white font-sans font-semibold tracking-wide
+           px-5 py-2.5 rounded-lg transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-accent {
+    @apply inline-flex items-center gap-2
+           bg-accent-600 hover:bg-accent-700 active:bg-accent-800
+           text-white font-sans font-semibold tracking-wide
+           px-5 py-2.5 rounded-lg transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2
+           bg-white hover:bg-gray-50 active:bg-gray-100
+           text-gray-800 font-sans font-semibold tracking-wide
+           px-5 py-2.5 rounded-lg border border-gray-300
+           transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-gray-300
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2
+           bg-red-600 hover:bg-red-700 active:bg-red-800
+           text-white font-sans font-semibold tracking-wide
+           px-5 py-2.5 rounded-lg transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2;
+  }
+
+  /* ── Inputs ── */
+  .input-field {
+    @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5
+           font-body text-sm text-gray-900 placeholder-gray-400
+           focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100
+           transition-colors duration-150
+           disabled:bg-gray-50 disabled:text-gray-500;
+  }
+  .label {
+    @apply block text-sm font-sans font-semibold tracking-wide text-gray-700 mb-1.5;
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+  }
+  .card-dark {
+    @apply bg-dark-800 rounded-xl border border-dark-600;
+  }
+
+  /* ── Typography ── */
+  .page-title {
+    @apply font-display text-4xl tracking-widest text-gray-900;
+  }
+  .section-title {
+    @apply text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-3;
+  }
+
+  /* ── Sidebar nav items ── */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-semibold
+           tracking-wide transition-all duration-150 cursor-pointer;
+  }
+  .nav-item-active {
+    @apply bg-brand-600/20 text-brand-300 border border-brand-600/30;
+  }
+  .nav-item-inactive {
+    @apply text-dark-500/80 hover:bg-dark-700 hover:text-white;
+  }
+  /* Fix: text colors for dark sidebar */
+  .sidebar-nav-active  { @apply bg-white/10 text-white border border-white/20; }
+  .sidebar-nav-inactive{ @apply text-gray-400 hover:bg-white/5 hover:text-gray-200; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* File input */
+input[type="file"]::file-selector-button {
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium
+         px-3 py-1.5 rounded-md border-0 cursor-pointer mr-3 transition-colors;
+}
+
+/* Neon glow for brand elements */
+.glow-brand {
+  text-shadow: 0 0 20px rgba(136, 51, 255, 0.5), 0 0 40px rgba(136, 51, 255, 0.2);
+}
+.glow-accent {
+  text-shadow: 0 0 20px rgba(240, 5, 154, 0.5), 0 0 40px rgba(240, 5, 154, 0.2);
+}
