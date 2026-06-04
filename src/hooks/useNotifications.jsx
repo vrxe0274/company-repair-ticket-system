@@ -52,7 +52,13 @@ export function NotificationsProvider({ children }) {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Polling fallback — refetch every 60s in case the realtime channel drops
+    const interval = setInterval(fetchNotifications, 60000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
   }, [role, fetchNotifications])
 
   // ── Derived ────────────────────────────────────────────────────────────────
