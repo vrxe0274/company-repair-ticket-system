@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Ticket, LogOut, Menu, ExternalLink, Trash2, X, Shield, Wrench } from 'lucide-react'
+import { LayoutDashboard, Ticket, LogOut, Menu, ExternalLink, Trash2, X, Shield, Wrench, Bell } from 'lucide-react'
+import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
 import { supabase } from '../../lib/supabase'
 import Logo from '../../components/ui/Logo.jsx'
 
 const NAV = [
-  { to: '/dashboard',         label: 'Overview',    icon: LayoutDashboard, exact: true },
-  { to: '/dashboard/tickets', label: 'All Tickets', icon: Ticket },
+  { to: '/dashboard',               label: 'Overview',      icon: LayoutDashboard, exact: true },
+  { to: '/dashboard/tickets',       label: 'All Tickets',   icon: Ticket },
+  { to: '/dashboard/notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
 ]
 
 export default function DashboardLayout() {
   const { logout }         = useAuth()
   const { role, clearRole, isAdmin } = useRole()
+  const { unseenCount } = useNotifications()
   const location           = useLocation()
   const navigate           = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -83,7 +86,7 @@ export default function DashboardLayout() {
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.map(({ to, label, icon: Icon, exact }) => (
+        {NAV.map(({ to, label, icon: Icon, exact, id }) => (
           <Link
             key={to}
             to={to}
@@ -95,7 +98,12 @@ export default function DashboardLayout() {
               }`}
           >
             <Icon className="w-4 h-4 shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {id === 'notifications' && unseenCount > 0 && (
+              <span className="ml-auto min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-accent-500 text-white text-[10px] font-mono font-bold leading-none">
+                {unseenCount > 99 ? '99+' : unseenCount}
+              </span>
+            )}
           </Link>
         ))}
 

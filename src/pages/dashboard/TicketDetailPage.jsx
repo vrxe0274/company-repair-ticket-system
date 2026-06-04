@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { NEXT_STATUSES, getTrackingUrl, STATUS_ORDER, STATUS_DESCRIPTIONS } from '../../lib/utils'
+import { createNotification, buildStatusNotification } from '../../lib/notifications'
 import { downloadTicketPDF } from '../../lib/pdf'
 import { useRole } from '../../hooks/useRole.jsx'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
@@ -163,6 +164,23 @@ export default function TicketDetailPage() {
     const { data, error } = await supabase.from('tickets').update(patch).eq('id', id).select().single()
     if (!error) {
       hydrate(data)
+
+      // Send an in-app notification to the other role
+      const note = buildStatusNotification({
+        actorRole:     role,
+        newStatus,
+        ticketHumanId: data.ticket_id,
+      })
+      if (note) {
+        createNotification({
+          recipientRole: note.recipientRole,
+          message:       note.message,
+          type:          'status_change',
+          ticketUuid:    data.id,
+          ticketHumanId: data.ticket_id,
+        })
+      }
+
       if (newStatus === 'Paid') {
         setTimeout(() => downloadTicketPDF(data), 300)
       }
