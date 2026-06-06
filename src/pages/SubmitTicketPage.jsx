@@ -5,7 +5,6 @@ import {
   User, Cpu, AlertCircle, CalendarClock, Send
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { createNotification } from '../lib/notifications'
 import {
   generateTicketId, generateTrackingToken, getTrackingUrl,
   PLATFORMS, UNIT_TYPES, VR_BRANDS, VR_ISSUES, MODES_OF_SERVICE
@@ -116,15 +115,6 @@ export default function SubmitTicketPage() {
 
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
-
-      // Let Admin know a new ticket arrived
-      createNotification({
-        recipientRole: 'Admin',
-        message:       `New ticket ${data.ticket_id} submitted by ${data.client_name}.`,
-        type:          'new_ticket',
-        ticketUuid:    data.id,
-        ticketHumanId: data.ticket_id,
-      })
 
       setSubmitted(data)
       setForm(FORM_INITIAL)
@@ -240,7 +230,7 @@ export default function SubmitTicketPage() {
               )
             })}
           </div>
-          <div className="text-xs font-body text-gray-400">Step {step} of {STEPS.length} — <span className="font-semibold text-gray-700">{STEPS[step - 1].label}</span></div>
+          <div className="text-xs font-body text-gray-400 text-center">Step {step} of {STEPS.length} — <span className="font-semibold text-gray-700">{STEPS[step - 1].label}</span></div>
         </div>
       </div>
 
