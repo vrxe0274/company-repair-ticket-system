@@ -1,3 +1,4 @@
+// src/App.jsx
 import { Routes, Route, Navigate } from 'react-router-dom'
 import SubmitTicketPage from './pages/SubmitTicketPage.jsx'
 import TrackTicketPage from './pages/TrackTicketPage.jsx'
@@ -13,12 +14,12 @@ export default function App() {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/" element={<SubmitTicketPage />} />
+      <Route path="/submit" element={<SubmitTicketPage />} />
       <Route path="/track/:token" element={<TrackTicketPage />} />
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Protected dashboard */}
-      <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+      {/* Protected dashboard — now the root */}
+      <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route index element={<DashboardHome />} />
         <Route path="tickets" element={<TicketListPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />

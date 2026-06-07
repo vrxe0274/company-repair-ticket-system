@@ -109,7 +109,7 @@ export default function DashboardLayout() {
 
         <div className="pt-2 mt-1 border-t border-dark-700">
           <a
-            href="/"
+            href="/submit"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-all"

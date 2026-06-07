@@ -428,9 +428,6 @@ function PublicHeader() {
   return (
     <header className="bg-dark-900 border-b border-dark-700 px-6 py-3 flex items-center justify-between">
       <Logo size="sm" />
-      <Link to="/login" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-mono tracking-wider">
-        Staff Portal →
-      </Link>
     </header>
   )
 }

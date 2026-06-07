@@ -133,7 +133,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-            <Link to="/" className="text-xs text-gray-400 hover:text-gray-600 transition-colors font-body">
+            <Link to="/submit" className="text-xs text-gray-400 hover:text-gray-600 transition-colors font-body">
               ← Back to ticket submission
             </Link>
           </div>
