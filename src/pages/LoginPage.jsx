@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false)
 
   if (authenticated) {
-    navigate('/dashboard', { replace: true })
+    navigate('/', { replace: true })
     return null
   }
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
       const ok = loginWithRole(password, selectedRole)
       if (ok) {
         setRole(selectedRole)
-        navigate('/dashboard', { replace: true })
+        navigate('/', { replace: true })
       } else {
         setError(`Incorrect password for ${selectedRole}.`)
         setPassword('')

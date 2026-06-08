@@ -133,7 +133,7 @@ export default function TicketListPage() {
                         {format(new Date(t.created_at), 'MMM d, yyyy')}
                       </td>
                       <td className="px-5 py-3.5">
-                        <Link to={`/dashboard/tickets/${t.id}`} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline font-sans font-semibold">
+                        <Link to={`/tickets/${t.id}`} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline font-sans font-semibold">
                           View <ChevronRight className="w-3 h-3" />
                         </Link>
                       </td>
@@ -146,7 +146,7 @@ export default function TicketListPage() {
             {/* Mobile list */}
             <div className="md:hidden divide-y divide-gray-50">
               {filtered.map(t => (
-                <Link key={t.id} to={`/dashboard/tickets/${t.id}`} className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors">
+                <Link key={t.id} to={`tickets/${t.id}`} className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>

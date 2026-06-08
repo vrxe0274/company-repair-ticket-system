@@ -63,7 +63,7 @@ export default function DashboardHome() {
         {STAT_STATUSES.map(({ label, key, color, bg, border, icon: Icon }) => (
           <Link
             key={key}
-            to={key === 'total' ? '/dashboard/tickets' : `/dashboard/tickets?status=${encodeURIComponent(key)}`}
+            to={key === 'total' ? 'tickets' : `tickets?status=${encodeURIComponent(key)}`}
             className={`rounded-xl border p-4 hover:shadow-md transition-all duration-150 ${bg} ${border}`}
           >
             <Icon className={`w-5 h-5 mb-2 ${color}`} />

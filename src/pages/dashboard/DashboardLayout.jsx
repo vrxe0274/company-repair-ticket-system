@@ -8,9 +8,9 @@ import { supabase } from '../../lib/supabase'
 import Logo from '../../components/ui/Logo.jsx'
 
 const NAV = [
-  { to: '/dashboard',               label: 'Overview',      icon: LayoutDashboard, exact: true },
-  { to: '/dashboard/tickets',       label: 'All Tickets',   icon: Ticket },
-  { to: '/dashboard/notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
+  { to: '/',               label: 'Overview',      icon: LayoutDashboard, exact: true },
+  { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
+  { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
 ]
 
 export default function DashboardLayout() {

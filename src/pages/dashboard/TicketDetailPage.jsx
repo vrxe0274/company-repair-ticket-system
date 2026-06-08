@@ -142,7 +142,7 @@ export default function TicketDetailPage() {
   async function fetchTicket() {
     setLoading(true)
     const { data, error } = await supabase.from('tickets').select('*').eq('id', id).single()
-    if (error || !data) { navigate('/dashboard/tickets'); return }
+    if (error || !data) { navigate('tickets'); return }
     hydrate(data)
     setLoading(false)
   }
@@ -285,7 +285,7 @@ export default function TicketDetailPage() {
 
   async function deleteTicket() {
     await supabase.from('tickets').delete().eq('id', id)
-    navigate('/dashboard/tickets')
+    navigate('tickets')
   }
 
   if (loading) {
@@ -318,7 +318,7 @@ export default function TicketDetailPage() {
 
       {/* Back + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <Link to="/dashboard/tickets" className="inline-flex items-center gap-2 text-sm font-body text-gray-500 hover:text-gray-800 transition-colors">
+        <Link to="tickets" className="inline-flex items-center gap-2 text-sm font-body text-gray-500 hover:text-gray-800 transition-colors">
           <ArrowLeft className="w-4 h-4" /> All Tickets
         </Link>
         <div className="flex items-center gap-2">
