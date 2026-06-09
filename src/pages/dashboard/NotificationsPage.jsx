@@ -1,17 +1,41 @@
+/**
+ * @file NotificationsPage.jsx
+ * @description In-app notification inbox for the logged-in role.
+ *
+ * Notifications are fed via the useNotifications hook which maintains a
+ * realtime Supabase subscription + 60s polling fallback. Clicking a
+ * notification marks it seen and navigates to the related ticket.
+ *
+ * renderMessage() highlights embedded Ticket IDs (VRXE-YYYYMMDD-XXXX)
+ * as styled chips so staff can instantly recognise which ticket a message
+ * is about without reading the full text.
+ */
+
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { Bell, CheckCheck, Inbox, ChevronRight } from 'lucide-react'
-import { useRole } from '../../hooks/useRole.jsx'
+import { useRole }          from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Parse a notification message and wrap any embedded Ticket IDs in a styled
+ * badge chip. Ticket IDs match the pattern VRXE-YYYYMMDD-XXXX.
+ *
+ * Using split + map rather than dangerouslySetInnerHTML keeps this XSS-safe.
+ *
+ * @param {string} message - Raw notification message string.
+ * @returns {ReactNode[]}
+ */
 function renderMessage(message) {
-  const parts = message.split(/(VRXE-\d{8}-[A-Z0-9]{4})/)
-  return parts.map((part, i) =>
-    /^VRXE-\d{8}-[A-Z0-9]{4}$/.test(part) ? (
+  const TICKET_ID_REGEX = /(VRXE-\d{8}-[A-Z0-9]{4})/
+  return message.split(TICKET_ID_REGEX).map((part, i) =>
+    TICKET_ID_REGEX.test(part) ? (
       <span
         key={i}
         className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[11px] font-bold
-                     bg-amber-100 text-amber-800 border border-amber-200 mx-0.5 leading-none align-middle"
+                   bg-amber-100 text-amber-800 border border-amber-200 mx-0.5 leading-none align-middle"
       >
         {part}
       </span>
@@ -19,11 +43,20 @@ function renderMessage(message) {
   )
 }
 
+// ── Page component ─────────────────────────────────────────────────────────────
+
+/** NotificationsPage — role-scoped notification inbox. */
 export default function NotificationsPage() {
   const navigate = useNavigate()
   const { role } = useRole()
   const { notifications, unseenCount, loading, markAllSeen, markSeen } = useNotifications()
 
+  /**
+   * Mark a notification as seen (optimistically, then persisted via the hook)
+   * and navigate to the related ticket if one exists.
+   *
+   * @param {Object} n - Notification row from Supabase.
+   */
   function openNotification(n) {
     if (!n.seen) markSeen(n.id)
     if (n.ticket_uuid) navigate(`/tickets/${n.ticket_uuid}`)
@@ -31,6 +64,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -48,7 +82,7 @@ export default function NotificationsPage() {
         </button>
       </div>
 
-      {/* List */}
+      {/* Notification list */}
       <div className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -70,13 +104,12 @@ export default function NotificationsPage() {
                 className={`w-full text-left flex items-start gap-3 px-5 py-4 transition-colors
                   ${n.seen ? 'hover:bg-gray-50' : 'bg-brand-50/60 hover:bg-brand-50'}`}
               >
-                {/* Unseen dot / icon */}
+                {/* Seen/unseen indicator */}
                 <div className="shrink-0 mt-0.5">
-                  {!n.seen ? (
-                    <span className="block w-2.5 h-2.5 rounded-full bg-accent-500" />
-                  ) : (
-                    <Bell className="w-3.5 h-3.5 text-gray-300" />
-                  )}
+                  {n.seen
+                    ? <Bell className="w-3.5 h-3.5 text-gray-300" />
+                    : <span className="block w-2.5 h-2.5 rounded-full bg-accent-500" />
+                  }
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -91,6 +124,7 @@ export default function NotificationsPage() {
                   </p>
                 </div>
 
+                {/* Navigate indicator — only shown when the notification links to a ticket */}
                 {n.ticket_uuid && (
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-0.5" />
                 )}

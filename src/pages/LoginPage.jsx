@@ -1,3 +1,16 @@
+/**
+ * @file LoginPage.jsx
+ * @description Staff login page. Presents a password field and two role
+ * buttons (Admin / Technician). On success, stores the role in context and
+ * redirects to the dashboard root.
+ *
+ * Auth flow:
+ *   1. User enters password and clicks a role button.
+ *   2. loginWithRole() compares against the matching VITE_*_PASSWORD env var.
+ *   3. On success, setRole() persists the role to sessionStorage via RoleProvider.
+ *   4. navigate('/') → ProtectedRoute lets them through.
+ */
+
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield } from 'lucide-react'
@@ -5,25 +18,104 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useRole, ROLES } from '../hooks/useRole.jsx'
 import Logo from '../components/ui/Logo.jsx'
 
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+/** Delay (ms) added before processing login to mask timing attacks. */
+const LOGIN_DELAY_MS = 400
+
+/**
+ * Per-role visual config for the RoleButton component.
+ * Keyed by the role's colour family to keep the ternary logic out of JSX.
+ */
+const ROLE_BUTTON_STYLES = {
+  brand: {
+    border: 'border-brand-200 hover:border-brand-500 active:border-brand-600',
+    bg:     'hover:bg-brand-50',
+    icon:   'bg-brand-100 text-brand-700',
+    text:   'text-brand-700',
+  },
+  accent: {
+    border: 'border-accent-200 hover:border-accent-500 active:border-accent-600',
+    bg:     'hover:bg-accent-50',
+    icon:   'bg-accent-100 text-accent-700',
+    text:   'text-accent-700',
+  },
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+/**
+ * RoleButton — a large role-selector button shown on the login form.
+ *
+ * @param {React.ElementType} icon       - Lucide icon component.
+ * @param {string}            label      - Role display name.
+ * @param {string}            description - Short capability description.
+ * @param {'brand'|'accent'}  color      - Colour family key.
+ * @param {boolean}           loading    - Disables and shows spinner when true.
+ * @param {Function}          onClick    - Called when the button is pressed.
+ */
+function RoleButton({ icon: Icon, label, description, color, loading, onClick }) {
+  const s = ROLE_BUTTON_STYLES[color]
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2
+                  transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed
+                  ${s.border} ${s.bg}`}
+    >
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${s.icon}`}>
+        {loading
+          ? <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          : <Icon className="w-6 h-6" />
+        }
+      </div>
+      <div>
+        <p className={`font-sans font-bold text-base tracking-wide ${s.text}`}>{label}</p>
+        <p className="text-sm font-body text-gray-500 mt-0.5">{description}</p>
+      </div>
+    </button>
+  )
+}
+
+// ── Page component ─────────────────────────────────────────────────────────────
+
+/**
+ * LoginPage — the staff authentication gate.
+ * Redirects immediately to '/' if the session is already authenticated.
+ */
 export default function LoginPage() {
   const { loginWithRole, authenticated } = useAuth()
   const { setRole }                      = useRole()
   const navigate                         = useNavigate()
 
   const [password, setPassword] = useState('')
-  const [show,     setShow]     = useState(false)
+  const [showPw,   setShowPw]   = useState(false)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
+  // Guard: already authenticated — redirect without rendering the form.
   if (authenticated) {
     navigate('/', { replace: true })
     return null
   }
 
+  /**
+   * Attempt login for the given role. The artificial delay prevents
+   * response-timing attacks from revealing whether the password was close.
+   *
+   * @param {string} selectedRole - One of ROLES.ADMIN | ROLES.TECHNICIAN
+   */
   function handleRoleLogin(selectedRole) {
-    if (!password) { setError('Please enter your password.'); return }
+    if (!password) {
+      setError('Please enter your password.')
+      return
+    }
     setLoading(true)
     setError('')
+
     setTimeout(() => {
       const ok = loginWithRole(password, selectedRole)
       if (ok) {
@@ -34,20 +126,30 @@ export default function LoginPage() {
         setPassword('')
       }
       setLoading(false)
-    }, 400)
+    }, LOGIN_DELAY_MS)
   }
 
   return (
     <div className="min-h-screen flex">
-      {/* ── Left dark brand panel ── */}
+
+      {/* ── Left decorative panel (desktop only) ── */}
       <div className="hidden lg:flex flex-col justify-between w-96 relative overflow-hidden bg-dark-900 p-10 shrink-0">
+        {/* Ambient radial gradients — purely decorative */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full opacity-30"
-            style={{ background: 'radial-gradient(circle, #7317e8, transparent 70%)' }} />
-          <div className="absolute bottom-1/4 -right-20 w-72 h-72 rounded-full opacity-20"
-            style={{ background: 'radial-gradient(circle, #d4007f, transparent 70%)' }} />
+          <div
+            className="absolute top-1/4 -left-20 w-72 h-72 rounded-full opacity-30"
+            style={{ background: 'radial-gradient(circle, #7317e8, transparent 70%)' }}
+          />
+          <div
+            className="absolute bottom-1/4 -right-20 w-72 h-72 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle, #d4007f, transparent 70%)' }}
+          />
         </div>
-        <div className="relative z-10"><Logo size="lg" /></div>
+
+        <div className="relative z-10">
+          <Logo size="lg" />
+        </div>
+
         <div className="relative z-10 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-brand-700/50 bg-brand-900/30">
             <ShieldCheck className="w-3.5 h-3.5 text-brand-400" />
@@ -58,14 +160,17 @@ export default function LoginPage() {
           </p>
           <p className="text-gray-500 text-sm font-body">For authorized VRXE staff only.</p>
         </div>
-        <p className="relative z-10 text-gray-600 text-xs font-mono">© {new Date().getFullYear()} VRXE</p>
+
+        <p className="relative z-10 text-gray-600 text-xs font-mono">
+          © {new Date().getFullYear()} VRXE
+        </p>
       </div>
 
-      {/* ── Right panel ── */}
+      {/* ── Right login panel ── */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
         <div className="w-full max-w-sm animate-slide-up">
 
-          {/* Mobile logo */}
+          {/* Mobile logo (hidden on desktop where the left panel shows it) */}
           <div className="lg:hidden mb-8 flex justify-center">
             <div className="bg-dark-900 rounded-2xl p-4 inline-block">
               <Logo size="md" />
@@ -85,25 +190,28 @@ export default function LoginPage() {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
-                type={show ? 'text' : 'password'}
+                type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError('') }}
                 className="input-field pl-10 pr-10"
                 placeholder="Enter your password"
                 autoFocus
+                // Allow Enter to trigger Admin login (the most common role)
                 onKeyDown={e => e.key === 'Enter' && handleRoleLogin(ROLES.ADMIN)}
               />
               <button
                 type="button"
-                onClick={() => setShow(!show)}
+                onClick={() => setShowPw(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label={showPw ? 'Hide password' : 'Show password'}
               >
-                {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+
             {error && (
               <p className="text-xs text-red-500 mt-1.5 font-body flex items-center gap-1">
-                <span className="w-1 h-1 bg-red-500 rounded-full" />
+                <span className="w-1 h-1 bg-red-500 rounded-full shrink-0" />
                 {error}
               </p>
             )}
@@ -133,50 +241,16 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-            <Link to="/submit" className="text-xs text-gray-400 hover:text-gray-600 transition-colors font-body">
+            <Link
+              to="/submit"
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors font-body"
+            >
               ← Back to ticket submission
             </Link>
           </div>
+
         </div>
       </div>
     </div>
-  )
-}
-
-function RoleButton({ icon: Icon, label, description, color, loading, onClick }) {
-  const styles = {
-    brand: {
-      border: 'border-brand-200 hover:border-brand-500 active:border-brand-600',
-      bg:     'hover:bg-brand-50',
-      icon:   'bg-brand-100 text-brand-700',
-      text:   'text-brand-700',
-    },
-    accent: {
-      border: 'border-accent-200 hover:border-accent-500 active:border-accent-600',
-      bg:     'hover:bg-accent-50',
-      icon:   'bg-accent-100 text-accent-700',
-      text:   'text-accent-700',
-    },
-  }
-  const s = styles[color]
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={loading}
-      className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed ${s.border} ${s.bg}`}
-    >
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${s.icon}`}>
-        {loading
-          ? <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          : <Icon className="w-6 h-6" />
-        }
-      </div>
-      <div>
-        <p className={`font-sans font-bold text-base tracking-wide ${s.text}`}>{label}</p>
-        <p className="text-sm font-body text-gray-500 mt-0.5">{description}</p>
-      </div>
-    </button>
   )
 }

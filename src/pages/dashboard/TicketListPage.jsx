@@ -1,3 +1,16 @@
+/**
+ * @file TicketListPage.jsx
+ * @description Filterable, searchable list of all repair tickets.
+ *
+ * Filtering is done entirely client-side after a single fetch of all tickets.
+ * The active status filter is stored in the URL query string (?status=...) so
+ * that deep links and the stat-card links from DashboardHome work correctly.
+ *
+ * // PERF: For large databases (thousands of tickets), consider moving
+ * // filtering and search to server-side Supabase queries with pagination
+ * // rather than fetching all rows and filtering in-memory.
+ */
+
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -7,40 +20,66 @@ import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+/**
+ * All valid status filter values for the filter pill row.
+ * 'All' is a virtual value — it clears the status filter entirely.
+ */
 const ALL_STATUSES = ['All', ...STATUS_ORDER, STATUS_DENIED]
 
+/**
+ * Fields searched when the user types in the search box.
+ * Kept as a constant so it's clear what is and isn't searched.
+ */
+const SEARCHABLE_FIELDS = ['ticket_id', 'client_name', 'email', 'unit_brand', 'unit_model', 'contact_number']
+
+// ── Page component ─────────────────────────────────────────────────────────────
+
+/** TicketListPage — master list with status filter pills and full-text search. */
 export default function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
 
+  // Derive active status filter from URL; defaults to 'All' when absent.
   const activeStatus = searchParams.get('status') || 'All'
 
   useEffect(() => { fetchTickets() }, [])
 
+  /** Fetch all tickets, newest first. */
   async function fetchTickets() {
     setLoading(true)
-    const { data } = await supabase.from('tickets').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase
+      .from('tickets')
+      .select('*')
+      .order('created_at', { ascending: false })
     setTickets(data || [])
     setLoading(false)
   }
 
+  /**
+   * Client-side filter: AND of status match + search term.
+   * Search is case-insensitive and checked against SEARCHABLE_FIELDS.
+   */
   const filtered = tickets.filter(t => {
-    const matchStatus = activeStatus === 'All' || t.status === activeStatus
+    const matchesStatus = activeStatus === 'All' || t.status === activeStatus
     const q = search.toLowerCase()
-    const matchSearch = !q || [t.ticket_id, t.client_name, t.email, t.unit_brand, t.unit_model, t.contact_number]
-      .some(v => v?.toLowerCase().includes(q))
-    return matchStatus && matchSearch
+    const matchesSearch = !q || SEARCHABLE_FIELDS.some(f => t[f]?.toLowerCase().includes(q))
+    return matchesStatus && matchesSearch
   })
 
   return (
     <div className="space-y-5 animate-fade-in">
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-widest text-gray-900">ALL TICKETS</h1>
-          <p className="text-sm font-body text-gray-400 mt-0.5">{filtered.length} ticket{filtered.length !== 1 ? 's' : ''} shown</p>
+          <p className="text-sm font-body text-gray-400 mt-0.5">
+            {filtered.length} ticket{filtered.length !== 1 ? 's' : ''} shown
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={fetchTickets} className="btn-secondary text-sm">
@@ -56,7 +95,7 @@ export default function TicketListPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Search + filter controls */}
       <div className="card p-4 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -68,6 +107,8 @@ export default function TicketListPage() {
             className="input-field pl-9"
           />
         </div>
+
+        {/* Status filter pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <Filter className="w-3.5 h-3.5 text-gray-400 mr-1" />
           {ALL_STATUSES.map(s => (
@@ -91,7 +132,7 @@ export default function TicketListPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Ticket table / list */}
       <div className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -101,24 +142,25 @@ export default function TicketListPage() {
           <div className="text-center py-16 text-gray-400 text-sm font-body">No tickets found</div>
         ) : (
           <>
-            {/* Desktop table */}
+            {/* Desktop table (hidden on small screens) */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 text-left bg-gray-50">
-                    <th className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">Ticket ID</th>
-                    <th className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">Client</th>
-                    <th className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">Unit</th>
-                    <th className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-5 py-3" />
+                    {['Ticket ID', 'Client', 'Unit', 'Status', 'Date', ''].map(h => (
+                      <th key={h} className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filtered.map(t => (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3.5">
-                        <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{t.ticket_id}</span>
+                        <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          {t.ticket_id}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5">
                         <p className="font-sans font-semibold text-gray-900">{t.client_name}</p>
@@ -128,12 +170,17 @@ export default function TicketListPage() {
                         <p className="font-body text-gray-700">{t.unit_brand} {t.unit_model}</p>
                         <p className="text-xs font-body text-gray-400">{t.unit_type}</p>
                       </td>
-                      <td className="px-5 py-3.5"><StatusBadge status={t.status} /></td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={t.status} />
+                      </td>
                       <td className="px-5 py-3.5 text-xs font-body text-gray-400">
                         {format(new Date(t.created_at), 'MMM d, yyyy')}
                       </td>
                       <td className="px-5 py-3.5">
-                        <Link to={`/tickets/${t.id}`} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline font-sans font-semibold">
+                        <Link
+                          to={`/tickets/${t.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline font-sans font-semibold"
+                        >
                           View <ChevronRight className="w-3 h-3" />
                         </Link>
                       </td>
@@ -143,10 +190,14 @@ export default function TicketListPage() {
               </table>
             </div>
 
-            {/* Mobile list */}
+            {/* Mobile card list */}
             <div className="md:hidden divide-y divide-gray-50">
               {filtered.map(t => (
-                <Link key={t.id} to={`/tickets/${t.id}`} className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors">
+                <Link
+                  key={t.id}
+                  to={`/tickets/${t.id}`}
+                  className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>

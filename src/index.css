@@ -1,15 +1,56 @@
+/* =============================================================================
+ * VRXE Repair Ticket System — Global Styles
+ *
+ * Architecture: Tailwind CSS utility-first with @layer components for
+ * reusable design-system classes. All brand colour tokens and font stacks
+ * are defined in tailwind.config.js; this file consumes them via @apply.
+ *
+ * Layer order (Tailwind convention):
+ *   base       → resets and global element defaults
+ *   components → named, multi-utility classes (buttons, inputs, cards …)
+ *   utilities  → single-purpose overrides (Tailwind's own output)
+ * ============================================================================= */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* =============================================================================
+ * BASE — global element defaults
+ * ============================================================================= */
 @layer base {
+  /* Smooth anchor scrolling across the whole document. */
   html { scroll-behavior: smooth; }
+
+  /*
+   * Light-mode default surface: white background, near-black text.
+   * font-body = Inter (defined in tailwind.config.js).
+   * antialiased improves sub-pixel rendering on high-DPI screens.
+   */
   body { @apply bg-white text-gray-900 font-body antialiased; }
 }
 
+/* =============================================================================
+ * COMPONENTS — reusable design-system classes
+ * ============================================================================= */
 @layer components {
 
-  /* ── Buttons ── */
+  /* ---------------------------------------------------------------------------
+   * BUTTONS
+   *
+   * All button variants share the same base shape/spacing pattern:
+   *   inline-flex  items-center  gap-2  px-5  py-2.5  rounded-lg
+   *   font-sans  font-semibold  tracking-wide  transition-all  duration-150
+   *   focus:outline-none  focus:ring-2  focus:ring-offset-2
+   *   disabled:opacity-50  disabled:cursor-not-allowed
+   *
+   * The only axis of variation between variants is colour (bg, ring).
+   * .btn-danger intentionally omits disabled styles — use sparingly and
+   * only in contexts where a disabled state is never needed (e.g. confirm
+   * modals that are shown only when an action is already possible).
+   * --------------------------------------------------------------------------- */
+
+  /** Primary action button — brand purple. */
   .btn-primary {
     @apply inline-flex items-center gap-2
            bg-brand-600 hover:bg-brand-700 active:bg-brand-800
@@ -18,6 +59,8 @@
            focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
+
+  /** Secondary accent button — magenta/pink, for high-visibility CTAs. */
   .btn-accent {
     @apply inline-flex items-center gap-2
            bg-accent-600 hover:bg-accent-700 active:bg-accent-800
@@ -26,6 +69,8 @@
            focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
+
+  /** Neutral/ghost button — white surface with gray border. */
   .btn-secondary {
     @apply inline-flex items-center gap-2
            bg-white hover:bg-gray-50 active:bg-gray-100
@@ -35,6 +80,11 @@
            focus:outline-none focus:ring-2 focus:ring-gray-300
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
+
+  /**
+   * Destructive action button — red, for delete / flush operations.
+   * NOTE: disabled styles are intentionally absent (see block comment above).
+   */
   .btn-danger {
     @apply inline-flex items-center gap-2
            bg-red-600 hover:bg-red-700 active:bg-red-800
@@ -43,7 +93,11 @@
            focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2;
   }
 
-  /* ── Inputs ── */
+  /* ---------------------------------------------------------------------------
+   * FORM INPUTS
+   * --------------------------------------------------------------------------- */
+
+  /** Text input / select / textarea — consistent field chrome. */
   .input-field {
     @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5
            font-body text-sm text-gray-900 placeholder-gray-400
@@ -51,58 +105,163 @@
            transition-colors duration-150
            disabled:bg-gray-50 disabled:text-gray-500;
   }
+
+  /** Form field label — always paired with an .input-field. */
   .label {
     @apply block text-sm font-sans font-semibold tracking-wide text-gray-700 mb-1.5;
   }
 
-  /* ── Cards ── */
+  /* ---------------------------------------------------------------------------
+   * CARDS
+   * --------------------------------------------------------------------------- */
+
+  /** Light-surface card — used throughout the public-facing pages. */
   .card {
     @apply bg-white rounded-xl border border-gray-200 shadow-sm;
   }
+
+  /** Dark-surface card — used inside the staff dashboard sidebar panels. */
   .card-dark {
     @apply bg-dark-800 rounded-xl border border-dark-600;
   }
 
-  /* ── Typography ── */
+  /* ---------------------------------------------------------------------------
+   * TYPOGRAPHY HELPERS
+   * --------------------------------------------------------------------------- */
+
+  /**
+   * Page-level heading — Bebas Neue display font, wide letter-spacing.
+   * Intended for the top H1 of each page.
+   */
   .page-title {
     @apply font-display text-4xl tracking-widest text-gray-900;
   }
+
+  /**
+   * Section sub-heading — uppercase monospace-style label above
+   * a group of related content (e.g. "TICKET INFO", "PRICING").
+   */
   .section-title {
     @apply text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-3;
   }
 
-  /* ── Sidebar nav items ── */
+  /* ---------------------------------------------------------------------------
+   * SIDEBAR NAVIGATION
+   *
+   * Two parallel naming conventions exist here — this is a known redundancy
+   * that must be resolved before the next refactor pass.
+   *
+   * CURRENT STATE:
+   *   .nav-item / .nav-item-active / .nav-item-inactive  ← defined below
+   *   .sidebar-nav-active / .sidebar-nav-inactive         ← defined below
+   *
+   * PROBLEM:
+   *   DashboardLayout.jsx does NOT use these classes at all. It inlines the
+   *   same Tailwind utilities directly on the <Link> elements, producing a
+   *   divergent source of truth. Any visual change to the nav items must
+   *   currently be made in TWO places or they will drift.
+   *
+   * RECOMMENDED FIX (out of scope for CSS-only pass):
+   *   Replace the inline className ternary in DashboardLayout.jsx with:
+   *     `nav-item ${isActive(...) ? 'nav-item-active' : 'nav-item-inactive'}`
+   *   Then remove the redundant .sidebar-nav-* classes entirely.
+   *
+   * // REVIEW: Until DashboardLayout.jsx is updated, both sets of classes
+   * // must remain to avoid breaking whichever callers exist in other
+   * // components that may use them.
+   * --------------------------------------------------------------------------- */
+
+  /**
+   * Base nav item shell — shared layout utilities applied to every sidebar
+   * link regardless of active state.
+   */
   .nav-item {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-semibold
            tracking-wide transition-all duration-150 cursor-pointer;
   }
+
+  /** Active state for .nav-item — brand-purple tint with subtle border. */
   .nav-item-active {
     @apply bg-brand-600/20 text-brand-300 border border-brand-600/30;
   }
+
+  /**
+   * Inactive state for .nav-item.
+   * // REVIEW: Uses `text-dark-500/80` which maps to the custom `dark` palette
+   * // (dark-500 = #32323d). On a dark-900 sidebar this is nearly invisible.
+   * // DashboardLayout.jsx uses `text-gray-400` instead — consider aligning.
+   */
   .nav-item-inactive {
     @apply text-dark-500/80 hover:bg-dark-700 hover:text-white;
   }
-  /* Fix: text colors for dark sidebar */
-  .sidebar-nav-active  { @apply bg-white/10 text-white border border-white/20; }
-  .sidebar-nav-inactive{ @apply text-gray-400 hover:bg-white/5 hover:text-gray-200; }
+
+  /**
+   * Alternative active variant — uses a white-tinted surface rather than
+   * the brand-purple tint. Currently used nowhere (DashboardLayout inlines
+   * its own styles). Kept to avoid breaking any future or external callers.
+   *
+   * // REVIEW: Consolidate with .nav-item-active once DashboardLayout.jsx
+   * // is migrated to class-based nav styling.
+   */
+  .sidebar-nav-active {
+    @apply bg-white/10 text-white border border-white/20;
+  }
+
+  /**
+   * Alternative inactive variant — matches the style DashboardLayout.jsx
+   * actually uses inline. The canonical version until DashboardLayout is
+   * refactored to consume .nav-item-inactive.
+   */
+  .sidebar-nav-inactive {
+    @apply text-gray-400 hover:bg-white/5 hover:text-gray-200;
+  }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #444; border-radius: 99px; }
+/* =============================================================================
+ * GLOBAL UTILITIES — outside @layer so they are not purged by Tailwind
+ * ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+ * CUSTOM SCROLLBAR (WebKit/Blink only; Firefox ignores these rules and
+ * shows its own thin scrollbar by default, which is acceptable).
+ * --------------------------------------------------------------------------- */
+::-webkit-scrollbar         { width: 5px; height: 5px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: #444; border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: #666; }
 
-/* File input */
+/* ---------------------------------------------------------------------------
+ * FILE INPUT BUTTON
+ *
+ * Overrides the browser's native file-picker button chrome so it matches
+ * the rest of the design system (light gray surface, body font).
+ * --------------------------------------------------------------------------- */
 input[type="file"]::file-selector-button {
   @apply bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium
          px-3 py-1.5 rounded-md border-0 cursor-pointer mr-3 transition-colors;
 }
 
-/* Neon glow for brand elements */
+/* ---------------------------------------------------------------------------
+ * NEON GLOW HELPERS
+ *
+ * Applied to brand / accent logo text via .glow-brand / .glow-accent.
+ * Values are raw hex-derived RGBA because Tailwind's text-shadow support
+ * requires a plugin; these intentionally stay as plain CSS.
+ *
+ * brand-500 = #8833ff → rgba(136, 51, 255, …)
+ * accent-500 = #f0059a → rgba(240, 5, 154, …)
+ * --------------------------------------------------------------------------- */
+
+/** Soft purple glow for brand-coloured elements (logo V and R). */
 .glow-brand {
-  text-shadow: 0 0 20px rgba(136, 51, 255, 0.5), 0 0 40px rgba(136, 51, 255, 0.2);
+  text-shadow:
+    0 0 20px rgba(136, 51, 255, 0.5),
+    0 0 40px rgba(136, 51, 255, 0.2);
 }
+
+/** Soft magenta glow for accent-coloured elements (logo X and E). */
 .glow-accent {
-  text-shadow: 0 0 20px rgba(240, 5, 154, 0.5), 0 0 40px rgba(240, 5, 154, 0.2);
+  text-shadow:
+    0 0 20px rgba(240, 5, 154, 0.5),
+    0 0 40px rgba(240, 5, 154, 0.2);
 }
