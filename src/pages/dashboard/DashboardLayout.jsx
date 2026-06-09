@@ -195,7 +195,7 @@ export default function DashboardLayout() {
 
         {/* External link to the public submission form */}
         <div className="pt-2 mt-1 border-t border-dark-700">
-          
+          <a                        
             href="/submit"
             target="_blank"
             rel="noopener noreferrer"
