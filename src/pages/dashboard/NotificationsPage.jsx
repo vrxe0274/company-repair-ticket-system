@@ -26,7 +26,7 @@ export default function NotificationsPage() {
 
   function openNotification(n) {
     if (!n.seen) markSeen(n.id)
-    if (n.ticket_uuid) navigate(`tickets/${n.ticket_uuid}`)
+    if (n.ticket_uuid) navigate(`/tickets/${n.ticket_uuid}`)
   }
 
   return (
