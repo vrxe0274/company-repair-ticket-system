@@ -4,6 +4,21 @@ import { Bell, CheckCheck, Inbox, ChevronRight } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 
+function renderMessage(message) {
+  const parts = message.split(/(VRXE-\d{8}-[A-Z0-9]{4})/)
+  return parts.map((part, i) =>
+    /^VRXE-\d{8}-[A-Z0-9]{4}$/.test(part) ? (
+      <span
+        key={i}
+        className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[11px] font-bold
+                     bg-amber-100 text-amber-800 border border-amber-200 mx-0.5 leading-none align-middle"
+      >
+        {part}
+      </span>
+    ) : part
+  )
+}
+
 export default function NotificationsPage() {
   const navigate = useNavigate()
   const { role } = useRole()
@@ -66,9 +81,9 @@ export default function NotificationsPage() {
 
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-body leading-snug ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
-                    {n.message}
+                    {renderMessage(n.message)}
                   </p>
-                  <p className="text-xs font-body text-gray-400 mt-0.5">
+                  <p className="text-[13px] font-body text-gray-400 mt-0.5">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                     {n.ticket_human_id && (
                       <span className="ml-2 font-mono text-gray-400">· {n.ticket_human_id}</span>
