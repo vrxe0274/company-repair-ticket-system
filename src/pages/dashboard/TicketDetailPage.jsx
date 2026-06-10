@@ -823,56 +823,64 @@ export default function TicketDetailPage() {
 
       {/* Ticket header */}
       <div className="card p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <span className="font-mono font-bold text-xl text-gray-900 tracking-wider">{ticket.ticket_id}</span>
-              <StatusBadge status={ticket.status} size="lg" />
-            </div>
-            <p className="text-xs font-body text-gray-400">
-              Submitted {format(new Date(ticket.created_at), 'MMMM d, yyyy · h:mm a')} ·
-              Updated {format(new Date(ticket.updated_at), 'MMM d, h:mm a')}
-            </p>
-            {ticket.paid_at && (
-              <p className="text-xs font-body text-emerald-600 mt-0.5 font-semibold">
-                ✓ Paid on {format(new Date(ticket.paid_at), 'MMMM d, yyyy · h:mm a')}
-              </p>
-            )}
+        {/* Primary row: ID + status left, transitions right */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-mono font-bold text-2xl text-gray-900 tracking-wider">{ticket.ticket_id}</span>
+            <StatusBadge status={ticket.status} size="lg" />
           </div>
 
-          <div className="flex flex-col items-end gap-2">
-            {nextStatuses.length > 0 ? (
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                {nextStatuses.map(status => (
-                  <button
-                    key={status}
-                    onClick={() => updateStatus(status)}
-                    disabled={statusUpdating}
-                    aria-label={`Transition to ${status}`}
-                    className={`btn-primary text-sm ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
-                  >
-                    {statusUpdating
-                      ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      : `→ ${status}`
-                    }
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <span className="text-xs font-body text-gray-500 italic">No transitions available</span>
-            )}
-            {transitionErrors.length > 0 && (
-              <div className="flex flex-col gap-1 items-end max-w-xs">
-                {transitionErrors.map((msg, i) => (
-                  <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600 text-right">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                    {msg}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
+          {nextStatuses.length > 0 ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              {nextStatuses.map(status => (
+                <button
+                  key={status}
+                  onClick={() => updateStatus(status)}
+                  disabled={statusUpdating}
+                  aria-label={`Transition to ${status}`}
+                  className={`btn-primary text-sm ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
+                >
+                  {statusUpdating
+                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : `→ ${status}`
+                  }
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs font-body text-gray-400 italic self-center">No transitions available</span>
+          )}
         </div>
+
+        {/* Secondary row: timestamps + paid indicator */}
+        <div className="flex items-center gap-3 flex-wrap mt-2 mb-4">
+          <p className="text-xs font-body text-gray-400">
+            Submitted {format(new Date(ticket.created_at), 'MMM d, yyyy · h:mm a')}
+          </p>
+          <span className="text-gray-300 text-xs">·</span>
+          <p className="text-xs font-body text-gray-400">
+            Updated {format(new Date(ticket.updated_at), 'MMM d, h:mm a')}
+          </p>
+          {ticket.paid_at && (
+            <>
+              <span className="text-gray-300 text-xs">·</span>
+              <p className="text-xs font-body text-emerald-600 font-semibold">
+                ✓ Paid {format(new Date(ticket.paid_at), 'MMM d, yyyy')}
+              </p>
+            </>
+          )}
+        </div>
+
+        {transitionErrors.length > 0 && (
+          <div className="flex flex-col gap-1 mb-4">
+            {transitionErrors.map((msg, i) => (
+              <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                {msg}
+              </p>
+            ))}
+          </div>
+        )}
 
         {/* Status step indicator */}
         <div className="flex items-center">
