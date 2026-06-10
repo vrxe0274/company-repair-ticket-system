@@ -154,7 +154,7 @@ export default function DashboardLayout() {
       {/* Logo + subtitle */}
       <div className="px-5 pt-6 pb-4 border-b border-dark-700">
         <Logo size="md" />
-        <span className="block text-[10px] font-mono text-gray-500 mt-2 tracking-[0.2em] uppercase">
+        <span className="block text-xs font-mono text-gray-500 mt-2 tracking-[0.2em] uppercase">
           Staff Dashboard
         </span>
       </div>
@@ -164,7 +164,7 @@ export default function DashboardLayout() {
         <div className="px-4 py-3 border-b border-dark-700">
           <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${roleBg}`}>
             <RoleIcon className={`w-3.5 h-3.5 shrink-0 ${roleColor}`} />
-            <span className={`text-xs font-sans font-semibold tracking-wider ${roleColor}`}>{role}</span>
+            <span className={`text-xs font-sans font-semibold ${roleColor}`}>{role}</span>
           </div>
         </div>
       )}
@@ -186,7 +186,7 @@ export default function DashboardLayout() {
             <span className="flex-1">{label}</span>
             {/* Notification badge — only on the Notifications nav item */}
             {id === 'notifications' && unseenCount > 0 && (
-              <span className="ml-auto min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-accent-500 text-white text-[10px] font-mono font-bold leading-none">
+              <span className="ml-auto min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-accent-500 text-white text-xs font-mono font-bold leading-none">
                 {unseenCount > NOTIFICATION_BADGE_MAX ? `${NOTIFICATION_BADGE_MAX}+` : unseenCount}
               </span>
             )}
@@ -247,7 +247,7 @@ export default function DashboardLayout() {
                 placeholder="Admin password"
                 autoFocus
               />
-              {flushError && <p className="text-[10px] text-red-400">{flushError}</p>}
+              {flushError && <p className="text-xs text-red-400">{flushError}</p>}
               <button
                 onClick={handleFlush}
                 disabled={flushing || !flushInput}

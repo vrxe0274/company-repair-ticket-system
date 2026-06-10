@@ -77,7 +77,7 @@ export default function TicketListPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-widest text-gray-900">ALL TICKETS</h1>
-          <p className="text-sm font-body text-gray-400 mt-0.5">
+          <p className="text-sm font-body text-gray-500 mt-0.5">
             {filtered.length} ticket{filtered.length !== 1 ? 's' : ''} shown
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function TicketListPage() {
             <button
               key={s}
               onClick={() => setSearchParams(s === 'All' ? {} : { status: s })}
-              className={`text-xs px-3 py-1.5 rounded-full font-sans font-semibold tracking-wide transition-colors
+              className={`text-sm px-3 py-1.5 rounded-full font-sans font-semibold transition-colors min-h-[34px]
                 ${activeStatus === s
                   ? 'bg-brand-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -139,7 +139,7 @@ export default function TicketListPage() {
             <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 text-sm font-body">No tickets found</div>
+          <div className="text-center py-16 text-gray-500 text-base font-body">No tickets found</div>
         ) : (
           <>
             {/* Desktop table (hidden on small screens) */}
@@ -164,16 +164,16 @@ export default function TicketListPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <p className="font-sans font-semibold text-gray-900">{t.client_name}</p>
-                        <p className="text-xs font-body text-gray-400">{t.email}</p>
+                        <p className="text-sm font-body text-gray-500">{t.email}</p>
                       </td>
                       <td className="px-5 py-3.5">
                         <p className="font-body text-gray-700">{t.unit_brand} {t.unit_model}</p>
-                        <p className="text-xs font-body text-gray-400">{t.unit_type}</p>
+                        <p className="text-sm font-body text-gray-500">{t.unit_type}</p>
                       </td>
                       <td className="px-5 py-3.5">
                         <StatusBadge status={t.status} />
                       </td>
-                      <td className="px-5 py-3.5 text-xs font-body text-gray-400">
+                      <td className="px-5 py-3.5 text-sm font-body text-gray-500">
                         {format(new Date(t.created_at), 'MMM d, yyyy')}
                       </td>
                       <td className="px-5 py-3.5">
@@ -203,8 +203,8 @@ export default function TicketListPage() {
                       <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                       <StatusBadge status={t.status} size="sm" />
                     </div>
-                    <p className="font-sans font-semibold text-sm text-gray-900 truncate">{t.client_name}</p>
-                    <p className="text-xs font-body text-gray-400">{t.unit_brand} {t.unit_model}</p>
+                    <p className="font-sans font-semibold text-base text-gray-900 truncate">{t.client_name}</p>
+                    <p className="text-sm font-body text-gray-500">{t.unit_brand} {t.unit_model}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                 </Link>

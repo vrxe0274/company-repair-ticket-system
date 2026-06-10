@@ -74,7 +74,7 @@ function RoleButton({ icon: Icon, label, description, color, loading, onClick })
       </div>
       <div>
         <p className={`font-sans font-bold text-base tracking-wide ${s.text}`}>{label}</p>
-        <p className="text-sm font-body text-gray-500 mt-0.5">{description}</p>
+        <p className="text-sm font-body text-gray-600 mt-0.5">{description}</p>
       </div>
     </button>
   )
@@ -158,7 +158,7 @@ export default function LoginPage() {
           <p className="text-white text-xl font-sans font-bold leading-snug">
             Manage repair tickets and track your workflow.
           </p>
-          <p className="text-gray-500 text-sm font-body">For authorized VRXE staff only.</p>
+          <p className="text-gray-400 text-base font-body">For authorized VRXE staff only.</p>
         </div>
 
         <p className="relative z-10 text-gray-600 text-xs font-mono">
@@ -179,7 +179,7 @@ export default function LoginPage() {
 
           <div className="mb-8">
             <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-1">SIGN IN</h1>
-            <p className="text-gray-400 font-body text-sm">
+            <p className="text-gray-500 font-body text-base">
               Enter your password, then click your role to log in
             </p>
           </div>
@@ -210,15 +210,15 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-xs text-red-500 mt-1.5 font-body flex items-center gap-1">
-                <span className="w-1 h-1 bg-red-500 rounded-full shrink-0" />
+              <p className="text-sm text-red-500 mt-1.5 font-body flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full shrink-0" />
                 {error}
               </p>
             )}
           </div>
 
           {/* Role login buttons */}
-          <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-widest mb-3">
+          <p className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-widest mb-3">
             Sign in as
           </p>
           <div className="space-y-3">
@@ -243,7 +243,7 @@ export default function LoginPage() {
           <div className="mt-8 pt-6 border-t border-gray-100 text-center">
             <Link
               to="/submit"
-              className="text-xs text-gray-400 hover:text-gray-600 transition-colors font-body"
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors font-body"
             >
               ← Back to ticket submission
             </Link>

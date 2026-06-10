@@ -34,7 +34,7 @@ function renderMessage(message) {
     TICKET_ID_REGEX.test(part) ? (
       <span
         key={i}
-        className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[11px] font-bold
+        className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-xs font-bold
                    bg-amber-100 text-amber-800 border border-amber-200 mx-0.5 leading-none align-middle"
       >
         {part}
@@ -69,7 +69,7 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-widest text-gray-900">NOTIFICATIONS</h1>
-          <p className="text-sm font-body text-gray-400 mt-0.5">
+          <p className="text-sm font-body text-gray-500 mt-0.5">
             {role} account · {unseenCount > 0 ? `${unseenCount} unread` : 'All caught up'}
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function NotificationsPage() {
             <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
               <Inbox className="w-5 h-5 text-gray-400" />
             </div>
-            <p className="text-sm font-body text-gray-400">No notifications yet</p>
+            <p className="text-base font-body text-gray-500">No notifications yet</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -113,10 +113,10 @@ export default function NotificationsPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-body leading-snug ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
+                  <p className={`text-base font-body leading-snug ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
                     {renderMessage(n.message)}
                   </p>
-                  <p className="text-[13px] font-body text-gray-400 mt-0.5">
+                  <p className="text-sm font-body text-gray-500 mt-0.5">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                     {n.ticket_human_id && (
                       <span className="ml-2 font-mono text-gray-400">· {n.ticket_human_id}</span>

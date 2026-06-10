@@ -56,8 +56,8 @@ function TrackHeader() {
 function InfoRow({ label, value, className = '' }) {
   return (
     <div className={className}>
-      <p className="text-xs font-body text-gray-400 mb-0.5">{label}</p>
-      <p className="text-sm font-sans font-semibold text-gray-800">{value}</p>
+      <p className="text-xs font-body text-gray-500 mb-0.5">{label}</p>
+      <p className="text-base font-sans font-semibold text-gray-800">{value}</p>
     </div>
   )
 }
@@ -107,7 +107,7 @@ export default function TrackTicketPage() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm font-body text-gray-500">Loading your ticket...</p>
+          <p className="text-base font-body text-gray-500">Loading your ticket...</p>
         </div>
       </div>
     )
@@ -123,7 +123,7 @@ export default function TrackTicketPage() {
           <div className="text-center max-w-sm">
             <XCircle className="w-14 h-14 text-red-300 mx-auto mb-4" />
             <h2 className="text-lg font-sans font-bold text-gray-800 mb-2">Ticket Not Found</h2>
-            <p className="text-gray-500 font-body text-sm mb-6">
+            <p className="text-gray-500 font-body text-base mb-6">
               {error || 'This tracking link is invalid or expired.'}
             </p>
             <Link to="/" className="btn-primary justify-center">Submit a New Ticket</Link>
@@ -153,13 +153,13 @@ export default function TrackTicketPage() {
         <div className="card p-5 mb-5">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-gray-400 mb-1">Ticket ID</p>
+              <p className="text-xs font-mono uppercase tracking-widest text-gray-500 mb-1">Ticket ID</p>
               <p className="font-mono text-xl font-bold text-gray-900 tracking-wider">{ticket.ticket_id}</p>
-              <p className="text-xs font-body text-gray-400 mt-1">
+              <p className="text-sm font-body text-gray-500 mt-1">
                 Submitted {format(new Date(ticket.created_at), 'MMMM d, yyyy · h:mm a')}
               </p>
               {ticket.receipt_number && (
-                <p className="text-xs font-mono text-gray-400 mt-0.5">
+                <p className="text-sm font-mono text-gray-500 mt-0.5">
                   Receipt No: {ticket.receipt_number}
                 </p>
               )}
@@ -176,14 +176,14 @@ export default function TrackTicketPage() {
                 <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-sans font-semibold text-emerald-800">Payment Confirmed</p>
-                  <p className="text-xs font-body text-emerald-600 mt-0.5">
+                  <p className="text-sm font-body text-emerald-600 mt-0.5">
                     Paid on {format(new Date(ticket.paid_at), 'MMMM d, yyyy · h:mm a')}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => downloadReceiptPDF(ticket)}
-                className="inline-flex items-center gap-1.5 text-xs font-sans font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 text-sm font-sans font-semibold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0 min-h-[36px]"
               >
                 <Receipt className="w-3.5 h-3.5" /> Download Receipt
               </button>
@@ -196,7 +196,7 @@ export default function TrackTicketPage() {
               <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-sans font-semibold text-red-800">Ticket Denied</p>
-                <p className="text-xs font-body text-red-600 mt-0.5">
+                <p className="text-sm font-body text-red-600 mt-0.5">
                   This ticket was not approved. Please contact us for more information.
                 </p>
               </div>
@@ -243,19 +243,19 @@ export default function TrackTicketPage() {
                           {statusStep}
                         </p>
                         {STATUS_DESCRIPTIONS[statusStep] && (
-                          <p className={`text-xs font-body mt-0.5 leading-relaxed
-                            ${isCurrent ? 'text-brand-600' : 'text-gray-400'}`}
+                          <p className={`text-sm font-body mt-0.5 leading-relaxed
+                            ${isCurrent ? 'text-brand-600' : 'text-gray-500'}`}
                           >
                             {STATUS_DESCRIPTIONS[statusStep]}
                           </p>
                         )}
                         {isCurrent && ticket.updated_at && (
-                          <p className="text-xs font-body text-gray-400 mt-1">
+                          <p className="text-sm font-body text-gray-500 mt-1">
                             Updated {format(new Date(ticket.updated_at), 'MMM d, h:mm a')}
                           </p>
                         )}
                         {isPaidStep && ticket.paid_at && (
-                          <p className="text-xs font-body text-emerald-600 mt-0.5">
+                          <p className="text-sm font-body text-emerald-600 mt-0.5">
                             {format(new Date(ticket.paid_at), 'MMM d, h:mm a')}
                           </p>
                         )}
@@ -288,8 +288,8 @@ export default function TrackTicketPage() {
             )}
           </div>
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs font-sans font-semibold text-gray-400 mb-1">Issue Description</p>
-            <p className="text-sm font-body text-gray-700 leading-relaxed">{ticket.issue_description}</p>
+            <p className="text-xs font-sans font-semibold text-gray-500 mb-1">Issue Description</p>
+            <p className="text-base font-body text-gray-700 leading-relaxed">{ticket.issue_description}</p>
           </div>
         </div>
 
@@ -318,16 +318,16 @@ export default function TrackTicketPage() {
             </p>
             {ticket.diagnosis_notes && (
               <div className="mb-3">
-                <p className="text-xs font-sans font-semibold text-gray-400 mb-1">Diagnosis</p>
-                <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3">
+                <p className="text-xs font-sans font-semibold text-gray-500 mb-1">Diagnosis</p>
+                <p className="text-base font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3">
                   {ticket.diagnosis_notes}
                 </p>
               </div>
             )}
             {ticket.repair_notes && (
               <div>
-                <p className="text-xs font-sans font-semibold text-gray-400 mb-1">Repair</p>
-                <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3">
+                <p className="text-xs font-sans font-semibold text-gray-500 mb-1">Repair</p>
+                <p className="text-base font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3">
                   {ticket.repair_notes}
                 </p>
               </div>
@@ -345,7 +345,7 @@ export default function TrackTicketPage() {
             {/* Labor line items */}
             {ticket.labor_items?.filter(i => i.description || i.amount).length > 0 && (
               <div className="mb-3">
-                <p className="text-xs font-sans font-semibold text-gray-400 mb-2">Labor</p>
+                <p className="text-xs font-sans font-semibold text-gray-500 mb-2">Labor</p>
                 <div className="space-y-1">
                   {ticket.labor_items.filter(i => i.description || i.amount).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
@@ -360,7 +360,7 @@ export default function TrackTicketPage() {
             {/* Parts line items */}
             {ticket.parts_items?.filter(i => i.description || i.amount).length > 0 && (
               <div className="mb-3">
-                <p className="text-xs font-sans font-semibold text-gray-400 mb-2">Parts</p>
+                <p className="text-xs font-sans font-semibold text-gray-500 mb-2">Parts</p>
                 <div className="space-y-1">
                   {ticket.parts_items.filter(i => i.description || i.amount).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
@@ -397,7 +397,7 @@ export default function TrackTicketPage() {
 
             {ticket.paid_at && (
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs font-body text-emerald-600 font-semibold">
+                <p className="text-sm font-body text-emerald-600 font-semibold">
                   ✓ Paid on {format(new Date(ticket.paid_at), 'MMMM d, yyyy · h:mm a')}
                 </p>
               </div>
@@ -412,7 +412,7 @@ export default function TrackTicketPage() {
         </div>
 
         <div className="mt-6 text-center">
-          <Link to="/" className="text-xs font-body text-gray-400 hover:text-gray-600 transition-colors">
+          <Link to="/" className="text-sm font-body text-gray-500 hover:text-gray-700 transition-colors">
             ← Submit another ticket
           </Link>
         </div>

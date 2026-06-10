@@ -67,8 +67,8 @@ function StepHeading({ icon: Icon, title, subtitle }) {
         <Icon className="w-5 h-5 text-white" />
       </div>
       <div>
-        <h2 className="font-sans font-bold text-lg text-gray-900 tracking-wide">{title}</h2>
-        <p className="text-sm font-body text-gray-400">{subtitle}</p>
+        <h2 className="font-sans font-bold text-lg text-gray-900">{title}</h2>
+        <p className="text-base font-body text-gray-500">{subtitle}</p>
       </div>
     </div>
   )
@@ -79,7 +79,7 @@ function Field({ label, error, children }) {
     <div>
       <label className="label">{label}</label>
       {children}
-      {error && <p className="text-xs text-red-500 mt-1 font-body">{error}</p>}
+      {error && <p className="text-sm text-red-500 mt-1 font-body">{error}</p>}
     </div>
   )
 }
@@ -87,8 +87,8 @@ function Field({ label, error, children }) {
 function SummaryRow({ label, value }) {
   if (!value) return null
   return (
-    <div className="flex gap-3 text-sm">
-      <span className="text-gray-400 font-sans w-14 shrink-0">{label}</span>
+    <div className="flex gap-3 text-base">
+      <span className="text-gray-500 font-sans font-medium w-14 shrink-0">{label}</span>
       <span className="text-gray-800 font-body">{value}</span>
     </div>
   )
@@ -208,7 +208,7 @@ export default function SubmitTicketPage() {
               <CheckCircle className="w-10 h-10 text-white" />
             </div>
             <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-2">SUBMITTED!</h1>
-            <p className="text-gray-500 font-body text-sm mb-8">
+            <p className="text-gray-500 font-body text-base mb-8">
               Your repair request has been received. We'll review it shortly.
             </p>
 
@@ -259,7 +259,7 @@ export default function SubmitTicketPage() {
           <h1 className="font-display text-5xl tracking-widest text-white mb-2">
             SUBMIT A <span className="text-accent-400">TICKET</span>
           </h1>
-          <p className="text-gray-400 font-body text-sm">
+          <p className="text-gray-400 font-body text-base">
             Complete the form below to get your VR gear repaired by our expert technicians.
           </p>
         </div>
@@ -281,7 +281,7 @@ export default function SubmitTicketPage() {
                     >
                       {isComplete ? <CheckCircle className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                     </div>
-                    <span className={`text-xs font-sans font-semibold tracking-wide hidden sm:block
+                    <span className={`text-sm font-sans font-medium hidden sm:block
                       ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
                       {s.label}
                     </span>
@@ -295,9 +295,9 @@ export default function SubmitTicketPage() {
               )
             })}
           </div>
-          <div className="text-xs font-body text-gray-400 text-center">
+          <div className="text-sm font-body text-gray-500 text-center">
             Step {step} of {STEPS.length} —{' '}
-            <span className="font-semibold text-gray-700">{STEPS[step - 1].label}</span>
+            <span className="font-semibold text-gray-800">{STEPS[step - 1].label}</span>
           </div>
         </div>
       </div>
@@ -376,7 +376,7 @@ export default function SubmitTicketPage() {
                         key={issue}
                         type="button"
                         onClick={() => handleIssuePreset(issue)}
-                        className={`text-xs px-3 py-1.5 rounded-full font-sans font-semibold border transition-all
+                        className={`text-sm px-3 py-2 rounded-full font-sans font-semibold border transition-all min-h-[36px]
                           ${form.issue_preset === issue
                             ? 'bg-brand-600 text-white border-brand-600'
                             : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400'}`}

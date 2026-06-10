@@ -81,7 +81,7 @@ export default function DashboardHome() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-widest text-gray-900">OVERVIEW</h1>
-          <p className="text-sm font-body text-gray-400 mt-0.5">
+          <p className="text-sm font-body text-gray-500 mt-0.5">
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
@@ -130,7 +130,7 @@ export default function DashboardHome() {
               const pct   = Math.round((count / tickets.length) * 100)
               return (
                 <div key={status} className="flex items-center gap-3">
-                  <span className="text-xs font-body text-gray-500 w-36 shrink-0">{status}</span>
+                  <span className="text-sm font-body text-gray-600 w-36 shrink-0">{status}</span>
                   <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                     <div
                       className="h-2 rounded-full transition-all duration-700"
@@ -170,14 +170,14 @@ export default function DashboardHome() {
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                   </div>
-                  <p className="font-sans font-semibold text-sm text-gray-900 truncate">{t.client_name}</p>
-                  <p className="text-xs font-body text-gray-400">{t.unit_brand} {t.unit_model}</p>
+                  <p className="font-sans font-semibold text-base text-gray-900 truncate">{t.client_name}</p>
+                  <p className="text-sm font-body text-gray-500">{t.unit_brand} {t.unit_model}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-body text-gray-400">
+                  <p className="text-sm font-body text-gray-500">
                     {format(new Date(t.created_at), 'MMM d, yyyy')}
                   </p>
-                  <p className={`text-xs font-sans font-semibold mt-0.5
+                  <p className={`text-sm font-sans font-semibold mt-0.5
                     ${t.status === 'Paid' ? 'text-emerald-600'
                       : t.status === 'Denied' ? 'text-red-500'
                       : t.status === 'Done' ? 'text-green-600'
@@ -196,7 +196,7 @@ export default function DashboardHome() {
       {!loading && tickets.length === 0 && (
         <div className="card p-10 text-center">
           <Ticket className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm font-body text-gray-400">No tickets yet</p>
+          <p className="text-base font-body text-gray-500">No tickets yet</p>
           <Link to="/submit" className="btn-primary mt-4 inline-flex">
             Submit First Ticket
           </Link>

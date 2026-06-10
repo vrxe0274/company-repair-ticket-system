@@ -27,7 +27,8 @@
    * font-body = Inter (defined in tailwind.config.js).
    * antialiased improves sub-pixel rendering on high-DPI screens.
    */
-  body { @apply bg-white text-gray-900 font-body antialiased; }
+  /* 16px base, relaxed line-height — prevents text-sm cascade from shrinking below target */
+  body { @apply bg-white text-base text-gray-900 font-body leading-normal antialiased; }
 }
 
 /* =============================================================================
@@ -54,8 +55,8 @@
   .btn-primary {
     @apply inline-flex items-center gap-2
            bg-brand-600 hover:bg-brand-700 active:bg-brand-800
-           text-white font-sans font-semibold tracking-wide
-           px-5 py-2.5 rounded-lg transition-all duration-150
+           text-white text-sm font-sans font-semibold
+           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-150
            focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -64,8 +65,8 @@
   .btn-accent {
     @apply inline-flex items-center gap-2
            bg-accent-600 hover:bg-accent-700 active:bg-accent-800
-           text-white font-sans font-semibold tracking-wide
-           px-5 py-2.5 rounded-lg transition-all duration-150
+           text-white text-sm font-sans font-semibold
+           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-150
            focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -74,8 +75,8 @@
   .btn-secondary {
     @apply inline-flex items-center gap-2
            bg-white hover:bg-gray-50 active:bg-gray-100
-           text-gray-800 font-sans font-semibold tracking-wide
-           px-5 py-2.5 rounded-lg border border-gray-300
+           text-gray-700 text-sm font-sans font-semibold
+           px-5 py-3 rounded-lg min-h-[44px] border border-gray-300
            transition-all duration-150
            focus:outline-none focus:ring-2 focus:ring-gray-300
            disabled:opacity-50 disabled:cursor-not-allowed;
@@ -88,8 +89,8 @@
   .btn-danger {
     @apply inline-flex items-center gap-2
            bg-red-600 hover:bg-red-700 active:bg-red-800
-           text-white font-sans font-semibold tracking-wide
-           px-5 py-2.5 rounded-lg transition-all duration-150
+           text-white text-sm font-sans font-semibold
+           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-150
            focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2;
   }
 
@@ -99,8 +100,8 @@
 
   /** Text input / select / textarea — consistent field chrome. */
   .input-field {
-    @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5
-           font-body text-sm text-gray-900 placeholder-gray-400
+    @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-3
+           font-body text-base text-gray-900 placeholder-gray-400 leading-normal
            focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100
            transition-colors duration-150
            disabled:bg-gray-50 disabled:text-gray-500;
@@ -108,7 +109,7 @@
 
   /** Form field label — always paired with an .input-field. */
   .label {
-    @apply block text-sm font-sans font-semibold tracking-wide text-gray-700 mb-1.5;
+    @apply block text-sm font-sans font-semibold text-gray-700 mb-1.5 leading-tight;
   }
 
   /* ---------------------------------------------------------------------------
@@ -117,7 +118,8 @@
 
   /** Light-surface card — used throughout the public-facing pages. */
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm
+           ring-1 ring-black/[0.03];
   }
 
   /** Dark-surface card — used inside the staff dashboard sidebar panels. */
@@ -138,11 +140,12 @@
   }
 
   /**
-   * Section sub-heading — uppercase monospace-style label above
-   * a group of related content (e.g. "TICKET INFO", "PRICING").
+   * Section sub-heading — uppercase label above a group of related content.
+   * text-xs (12px) with uppercase + letter-spacing is intentional: all-caps
+   * labels read clearly at 12px and a larger size would over-compete with content.
    */
   .section-title {
-    @apply text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-3;
+    @apply text-xs font-sans font-semibold uppercase tracking-widest text-gray-500 mb-3 leading-tight;
   }
 
   /* ---------------------------------------------------------------------------
@@ -187,12 +190,10 @@
 
   /**
    * Inactive state for .nav-item.
-   * // REVIEW: Uses `text-dark-500/80` which maps to the custom `dark` palette
-   * // (dark-500 = #32323d). On a dark-900 sidebar this is nearly invisible.
-   * // DashboardLayout.jsx uses `text-gray-400` instead — consider aligning.
+   * text-gray-400 on dark-900 achieves ~8.4:1 contrast (WCAG AA pass).
    */
   .nav-item-inactive {
-    @apply text-dark-500/80 hover:bg-dark-700 hover:text-white;
+    @apply text-gray-400 hover:bg-dark-700 hover:text-gray-100;
   }
 
   /**
@@ -237,8 +238,8 @@
  * the rest of the design system (light gray surface, body font).
  * --------------------------------------------------------------------------- */
 input[type="file"]::file-selector-button {
-  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium
-         px-3 py-1.5 rounded-md border-0 cursor-pointer mr-3 transition-colors;
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium
+         px-3 py-2 rounded-md border-0 cursor-pointer mr-3 transition-colors;
 }
 
 /* ---------------------------------------------------------------------------
