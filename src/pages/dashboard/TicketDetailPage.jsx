@@ -223,6 +223,14 @@ function useTicket(id) {
       if (errs.length) { setTransitionErrors(errs); return }
     }
 
+    // Gate 3: final price must be saved before marking paid
+    if (newStatus === 'Paid' && ticket.status === 'Done') {
+      if (ticket.final_price === null || ticket.final_price === undefined) {
+        setTransitionErrors(['A saved final price is required before marking as paid. Fill in the final price in the Quotation & Payment tab and save.'])
+        return
+      }
+    }
+
     setStatusUpdating(true)
     const patch = { status: newStatus }
     if (newStatus === 'Paid') patch.paid_at = new Date().toISOString()
@@ -670,7 +678,7 @@ function QuotationTab({
             <div className="flex items-center gap-3 pt-1">
               <div className="flex items-center gap-2 w-40 shrink-0">
                 <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
-                <label className="text-sm font-sans font-bold text-gray-700">Final Price</label>
+                <label className="text-sm font-sans font-bold text-gray-700">Amount Paid</label>
               </div>
               {isAdmin ? (
                 <div className="relative w-36">
