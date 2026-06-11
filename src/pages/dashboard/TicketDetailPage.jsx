@@ -28,6 +28,7 @@ import { getTrackingUrl, STATUS_ORDER, formatTicketLabel } from '../../lib/utils
 import { createNotification, buildStatusNotification } from '../../lib/notifications'
 import { sendGlobalPush } from '../../lib/push'
 import { downloadTicketPDF }                           from '../../lib/pdf'
+import { generateReceiptNumber }                       from '../../lib/receipt'
 import { useRole }                                     from '../../hooks/useRole.jsx'
 import StatusBadge                                     from '../../components/ui/StatusBadge.jsx'
 
@@ -37,7 +38,7 @@ const PDF_DOWNLOAD_DELAY_MS = 300
 const MAX_PHOTO_BYTES       = 10 * 1024 * 1024
 
 const TICKET_COLUMNS = [
-  'id', 'ticket_id', 'status', 'previous_status', 'created_at', 'updated_at', 'paid_at',
+  'id', 'ticket_id', 'status', 'previous_status', 'created_at', 'updated_at', 'paid_at', 'receipt_number',
   'tracking_token', 'client_name', 'contact_number', 'platform', 'email',
   'address', 'unit_brand', 'unit_model', 'unit_type', 'mode_of_service',
   'preferred_date', 'preferred_time', 'accessories_included', 'issue_description',
@@ -263,7 +264,12 @@ function useTicket(id) {
 
     setStatusUpdating(true)
     const patch = { status: newStatus, previous_status: ticket.status }
-    if (newStatus === 'Paid') patch.paid_at = new Date().toISOString()
+    if (newStatus === 'Paid') {
+      patch.paid_at = new Date().toISOString()
+      // Persist the receipt number once — receipt downloads must show the
+      // same number forever (receipt.js only generates as a fallback).
+      if (!ticket.receipt_number) patch.receipt_number = generateReceiptNumber(ticket.ticket_id)
+    }
     const { data, error } = await supabase
       .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
     if (error) {

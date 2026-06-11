@@ -1,5 +1,4 @@
-// Uses the real VRXE logo image (public/vrxe-logo.png)
-// variant: 'full' = logo + text, 'icon' = just the image
+// Renders the VRXE logo image (public/vrxe-logo.png) at a named size.
 export default function Logo({ size = 'md', className = '' }) {
   const sizes = {
     xs:  'h-7',

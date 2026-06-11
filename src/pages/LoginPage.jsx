@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useRole, ROLES } from '../hooks/useRole.jsx'
@@ -24,7 +24,9 @@ import Logo from '../components/ui/Logo.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-/** Delay (ms) added before processing login to mask timing attacks. */
+/** Artificial delay (ms) before processing login — slows brute-force
+ *  guessing and gives the spinner time to register visually. (The check
+ *  itself is a plain string compare in the client; see useAuth.jsx.) */
 const LOGIN_DELAY_MS = 400
 
 /**
@@ -115,8 +117,7 @@ export default function LoginPage() {
 
   // Guard: already authenticated — redirect without rendering the form.
   if (authenticated) {
-    navigate('/', { replace: true })
-    return null
+    return <Navigate to="/" replace />
   }
 
   /** Step 1 → Step 2: pick a role, then ask for its password. */
@@ -133,10 +134,7 @@ export default function LoginPage() {
     setError('')
   }
 
-  /**
-   * Attempt login for the selected role. The artificial delay prevents
-   * response-timing attacks from revealing whether the password was close.
-   */
+  /** Attempt login for the selected role (after LOGIN_DELAY_MS). */
   function handleLogin(e) {
     e?.preventDefault()
     if (!password) {

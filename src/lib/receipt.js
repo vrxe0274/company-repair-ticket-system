@@ -6,7 +6,7 @@ const vrxeLogo = '/vrxe-logo.png'
 /**
  * Generate a receipt number for a ticket
  */
-export function generateReceiptNumber(ticketId) {
+export function generateReceiptNumber(_ticketId) {
   const year = new Date().getFullYear().toString().slice(2)
   const rand = Math.floor(Math.random() * 9000 + 1000)
   return `26${year.padStart(2, '0')}-00VR02-${rand}`

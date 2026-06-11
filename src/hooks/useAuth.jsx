@@ -72,18 +72,6 @@ export function AuthProvider({ children }) {
     return false
   }
 
-  /** Legacy single-password login — kept for backwards compatibility */
-  function login(password) {
-    const dashboardPw = import.meta.env.VITE_DASHBOARD_PASSWORD
-    if (!dashboardPw) { console.warn('VITE_DASHBOARD_PASSWORD not set'); return false }
-    if (password === dashboardPw) {
-      saveSession('Admin', { persistent: false })
-      setAuthenticated(true)
-      return true
-    }
-    return false
-  }
-
   /**
    * Explicit logout: invalidate the session everywhere and remove this
    * device's push subscription so it stops receiving global pushes.
@@ -95,7 +83,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ authenticated, loading, login, loginWithRole, logout }}>
+    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, logout }}>
       {children}
     </AuthContext.Provider>
   )

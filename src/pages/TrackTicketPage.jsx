@@ -85,7 +85,10 @@ export default function TrackTicketPage() {
         .single()
       if (fetchError) throw fetchError
       setTicket(data)
+      setError(null)
     } catch {
+      // Shown only while no ticket is loaded — a failed background poll
+      // must not replace an already-rendered ticket with the error page.
       setError('Ticket not found. Please check your tracking link.')
     } finally {
       setLoading(false)
@@ -128,7 +131,7 @@ export default function TrackTicketPage() {
 
   // ── Error / not-found state ──────────────────────────────────────────────
 
-  if (error || !ticket) {
+  if (!ticket) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <TrackHeader />

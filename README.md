@@ -77,7 +77,10 @@ npm install
 5. In the left sidebar, click **SQL Editor**
 6. Click **New query**, paste the entire contents of **`supabase-setup.sql`** from this project, and click **Run**
 7. You should see `Success. No rows returned` — that means it worked
-8. Go to **Project Settings → API** and copy:
+8. Repeat step 6 for the follow-up migrations (one-time runs, in this order):
+   `notifications-setup.sql` → `notifications-status-update.sql` →
+   `tickets-realtime-setup.sql` → `push-setup.sql` → `undo-status-setup.sql`
+9. Go to **Project Settings → API** and copy:
    - **Project URL** (looks like `https://abcdefgh.supabase.co`)
    - **anon public** key (long string starting with `eyJ...`)
 

@@ -1,8 +1,15 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
+import { useRole } from '../../hooks/useRole.jsx'
 
+/**
+ * Auth guard for dashboard routes.
+ * - Unauthenticated → /login
+ * - Authenticated but wrong role (when requiredRole is given) → /
+ */
 export default function ProtectedRoute({ children, requiredRole }) {
-  const { authenticated, loading, user } = useAuth()
+  const { authenticated, loading } = useAuth()
+  const { role } = useRole()
 
   if (loading) {
     return (
@@ -16,8 +23,8 @@ export default function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" replace />
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to="/dashboard" replace />
+  if (requiredRole && role !== requiredRole) {
+    return <Navigate to="/" replace />
   }
 
   return children

@@ -149,28 +149,3 @@ export const VR_ISSUES = [
 ]
 
 export const MODES_OF_SERVICE = ['Drop-off', 'Courier', 'Others']
-
-/**
- * Next possible statuses from each status (forward movement)
- */
-export const NEXT_STATUSES = {
-  'Pending':             ['Inspection & Quote', 'Denied'],
-  'Inspection & Quote':  ['Repair in Progress'],
-  'Denied':              [],
-  'Repair in Progress':  ['Done'],
-  'Done':                ['Paid'],
-  'Paid':                [],
-}
-
-/**
- * Previous possible statuses from each status (backward movement)
- * Allows admins to revert a status
- */
-export const PREV_STATUSES = {
-  'Pending':             [],
-  'Inspection & Quote':  ['Pending'],
-  'Denied':              ['Pending'],
-  'Repair in Progress':  ['Inspection & Quote'],
-  'Done':                ['Repair in Progress'],
-  'Paid':                ['Done'],
-}
