@@ -17,6 +17,11 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
+      // Register the SW during `npm run dev` too, so push can be tested locally
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
     }),
   ],
   resolve: {

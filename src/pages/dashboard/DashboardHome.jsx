@@ -9,14 +9,13 @@
  * // that returns counts only, rather than full rows.
  */
 
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   Ticket, Clock, Wrench, CheckCircle, RefreshCw,
   AlertTriangle, BarChart2, DollarSign, Download,
 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 
@@ -46,21 +45,9 @@ const RECENT_TICKET_LIMIT = 5
  * Shows aggregate stats, a visual status breakdown, and recent activity.
  */
 export default function DashboardHome() {
-  const [tickets, setTickets] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => { fetchTickets() }, [])
-
-  /** Fetch all tickets ordered newest-first. Used for all stats on this page. */
-  async function fetchTickets() {
-    setLoading(true)
-    const { data } = await supabase
-      .from('tickets')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setTickets(data || [])
-    setLoading(false)
-  }
+  // Live data — realtime inserts/updates/deletes keep counts current
+  // without a refresh (see useLiveTickets).
+  const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
 
   /**
    * Count tickets matching a status key.

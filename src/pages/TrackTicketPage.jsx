@@ -95,9 +95,22 @@ export default function TrackTicketPage() {
   useEffect(() => {
     if (!token) return
     fetchTicket()
-    // Poll for updates so the client sees status changes without refreshing.
+
+    // Realtime: status/pricing changes appear instantly. The 30s polling
+    // below stays as a fallback in case the channel drops.
+    const channel = supabase
+      .channel(`track-${token}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tickets', filter: `tracking_token=eq.${token}` },
+        ({ new: row }) => {
+          setTicket(prev => (prev ? { ...prev, ...row } : row))
+        }
+      )
+      .subscribe()
+
     const interval = setInterval(fetchTicket, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
+    return () => { supabase.removeChannel(channel); clearInterval(interval) }
   }, [token, fetchTicket])
 
   // ── Loading state ────────────────────────────────────────────────────────

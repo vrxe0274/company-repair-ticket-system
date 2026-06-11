@@ -20,6 +20,7 @@
  *  not Supabase Auth — consistent with the public RLS posture.)
  */
 
+/*
 import webpush from 'npm:web-push@3.6.7'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -123,3 +124,4 @@ Deno.serve(async (req) => {
 
   return json(200, { sent, failed, pruned: deadIds.length })
 })
+*/

@@ -184,6 +184,30 @@ function useTicket(id) {
     return () => { cancelled = true }
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Realtime: reflect changes made by the other role without a refresh.
+  // Only the `ticket` display state is merged — the editable form states
+  // (notes, labor/parts items, pricing) are left alone so a live update
+  // never clobbers what this user is currently typing.
+  useEffect(() => {
+    if (!id) return
+    const channel = supabase
+      .channel(`ticket-${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tickets', filter: `id=eq.${id}` },
+        ({ new: row }) => {
+          setTicket(prev => (prev ? { ...prev, ...row } : prev))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'tickets', filter: `id=eq.${id}` },
+        () => navigate('/tickets')
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function hydrate(data) {
     setTicket(data)
     setNotes({

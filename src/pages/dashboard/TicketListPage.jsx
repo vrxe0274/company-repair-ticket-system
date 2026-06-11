@@ -11,11 +11,11 @@
  * // rather than fetching all rows and filtering in-memory.
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { Search, Download, RefreshCw, ChevronRight, Filter } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
@@ -39,25 +39,12 @@ const SEARCHABLE_FIELDS = ['ticket_id', 'client_name', 'email', 'unit_brand', 'u
 /** TicketListPage — master list with status filter pills and full-text search. */
 export default function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [tickets, setTickets] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch]   = useState('')
+  // Live data — realtime keeps the list in sync without a refresh.
+  const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
+  const [search, setSearch] = useState('')
 
   // Derive active status filter from URL; defaults to 'All' when absent.
   const activeStatus = searchParams.get('status') || 'All'
-
-  useEffect(() => { fetchTickets() }, [])
-
-  /** Fetch all tickets, newest first. */
-  async function fetchTickets() {
-    setLoading(true)
-    const { data } = await supabase
-      .from('tickets')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setTickets(data || [])
-    setLoading(false)
-  }
 
   /**
    * Client-side filter: AND of status match + search term.
