@@ -231,12 +231,16 @@ function useTicket(id) {
   async function updateStatus(newStatus) {
     setTransitionErrors([])
 
-    // Gate 1: quotation must be saved before starting repairs
+    // Gate 1: technician diagnosis and admin quotation must be saved before starting repairs
     if (newStatus === 'Repair in Progress' && ticket.status === 'Inspection & Quote') {
-      if (ticket.quotation_amount === null || ticket.quotation_amount === undefined) {
-        setTransitionErrors(['A saved quotation is required before starting repairs. Fill in labor/parts items in the Quotation & Payment tab and save.'])
-        return
+      const errs = []
+      if (!ticket.diagnosis_notes?.trim()) {
+        errs.push('A saved diagnosis is required before starting repairs. The technician must fill in Diagnosis Notes in the Technical Details tab and save.')
       }
+      if (ticket.quotation_amount === null || ticket.quotation_amount === undefined) {
+        errs.push('A saved quotation is required before starting repairs. The admin must fill in labor/parts items in the Quotation & Payment tab and save.')
+      }
+      if (errs.length) { setTransitionErrors(errs); return }
     }
 
     // Gate 2: technician notes and documentation required before marking done
