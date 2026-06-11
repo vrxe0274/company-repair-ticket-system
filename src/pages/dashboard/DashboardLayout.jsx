@@ -53,7 +53,7 @@ const NAV = [
 const NOTIFICATION_BADGE_MAX = 99
 
 /** How long (ms) to show the "Database flushed" success banner. */
-const FLUSH_SUCCESS_BANNER_MS = 3000
+const FLUSH_SUCCESS_BANNER_MS = 2500
 
 // ── Page component ─────────────────────────────────────────────────────────────
 

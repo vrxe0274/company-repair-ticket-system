@@ -21,7 +21,7 @@ import {
   ArrowLeft, Download, ExternalLink, Upload, X, Save,
   CheckCircle, User, Package, Wrench, FileText, DollarSign,
   Image as ImageIcon, Trash2, Plus, Minus, Lock, Shield,
-  Settings, Eye, CreditCard, AlertTriangle,
+  Settings, Eye, CreditCard, AlertTriangle, Undo2,
 } from 'lucide-react'
 import { supabase }                                    from '../../lib/supabase'
 import { getTrackingUrl, STATUS_ORDER, formatTicketLabel } from '../../lib/utils'
@@ -37,7 +37,7 @@ const PDF_DOWNLOAD_DELAY_MS = 300
 const MAX_PHOTO_BYTES       = 10 * 1024 * 1024
 
 const TICKET_COLUMNS = [
-  'id', 'ticket_id', 'status', 'created_at', 'updated_at', 'paid_at',
+  'id', 'ticket_id', 'status', 'previous_status', 'created_at', 'updated_at', 'paid_at',
   'tracking_token', 'client_name', 'contact_number', 'platform', 'email',
   'address', 'unit_brand', 'unit_model', 'unit_type', 'mode_of_service',
   'preferred_date', 'preferred_time', 'accessories_included', 'issue_description',
@@ -165,6 +165,7 @@ function useTicket(id) {
   const [saveMsg,          setSaveMsg]          = useState('')
   const [transitionErrors, setTransitionErrors] = useState([])
   const [deleteConfirm,    setDeleteConfirm]    = useState(false)
+  const [undoConfirm,      setUndoConfirm]      = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -261,7 +262,7 @@ function useTicket(id) {
     }
 
     setStatusUpdating(true)
-    const patch = { status: newStatus }
+    const patch = { status: newStatus, previous_status: ticket.status }
     if (newStatus === 'Paid') patch.paid_at = new Date().toISOString()
     const { data, error } = await supabase
       .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
@@ -291,12 +292,47 @@ function useTicket(id) {
         // those are reserved for ticket-creation pushes).
         sendGlobalPush({
           title: 'Ticket paid',
-          body:  `${data.client_name?.trim() || 'A client'} has been marked as Paid. Job complete.`,
+          body:  `${data.client_name?.trim() || 'A client'} marked Paid.`,
           url:   `/tickets/${data.id}`,
         })
         setTimeout(() => downloadTicketPDF(data), PDF_DOWNLOAD_DELAY_MS)
       }
     }
+    setStatusUpdating(false)
+  }
+
+  /**
+   * Revert the ticket to its previous status (Admin & Technician).
+   * Clears previous_status so undo is single-level — you can't undo an undo.
+   * Also clears paid_at when stepping back out of Paid.
+   */
+  async function undoStatus() {
+    if (!ticket?.previous_status) return
+    setTransitionErrors([])
+    setStatusUpdating(true)
+    const patch = { status: ticket.previous_status, previous_status: null }
+    if (ticket.status === 'Paid') patch.paid_at = null
+    const { data, error } = await supabase
+      .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
+    if (error) {
+      alert(`Undo failed: ${error.message}`)
+    } else {
+      hydrate(data)
+      const other = role === 'Admin' ? 'Technician' : 'Admin'
+      try {
+        await createNotification({
+          recipientRole: other,
+          message:       `${formatTicketLabel(data)} reverted to ${data.status}.`,
+          type:          'status_change',
+          status:        data.status,
+          ticketUuid:    data.id,
+          ticketHumanId: data.ticket_id,
+        })
+      } catch (err) {
+        console.error('Notification failed:', err)
+      }
+    }
+    setUndoConfirm(false)
     setStatusUpdating(false)
   }
 
@@ -393,8 +429,9 @@ function useTicket(id) {
     discount, setDiscount,
     finalPrice, setFinalPrice,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
+    undoConfirm, setUndoConfirm,
     isAdmin, isTechnician, getAllowedTransitions,
-    updateStatus, saveNotesAndPricing,
+    updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     updateItem, addItem, removeItem,
   }
@@ -816,8 +853,9 @@ export default function TicketDetailPage() {
     discount, setDiscount,
     finalPrice, setFinalPrice,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
+    undoConfirm, setUndoConfirm,
     isAdmin, isTechnician, getAllowedTransitions,
-    updateStatus, saveNotesAndPricing,
+    updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     updateItem, addItem, removeItem,
   } = useTicket(id)
@@ -841,6 +879,7 @@ export default function TicketDetailPage() {
   const isApproved      = ticket.status !== 'Pending' && ticket.status !== 'Denied'
   const canSeeNotes     = isAdmin || isTechnician
   const canSeePricing   = isAdmin || isApproved
+  const canUndo         = (isAdmin || isTechnician) && !!ticket.previous_status && ticket.previous_status !== ticket.status
 
   return (
     <div className="space-y-5 animate-fade-in pb-10">
@@ -862,33 +901,10 @@ export default function TicketDetailPage() {
 
       {/* Ticket header */}
       <div className="card p-5">
-        {/* Primary row: ID + status left, transitions right */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="font-mono font-bold text-2xl text-gray-900 tracking-wider">{ticket.ticket_id}</span>
-            <StatusBadge status={ticket.status} size="lg" />
-          </div>
-
-          {nextStatuses.length > 0 ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              {nextStatuses.map(status => (
-                <button
-                  key={status}
-                  onClick={() => updateStatus(status)}
-                  disabled={statusUpdating}
-                  aria-label={`Transition to ${status}`}
-                  className={`btn-primary text-sm ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
-                >
-                  {statusUpdating
-                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    : `→ ${status}`
-                  }
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className="text-xs font-body text-gray-400 italic self-center">No transitions available</span>
-          )}
+        {/* Primary row: ID + status */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-mono font-bold text-2xl text-gray-900 tracking-wider">{ticket.ticket_id}</span>
+          <StatusBadge status={ticket.status} size="lg" />
         </div>
 
         {/* Secondary row: timestamps + paid indicator */}
@@ -909,17 +925,6 @@ export default function TicketDetailPage() {
             </>
           )}
         </div>
-
-        {transitionErrors.length > 0 && (
-          <div className="flex flex-col gap-1 mb-4">
-            {transitionErrors.map((msg, i) => (
-              <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                {msg}
-              </p>
-            ))}
-          </div>
-        )}
 
         {/* Status step indicator */}
         <div className="flex items-center">
@@ -952,6 +957,67 @@ export default function TicketDetailPage() {
           })}
         </div>
       </div>
+
+      {/* Action bar — status transitions + undo, centered below the header */}
+      {(nextStatuses.length > 0 || canUndo) && (
+        <div className="w-full">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 flex-wrap">
+            {nextStatuses.map(status => (
+              <button
+                key={status}
+                onClick={() => updateStatus(status)}
+                disabled={statusUpdating}
+                aria-label={`Transition to ${status}`}
+                className={`btn-primary text-sm justify-center ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
+              >
+                {statusUpdating
+                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : `→ ${status}`
+                }
+              </button>
+            ))}
+
+            {canUndo && (
+              !undoConfirm ? (
+                <button
+                  onClick={() => setUndoConfirm(true)}
+                  disabled={statusUpdating}
+                  aria-label={`Undo — revert to ${ticket.previous_status}`}
+                  className="btn-secondary text-sm justify-center"
+                >
+                  <Undo2 className="w-3.5 h-3.5" /> Undo
+                </button>
+              ) : (
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <span className="text-sm font-body text-gray-600">
+                    Revert to <span className="font-semibold">{ticket.previous_status}</span>?
+                  </span>
+                  <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm">
+                    {statusUpdating
+                      ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : 'Yes, Revert'
+                    }
+                  </button>
+                  <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
+                    Cancel
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+
+          {transitionErrors.length > 0 && (
+            <div className="flex flex-col items-center gap-1 mt-3">
+              {transitionErrors.map((msg, i) => (
+                <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  {msg}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="border-b border-gray-200 -mb-1">

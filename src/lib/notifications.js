@@ -46,38 +46,40 @@ export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
   const label = ticketLabel || 'Unnamed Ticket'
   const other = actorRole === NOTIFY_ROLES.ADMIN ? NOTIFY_ROLES.TECHNICIAN : NOTIFY_ROLES.ADMIN
 
+  // Messages are intentionally terse (≤5 words plus the ticket label) —
+  // the inbox meta line already shows the status chip and ticket ID.
   switch (newStatus) {
     case 'Inspection & Quote':
       // Admin approved a pending ticket — let the technician know.
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Admin approved ${label}. It's ready for inspection & quote.`,
+        message: `${label} approved.`,
       }
     case 'Denied':
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Admin denied ${label}.`,
+        message: `${label} denied.`,
       }
     case 'Repair in Progress':
       return {
         recipientRole: other,
-        message: `${actorRole} moved ${label} to Repair in Progress.`,
+        message: `${label} repair started.`,
       }
     case 'Done':
       // Technician finished — admin should review / mark paid.
       return {
         recipientRole: NOTIFY_ROLES.ADMIN,
-        message: `Technician marked ${label} as Done — ready for your review.`,
+        message: `${label} done — review.`,
       }
     case 'Paid':
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Admin marked ${label} as Paid. Job complete.`,
+        message: `${label} paid.`,
       }
     default:
       return {
         recipientRole: other,
-        message: `${actorRole} updated ${label} to ${newStatus}.`,
+        message: `${label} → ${newStatus}.`,
       }
   }
 }

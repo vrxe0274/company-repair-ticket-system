@@ -185,7 +185,7 @@ export default function SubmitTicketPage() {
       // fire-and-forget, fails softly like the push below.
       createNotification({
         recipientRole: NOTIFY_ROLES.ADMIN,
-        message:       `New ticket from ${formatTicketLabel(data)} — pending your review.`,
+        message:       `New ticket: ${formatTicketLabel(data)}.`,
         type:          'new_ticket',
         status:        'Pending',
         ticketUuid:    data.id,
@@ -195,7 +195,7 @@ export default function SubmitTicketPage() {
       // Creation events show the ticket (unit) name only — no client name.
       sendGlobalPush({
         title: 'New repair ticket',
-        body:  `${formatUnitLabel(data)} — new ticket submitted.`,
+        body:  `New ticket: ${formatUnitLabel(data)}.`,
         url:   `/tickets/${data.id}`,
       })
       setSubmitted(data)

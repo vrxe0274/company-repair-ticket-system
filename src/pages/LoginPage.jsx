@@ -1,11 +1,14 @@
 /**
  * @file LoginPage.jsx
- * @description Staff login page. Presents a password field and two role
- * buttons (Admin / Technician). On success, stores the role in context and
- * redirects to the dashboard root.
+ * @description Staff login page — two-step flow:
+ *
+ *   Step 1: Pick a role (Admin / Technician).
+ *   Step 2: Enter the password for that role.
+ *
+ * There is no username — the password alone determines access per role.
  *
  * Auth flow:
- *   1. User enters password and clicks a role button.
+ *   1. User selects a role, then enters the role's password.
  *   2. loginWithRole() compares against the matching VITE_*_PASSWORD env var.
  *   3. On success, setRole() persists the role to sessionStorage via RoleProvider.
  *   4. navigate('/') → ProtectedRoute lets them through.
@@ -13,7 +16,7 @@
 
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield } from 'lucide-react'
+import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useRole, ROLES } from '../hooks/useRole.jsx'
 import { isStandalone } from '../lib/session'
@@ -43,35 +46,43 @@ const ROLE_BUTTON_STYLES = {
   },
 }
 
+/** Role display config used by both steps. */
+const ROLE_CONFIG = {
+  [ROLES.ADMIN]: {
+    icon:        Shield,
+    color:       'brand',
+    description: 'Approve / deny tickets, manage queue, mark as paid',
+  },
+  [ROLES.TECHNICIAN]: {
+    icon:        Wrench,
+    color:       'accent',
+    description: 'Update repair progress, add notes and photos',
+  },
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 /**
- * RoleButton — a large role-selector button shown on the login form.
+ * RoleButton — a large role-selector button shown on step 1 of the login form.
  *
- * @param {React.ElementType} icon       - Lucide icon component.
- * @param {string}            label      - Role display name.
+ * @param {React.ElementType} icon        - Lucide icon component.
+ * @param {string}            label       - Role display name.
  * @param {string}            description - Short capability description.
- * @param {'brand'|'accent'}  color      - Colour family key.
- * @param {boolean}           loading    - Disables and shows spinner when true.
- * @param {Function}          onClick    - Called when the button is pressed.
+ * @param {'brand'|'accent'}  color       - Colour family key.
+ * @param {Function}          onClick     - Called when the button is pressed.
  */
-function RoleButton({ icon: Icon, label, description, color, loading, onClick }) {
+function RoleButton({ icon: Icon, label, description, color, onClick }) {
   const s = ROLE_BUTTON_STYLES[color]
 
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={loading}
       className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2
-                  transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed
-                  ${s.border} ${s.bg}`}
+                  transition-all duration-150 ${s.border} ${s.bg}`}
     >
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${s.icon}`}>
-        {loading
-          ? <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          : <Icon className="w-6 h-6" />
-        }
+        <Icon className="w-6 h-6" />
       </div>
       <div>
         <p className={`font-sans font-bold text-base tracking-wide ${s.text}`}>{label}</p>
@@ -92,10 +103,11 @@ export default function LoginPage() {
   const { setRole }                      = useRole()
   const navigate                         = useNavigate()
 
-  const [password, setPassword] = useState('')
-  const [showPw,   setShowPw]   = useState(false)
-  const [error,    setError]    = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const [selectedRole, setSelectedRole] = useState(null) // null = step 1 (role selection)
+  const [password,     setPassword]     = useState('')
+  const [showPw,       setShowPw]       = useState(false)
+  const [error,        setError]        = useState('')
+  const [loading,      setLoading]      = useState(false)
 
   // Installed PWA → always stay signed in; browser → user-controlled toggle.
   const standalone = isStandalone()
@@ -107,13 +119,26 @@ export default function LoginPage() {
     return null
   }
 
+  /** Step 1 → Step 2: pick a role, then ask for its password. */
+  function selectRole(role) {
+    setSelectedRole(role)
+    setPassword('')
+    setError('')
+  }
+
+  /** Step 2 → Step 1: go back and pick a different role. */
+  function changeRole() {
+    setSelectedRole(null)
+    setPassword('')
+    setError('')
+  }
+
   /**
-   * Attempt login for the given role. The artificial delay prevents
+   * Attempt login for the selected role. The artificial delay prevents
    * response-timing attacks from revealing whether the password was close.
-   *
-   * @param {string} selectedRole - One of ROLES.ADMIN | ROLES.TECHNICIAN
    */
-  function handleRoleLogin(selectedRole) {
+  function handleLogin(e) {
+    e?.preventDefault()
     if (!password) {
       setError('Please enter your password.')
       return
@@ -133,6 +158,9 @@ export default function LoginPage() {
       setLoading(false)
     }, LOGIN_DELAY_MS)
   }
+
+  const roleCfg  = selectedRole ? ROLE_CONFIG[selectedRole] : null
+  const RoleIcon = roleCfg?.icon
 
   return (
     <div className="min-h-screen flex">
@@ -182,87 +210,116 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="mb-8">
-            <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-1">SIGN IN</h1>
-            <p className="text-gray-500 font-body text-base">
-              Enter your password, then click your role to log in
-            </p>
-          </div>
+          {!selectedRole ? (
+            /* ── Step 1: role selection ── */
+            <>
+              <div className="mb-8">
+                <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-1">SIGN IN</h1>
+                <p className="text-gray-500 font-body text-base">
+                  Select your role to continue
+                </p>
+              </div>
 
-          {/* Password field */}
-          <div className="mb-6">
-            <label className="label">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={e => { setPassword(e.target.value); setError('') }}
-                className="input-field pl-10 pr-10"
-                placeholder="Enter your password"
-                autoFocus
-                // Allow Enter to trigger Admin login (the most common role)
-                onKeyDown={e => e.key === 'Enter' && handleRoleLogin(ROLES.ADMIN)}
-              />
+              <div className="space-y-3">
+                {Object.values(ROLES).map(role => (
+                  <RoleButton
+                    key={role}
+                    icon={ROLE_CONFIG[role].icon}
+                    label={role}
+                    description={ROLE_CONFIG[role].description}
+                    color={ROLE_CONFIG[role].color}
+                    onClick={() => selectRole(role)}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            /* ── Step 2: password for the selected role ── */
+            <>
               <button
                 type="button"
-                onClick={() => setShowPw(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                aria-label={showPw ? 'Hide password' : 'Show password'}
+                onClick={changeRole}
+                className="inline-flex items-center gap-1.5 text-sm font-body text-gray-500 hover:text-gray-800 transition-colors mb-6"
               >
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <ArrowLeft className="w-4 h-4" /> Change role
               </button>
-            </div>
 
-            {error && (
-              <p className="text-sm text-red-500 mt-1.5 font-body flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 bg-red-500 rounded-full shrink-0" />
-                {error}
-              </p>
-            )}
-          </div>
+              <div className="flex items-center gap-3 mb-8">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${ROLE_BUTTON_STYLES[roleCfg.color].icon}`}>
+                  <RoleIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h1 className={`font-sans font-bold text-xl tracking-wide ${ROLE_BUTTON_STYLES[roleCfg.color].text}`}>
+                    {selectedRole}
+                  </h1>
+                  <p className="text-sm font-body text-gray-500">Enter your password to sign in</p>
+                </div>
+              </div>
 
-          {/* Remember me — hidden in installed PWA where persistence is always on */}
-          {standalone ? (
-            <p className="text-xs font-body text-gray-400 mb-6">
-              Installed app — you&apos;ll stay signed in on this device.
-            </p>
-          ) : (
-            <label className="flex items-center gap-2.5 mb-6 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={e => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-              />
-              <span className="text-sm font-body text-gray-600">
-                Remember me on this device (30 days)
-              </span>
-            </label>
+              <form onSubmit={handleLogin}>
+                {/* Password field */}
+                <div className="mb-6">
+                  <label className="label">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type={showPw ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); setError('') }}
+                      className="input-field pl-10 pr-10"
+                      placeholder="Enter your password"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                    >
+                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {error && (
+                    <p className="text-sm text-red-500 mt-1.5 font-body flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full shrink-0" />
+                      {error}
+                    </p>
+                  )}
+                </div>
+
+                {/* Remember me — hidden in installed PWA where persistence is always on */}
+                {standalone ? (
+                  <p className="text-xs font-body text-gray-400 mb-6">
+                    Installed app — you&apos;ll stay signed in on this device.
+                  </p>
+                ) : (
+                  <label className="flex items-center gap-2.5 mb-6 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                    />
+                    <span className="text-sm font-body text-gray-600">
+                      Remember me on this device (30 days)
+                    </span>
+                  </label>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || !password}
+                  className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {loading
+                    ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <>Sign in as {selectedRole}</>
+                  }
+                </button>
+              </form>
+            </>
           )}
-
-          {/* Role login buttons */}
-          <p className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-widest mb-3">
-            Sign in as
-          </p>
-          <div className="space-y-3">
-            <RoleButton
-              icon={Shield}
-              label="Admin"
-              description="Approve / deny tickets, manage queue, mark as paid"
-              color="brand"
-              loading={loading}
-              onClick={() => handleRoleLogin(ROLES.ADMIN)}
-            />
-            <RoleButton
-              icon={Wrench}
-              label="Technician"
-              description="Update repair progress, add notes and photos"
-              color="accent"
-              loading={loading}
-              onClick={() => handleRoleLogin(ROLES.TECHNICIAN)}
-            />
-          </div>
 
           <div className="mt-8 pt-6 border-t border-gray-100 text-center">
             <Link
