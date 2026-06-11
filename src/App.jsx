@@ -23,6 +23,7 @@ import LoginPage          from './pages/LoginPage.jsx'
 // ── Protected dashboard pages ─────────────────────────────────────────────────
 import DashboardLayout    from './pages/dashboard/DashboardLayout.jsx'
 import DashboardHome      from './pages/dashboard/DashboardHome.jsx'
+import TasksPage          from './pages/dashboard/TasksPage.jsx'
 import TicketListPage     from './pages/dashboard/TicketListPage.jsx'
 import TicketDetailPage   from './pages/dashboard/TicketDetailPage.jsx'
 import NotificationsPage  from './pages/dashboard/NotificationsPage.jsx'
@@ -63,6 +64,7 @@ export default function App() {
         }
       >
         <Route index                   element={<DashboardHome />} />
+        <Route path="tasks"            element={<TasksPage />} />
         <Route path="tickets"          element={<TicketListPage />} />
         <Route path="tickets/:id"      element={<TicketDetailPage />} />
         <Route path="notifications"    element={<NotificationsPage />} />

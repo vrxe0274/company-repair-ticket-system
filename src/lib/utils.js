@@ -90,9 +90,27 @@ export const STATUS_COLORS = {
   'Pending':             { bg: 'bg-yellow-100', text: 'text-yellow-800', dot: 'bg-yellow-400' },
   'Inspection & Quote':  { bg: 'bg-purple-100', text: 'text-purple-800', dot: 'bg-purple-400' },
   'Repair in Progress':  { bg: 'bg-indigo-100', text: 'text-indigo-800', dot: 'bg-indigo-400' },
-  'Done':                { bg: 'bg-green-100',  text: 'text-green-800',  dot: 'bg-green-400' },
+  'Done':                { bg: 'bg-blue-100',   text: 'text-blue-800',   dot: 'bg-blue-400' },
   'Paid':                { bg: 'bg-emerald-100',text: 'text-emerald-800',dot: 'bg-emerald-500' },
   'Denied':              { bg: 'bg-red-100',    text: 'text-red-800',    dot: 'bg-red-500' },
+}
+
+/**
+ * What the current role needs to do for a ticket in each status.
+ * Eligibility itself comes from getAllowedTransitions() (useRole) so task
+ * lists always match the actual workflow permissions; these strings are
+ * just the human-readable instruction shown on each task row.
+ */
+export const TASK_ACTIONS = {
+  Admin: {
+    'Pending':            'Review request — approve or deny',
+    'Inspection & Quote': 'Add quotation, then start repair',
+    'Done':               'Collect payment — mark as Paid',
+  },
+  Technician: {
+    'Inspection & Quote': 'Inspect unit and start repair',
+    'Repair in Progress': 'Finish repair — add notes & photos, mark Done',
+  },
 }
 
 export const PLATFORMS = [

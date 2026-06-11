@@ -22,7 +22,7 @@ import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Trash2, X, Shield, Wrench, Bell,
+  Trash2, X, Shield, Wrench, Bell, ClipboardList,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -41,6 +41,7 @@ import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
  */
 const NAV = [
   { to: '/',             label: 'Overview',      icon: LayoutDashboard, exact: true },
+  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
 ]

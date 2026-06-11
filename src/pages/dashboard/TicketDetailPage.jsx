@@ -680,10 +680,10 @@ function QuotationTab({
             </div>
 
             {/* Discount */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <label className="label w-40 shrink-0 mb-0">Discount</label>
               {isAdmin ? (
-                <div className="relative w-32">
+                <div className="relative flex-1 min-w-[10rem] sm:flex-none sm:w-32">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
                   <input
                     type="number" min="0" step="0.01"
@@ -714,13 +714,13 @@ function QuotationTab({
             </div>
 
             {/* Final price */}
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-3 pt-1 flex-wrap">
               <div className="flex items-center gap-2 w-40 shrink-0">
                 <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
                 <label className="text-sm font-sans font-bold text-gray-700">Amount Paid</label>
               </div>
               {isAdmin ? (
-                <div className="relative w-36">
+                <div className="relative flex-1 min-w-[10rem] sm:flex-none sm:w-36">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
                   <input
                     type="number" min="0" step="0.01"

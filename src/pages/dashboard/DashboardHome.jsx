@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
-import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
+import { STATUS_ORDER, STATUS_DENIED, TASK_ACTIONS } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
@@ -33,28 +33,10 @@ const STAT_CONFIGS = [
   { label: 'Total',       key: 'total',             color: 'text-gray-900',    bg: 'bg-white',        border: 'border-gray-200',   icon: Ticket },
   { label: 'Pending',     key: 'Pending',            color: 'text-yellow-700',  bg: 'bg-yellow-50',    border: 'border-yellow-100', icon: Clock },
   { label: 'In Progress', key: 'Repair in Progress', color: 'text-brand-700',   bg: 'bg-brand-50',     border: 'border-brand-100',  icon: Wrench },
-  { label: 'Done',        key: 'Done',               color: 'text-green-700',   bg: 'bg-green-50',     border: 'border-green-100',  icon: CheckCircle },
+  { label: 'Done',        key: 'Done',               color: 'text-blue-700',    bg: 'bg-blue-50',      border: 'border-blue-100',   icon: CheckCircle },
   { label: 'Paid',        key: 'Paid',               color: 'text-emerald-700', bg: 'bg-emerald-50',   border: 'border-emerald-100',icon: DollarSign },
   { label: 'Denied',      key: 'Denied',             color: 'text-red-700',     bg: 'bg-red-50',       border: 'border-red-100',    icon: AlertTriangle },
 ]
-
-/**
- * What the current role needs to do for a ticket in each status.
- * Eligibility itself comes from getAllowedTransitions() (useRole) so the
- * Tasks list always matches the actual workflow permissions; these strings
- * are just the human-readable instruction shown on each task row.
- */
-const TASK_ACTIONS = {
-  Admin: {
-    'Pending':            'Review request — approve or deny',
-    'Inspection & Quote': 'Add quotation, then start repair',
-    'Done':               'Collect payment — mark as Paid',
-  },
-  Technician: {
-    'Inspection & Quote': 'Inspect unit and start repair',
-    'Repair in Progress': 'Finish repair — add notes & photos, mark Done',
-  },
-}
 
 // ── Page component ─────────────────────────────────────────────────────────────
 
@@ -174,8 +156,8 @@ export default function DashboardHome() {
                 </span>
               )}
             </p>
-            <Link to="tickets" className="text-xs font-sans font-semibold text-brand-600 hover:underline">
-              View all tickets
+            <Link to="tasks" className="text-xs font-sans font-semibold text-brand-600 hover:underline">
+              View all tasks
             </Link>
           </div>
 
