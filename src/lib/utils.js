@@ -104,11 +104,11 @@ export const STATUS_COLORS = {
 export const TASK_ACTIONS = {
   Admin: {
     'Pending':            'Review request — approve or deny',
-    'Inspection & Quote': 'Add quotation, then start repair',
+    'Inspection & Quote': 'Add quotation',
     'Done':               'Collect payment — mark as Paid',
   },
   Technician: {
-    'Inspection & Quote': 'Inspect unit and start repair',
+    'Inspection & Quote': 'Inspect unit',
     'Repair in Progress': 'Finish repair — add notes & photos, mark Done',
   },
 }
