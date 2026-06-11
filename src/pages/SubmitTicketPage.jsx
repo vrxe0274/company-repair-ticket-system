@@ -20,8 +20,10 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { sendGlobalPush } from '../lib/push'
+import { createNotification, NOTIFY_ROLES } from '../lib/notifications'
 import {
-  generateTicketId, generateTrackingToken, getTrackingUrl, formatUnitLabel,
+  generateTicketId, generateTrackingToken, getTrackingUrl,
+  formatUnitLabel, formatTicketLabel,
   PLATFORMS, UNIT_TYPES, VR_BRANDS, VR_ISSUES, MODES_OF_SERVICE,
 } from '../lib/utils'
 import Logo from '../components/ui/Logo.jsx'
@@ -179,6 +181,16 @@ export default function SubmitTicketPage() {
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
+      // In-app notification for Admin (the role that reviews Pending tickets) —
+      // fire-and-forget, fails softly like the push below.
+      createNotification({
+        recipientRole: NOTIFY_ROLES.ADMIN,
+        message:       `New ticket from ${formatTicketLabel(data)} — pending your review.`,
+        type:          'new_ticket',
+        status:        'Pending',
+        ticketUuid:    data.id,
+        ticketHumanId: data.ticket_id,
+      })
       // Global push (all subscribed staff devices) — fire-and-forget, fails softly.
       // Creation events show the ticket (unit) name only — no client name.
       sendGlobalPush({

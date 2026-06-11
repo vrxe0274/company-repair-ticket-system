@@ -14,10 +14,13 @@ import { format } from 'date-fns'
 import {
   Ticket, Clock, Wrench, CheckCircle, RefreshCw,
   AlertTriangle, BarChart2, DollarSign, Download,
+  ClipboardList, ChevronRight,
 } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
+import { useRole } from '../../hooks/useRole.jsx'
 import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
+import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -35,8 +38,23 @@ const STAT_CONFIGS = [
   { label: 'Denied',      key: 'Denied',             color: 'text-red-700',     bg: 'bg-red-50',       border: 'border-red-100',    icon: AlertTriangle },
 ]
 
-/** Number of recent tickets to show in the activity list. */
-const RECENT_TICKET_LIMIT = 5
+/**
+ * What the current role needs to do for a ticket in each status.
+ * Eligibility itself comes from getAllowedTransitions() (useRole) so the
+ * Tasks list always matches the actual workflow permissions; these strings
+ * are just the human-readable instruction shown on each task row.
+ */
+const TASK_ACTIONS = {
+  Admin: {
+    'Pending':            'Review request — approve or deny',
+    'Inspection & Quote': 'Add quotation, then start repair',
+    'Done':               'Collect payment — mark as Paid',
+  },
+  Technician: {
+    'Inspection & Quote': 'Inspect unit and start repair',
+    'Repair in Progress': 'Finish repair — add notes & photos, mark Done',
+  },
+}
 
 // ── Page component ─────────────────────────────────────────────────────────────
 
@@ -48,6 +66,13 @@ export default function DashboardHome() {
   // Live data — realtime inserts/updates/deletes keep counts current
   // without a refresh (see useLiveTickets).
   const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
+  const { role, getAllowedTransitions } = useRole()
+
+  // Tasks: tickets the current role can act on right now (has an allowed
+  // status transition). Oldest first — it's a work queue.
+  const tasks = tickets
+    .filter(t => getAllowedTransitions(t.status).length > 0)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
   /**
    * Count tickets matching a status key.
@@ -137,45 +162,60 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* Recent activity */}
+      {/* Tasks — tickets the current role has a pending action on */}
       {!loading && tickets.length > 0 && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <p className="section-title mb-0">Recent Activity</p>
+            <p className="section-title mb-0 flex items-center gap-2">
+              <ClipboardList className="w-3.5 h-3.5" /> Your Tasks
+              {tasks.length > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-600 text-white text-xs font-mono font-bold leading-none">
+                  {tasks.length}
+                </span>
+              )}
+            </p>
             <Link to="tickets" className="text-xs font-sans font-semibold text-brand-600 hover:underline">
-              View all
+              View all tickets
             </Link>
           </div>
-          <div className="divide-y divide-gray-50">
-            {tickets.slice(0, RECENT_TICKET_LIMIT).map(t => (
-              <Link
-                key={t.id}
-                to={`tickets/${t.id}`}
-                className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
+
+          {tasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <CheckCircle className="w-8 h-8 text-green-300" />
+              <p className="text-base font-body text-gray-500">
+                All caught up — nothing needs your action right now.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {tasks.map(t => (
+                <Link
+                  key={t.id}
+                  to={`tickets/${t.id}`}
+                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <StatusBadge status={t.status} size="sm" />
+                      <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
+                    </div>
+                    <p className="font-sans font-semibold text-base text-gray-900 truncate">
+                      {t.client_name} <span className="font-normal text-gray-500">· {t.unit_brand} {t.unit_model}</span>
+                    </p>
+                    <p className="text-sm font-body text-brand-700 mt-0.5">
+                      {TASK_ACTIONS[role]?.[t.status] || 'Action required'}
+                    </p>
                   </div>
-                  <p className="font-sans font-semibold text-base text-gray-900 truncate">{t.client_name}</p>
-                  <p className="text-sm font-body text-gray-500">{t.unit_brand} {t.unit_model}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-body text-gray-500">
-                    {format(new Date(t.created_at), 'MMM d, yyyy')}
-                  </p>
-                  <p className={`text-sm font-sans font-semibold mt-0.5
-                    ${t.status === 'Paid' ? 'text-emerald-600'
-                      : t.status === 'Denied' ? 'text-red-500'
-                      : t.status === 'Done' ? 'text-green-600'
-                      : 'text-gray-500'}`}
-                  >
-                    {t.status}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    <p className="text-sm font-body text-gray-500">
+                      {format(new Date(t.created_at), 'MMM d, yyyy')}
+                    </p>
+                    <ChevronRight className="w-4 h-4 text-gray-300" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
