@@ -14,12 +14,14 @@ export async function createNotification({
   type = 'info',
   ticketUuid = null,
   ticketHumanId = null,
+  status = null, // ticket status for the colored indicator (nullable)
 }) {
   try {
     const { error } = await supabase.from('notifications').insert([{
       recipient_role:  recipientRole,
       message,
       type,
+      status,
       ticket_uuid:     ticketUuid,
       ticket_human_id: ticketHumanId,
       seen:            false,

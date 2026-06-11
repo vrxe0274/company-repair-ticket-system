@@ -21,7 +21,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { sendGlobalPush } from '../lib/push'
 import {
-  generateTicketId, generateTrackingToken, getTrackingUrl, formatTicketLabel,
+  generateTicketId, generateTrackingToken, getTrackingUrl, formatUnitLabel,
   PLATFORMS, UNIT_TYPES, VR_BRANDS, VR_ISSUES, MODES_OF_SERVICE,
 } from '../lib/utils'
 import Logo from '../components/ui/Logo.jsx'
@@ -179,10 +179,11 @@ export default function SubmitTicketPage() {
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
-      // Global push (all subscribed staff devices) — fire-and-forget, fails softly
+      // Global push (all subscribed staff devices) — fire-and-forget, fails softly.
+      // Creation events show the ticket (unit) name only — no client name.
       sendGlobalPush({
         title: 'New repair ticket',
-        body:  `${formatTicketLabel(data)} — new ticket submitted.`,
+        body:  `${formatUnitLabel(data)} — new ticket submitted.`,
         url:   `/tickets/${data.id}`,
       })
       setSubmitted(data)

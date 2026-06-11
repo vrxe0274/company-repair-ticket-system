@@ -26,8 +26,28 @@ export function getTrackingUrl(trackingToken) {
   return `${base}/track/${trackingToken}`
 }
 
+/** Builds "Samsung Galaxy S24 (Phone)" from whatever unit fields exist; '' if none. */
+function buildUnitPart(ticket) {
+  const unit = [ticket.unit_brand, ticket.unit_model]
+    .map(v => v?.trim())
+    .filter(Boolean)
+    .join(' ')
+  const type = ticket.unit_type?.trim()
+  return unit && type ? `${unit} (${type})` : unit || type || ''
+}
+
 /**
- * Human-readable ticket label for notification text (in-app + push):
+ * Unit-only label (no client name) — used in push notifications for
+ * ticket-creation events: "Samsung Galaxy S24 (Phone)".
+ * Falls back to the raw ticket_id, then 'Unnamed Ticket'.
+ */
+export function formatUnitLabel(ticket) {
+  if (!ticket) return 'Unnamed Ticket'
+  return buildUnitPart(ticket) || ticket.ticket_id || 'Unnamed Ticket'
+}
+
+/**
+ * Human-readable ticket label for in-app notification text:
  *   "Maria Santos — Samsung Galaxy S24 (Phone)"
  *
  * Falls back gracefully when fields are missing — uses whatever is present,
@@ -40,12 +60,7 @@ export function getTrackingUrl(trackingToken) {
 export function formatTicketLabel(ticket) {
   if (!ticket) return 'Unnamed Ticket'
   const name = ticket.client_name?.trim()
-  const unit = [ticket.unit_brand, ticket.unit_model]
-    .map(v => v?.trim())
-    .filter(Boolean)
-    .join(' ')
-  const type = ticket.unit_type?.trim()
-  const unitPart = unit && type ? `${unit} (${type})` : unit || type || ''
+  const unitPart = buildUnitPart(ticket)
   if (name && unitPart) return `${name} — ${unitPart}`
   return name || unitPart || ticket.ticket_id || 'Unnamed Ticket'
 }

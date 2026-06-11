@@ -272,6 +272,7 @@ function useTicket(id) {
             recipientRole: note.recipientRole,
             message:       note.message,
             type:          'status_change',
+            status:        newStatus,
             ticketUuid:    data.id,
             ticketHumanId: data.ticket_id,
           })
@@ -282,9 +283,11 @@ function useTicket(id) {
       if (newStatus === 'Paid') {
         // Global push milestone — broadcast to all devices regardless of role
         // (the role-scoped in-app notification above is unchanged).
+        // Push body: client name only on Paid (no unit/ticket name —
+        // those are reserved for ticket-creation pushes).
         sendGlobalPush({
           title: 'Ticket paid',
-          body:  `${formatTicketLabel(data)} has been marked as Paid. Job complete.`,
+          body:  `${data.client_name?.trim() || 'A client'} has been marked as Paid. Job complete.`,
           url:   `/tickets/${data.id}`,
         })
         setTimeout(() => downloadTicketPDF(data), PDF_DOWNLOAD_DELAY_MS)

@@ -14,35 +14,28 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, CheckCheck, Inbox, ChevronRight, Send, Radio } from 'lucide-react'
+import { CheckCheck, Inbox, ChevronRight, Send, Radio } from 'lucide-react'
 import { useRole }          from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { sendGlobalPush }   from '../../lib/push'
+import { STATUS_COLORS }    from '../../lib/utils'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 /**
- * Parse a notification message and wrap any embedded Ticket IDs in a styled
- * badge chip. Ticket IDs match the pattern VRXE-YYYYMMDD-XXXX.
- *
- * Using split + map rather than dangerouslySetInnerHTML keeps this XSS-safe.
+ * Strip raw Ticket IDs (VRXE-YYYYMMDD-XXXX) from the message body entirely —
+ * the ID is shown only in the meta line next to the timestamp. New messages
+ * no longer contain IDs; this cleans up legacy rows in the database.
  *
  * @param {string} message - Raw notification message string.
- * @returns {ReactNode[]}
+ * @returns {string}
  */
-function renderMessage(message) {
-  const TICKET_ID_REGEX = /(VRXE-\d{8}-[A-Z0-9]{4})/
-  return message.split(TICKET_ID_REGEX).map((part, i) =>
-    TICKET_ID_REGEX.test(part) ? (
-      <span
-        key={i}
-        className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-xs font-bold
-                   bg-amber-100 text-amber-800 border border-amber-200 mx-0.5 leading-none align-middle"
-      >
-        {part}
-      </span>
-    ) : part
-  )
+function cleanMessage(message) {
+  return message
+    .replace(/VRXE-\d{8}-[A-Z0-9]{4}/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([.,])/g, '$1')
+    .trim()
 }
 
 // ── Admin: global push broadcast panel ─────────────────────────────────────────
@@ -210,22 +203,32 @@ export default function NotificationsPage() {
                 className={`w-full text-left flex items-start gap-3 px-5 py-4 transition-colors
                   ${n.seen ? 'hover:bg-gray-50' : 'bg-brand-50/60 hover:bg-brand-50'}`}
               >
-                {/* Seen/unseen indicator */}
-                <div className="shrink-0 mt-0.5">
-                  {n.seen
-                    ? <Bell className="w-3.5 h-3.5 text-gray-300" />
-                    : <span className="block w-2.5 h-2.5 rounded-full bg-accent-500" />
-                  }
+                {/* Status indicator — colored by ticket status so stacked
+                    notifications are distinguishable at a glance. Gray when
+                    the notification has no status (info / legacy rows).
+                    Unseen rows keep the solid dot; seen rows fade it. */}
+                <div className="shrink-0 mt-1.5" title={n.status || undefined}>
+                  <span
+                    className={`block w-2.5 h-2.5 rounded-full
+                      ${STATUS_COLORS[n.status]?.dot || 'bg-gray-300'}
+                      ${n.seen ? 'opacity-40' : ''}`}
+                  />
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <p className={`text-base font-body leading-snug ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
-                    {renderMessage(n.message)}
+                    {cleanMessage(n.message)}
                   </p>
+                  {/* Meta line — the only place the raw ticket ID appears */}
                   <p className="text-sm font-body text-gray-500 mt-0.5">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                     {n.ticket_human_id && (
                       <span className="ml-2 font-mono text-gray-400">· {n.ticket_human_id}</span>
+                    )}
+                    {n.status && (
+                      <span className={`ml-2 font-sans font-semibold ${STATUS_COLORS[n.status]?.text || 'text-gray-500'}`}>
+                        · {n.status}
+                      </span>
                     )}
                   </p>
                 </div>
