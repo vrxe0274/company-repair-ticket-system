@@ -24,7 +24,7 @@ import {
   Settings, Eye, CreditCard, AlertTriangle,
 } from 'lucide-react'
 import { supabase }                                    from '../../lib/supabase'
-import { getTrackingUrl, STATUS_ORDER }                from '../../lib/utils'
+import { getTrackingUrl, STATUS_ORDER, formatTicketLabel } from '../../lib/utils'
 import { createNotification, buildStatusNotification } from '../../lib/notifications'
 import { sendGlobalPush } from '../../lib/push'
 import { downloadTicketPDF }                           from '../../lib/pdf'
@@ -265,7 +265,7 @@ function useTicket(id) {
       alert(`Status update failed: ${error.message}`)
     } else {
       hydrate(data)
-      const note = buildStatusNotification({ actorRole: role, newStatus, ticketHumanId: data.ticket_id })
+      const note = buildStatusNotification({ actorRole: role, newStatus, ticketLabel: formatTicketLabel(data) })
       if (note) {
         try {
           await createNotification({
@@ -284,7 +284,7 @@ function useTicket(id) {
         // (the role-scoped in-app notification above is unchanged).
         sendGlobalPush({
           title: 'Ticket paid',
-          body:  `${data.ticket_id} has been marked as Paid. Job complete.`,
+          body:  `${formatTicketLabel(data)} has been marked as Paid. Job complete.`,
           url:   `/tickets/${data.id}`,
         })
         setTimeout(() => downloadTicketPDF(data), PDF_DOWNLOAD_DELAY_MS)

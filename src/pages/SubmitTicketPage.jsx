@@ -21,7 +21,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { sendGlobalPush } from '../lib/push'
 import {
-  generateTicketId, generateTrackingToken, getTrackingUrl,
+  generateTicketId, generateTrackingToken, getTrackingUrl, formatTicketLabel,
   PLATFORMS, UNIT_TYPES, VR_BRANDS, VR_ISSUES, MODES_OF_SERVICE,
 } from '../lib/utils'
 import Logo from '../components/ui/Logo.jsx'
@@ -182,7 +182,7 @@ export default function SubmitTicketPage() {
       // Global push (all subscribed staff devices) — fire-and-forget, fails softly
       sendGlobalPush({
         title: 'New repair ticket',
-        body:  `${ticketId} — ${resolvedBrand} ${form.unit_model} submitted by ${form.client_name}.`,
+        body:  `${formatTicketLabel(data)} — new ticket submitted.`,
         url:   `/tickets/${data.id}`,
       })
       setSubmitted(data)

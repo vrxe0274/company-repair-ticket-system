@@ -27,6 +27,30 @@ export function getTrackingUrl(trackingToken) {
 }
 
 /**
+ * Human-readable ticket label for notification text (in-app + push):
+ *   "Maria Santos — Samsung Galaxy S24 (Phone)"
+ *
+ * Falls back gracefully when fields are missing — uses whatever is present,
+ * then the raw ticket_id, then 'Unnamed Ticket'.
+ *
+ * @param {Object|null} ticket - Row with client_name / unit_brand /
+ *   unit_model / unit_type / ticket_id (extra fields are ignored).
+ * @returns {string}
+ */
+export function formatTicketLabel(ticket) {
+  if (!ticket) return 'Unnamed Ticket'
+  const name = ticket.client_name?.trim()
+  const unit = [ticket.unit_brand, ticket.unit_model]
+    .map(v => v?.trim())
+    .filter(Boolean)
+    .join(' ')
+  const type = ticket.unit_type?.trim()
+  const unitPart = unit && type ? `${unit} (${type})` : unit || type || ''
+  if (name && unitPart) return `${name} — ${unitPart}`
+  return name || unitPart || ticket.ticket_id || 'Unnamed Ticket'
+}
+
+/**
  * Status workflow order — updated simplified statuses
  */
 export const STATUS_ORDER = [

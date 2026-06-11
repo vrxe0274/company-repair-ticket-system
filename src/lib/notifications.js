@@ -34,13 +34,14 @@ export async function createNotification({
  * Build the right message + recipient for a status change.
  *
  * @param {Object}  args
- * @param {string}  args.actorRole      Who made the change ('Admin' | 'Technician')
- * @param {string}  args.newStatus      The status it was moved to
- * @param {string}  args.ticketHumanId  e.g. 'VRXE-20241210-A3F7'
+ * @param {string}  args.actorRole    Who made the change ('Admin' | 'Technician')
+ * @param {string}  args.newStatus    The status it was moved to
+ * @param {string}  args.ticketLabel  Human-readable label from formatTicketLabel(),
+ *                                    e.g. 'Maria Santos — Samsung Galaxy S24 (Phone)'
  * @returns {{ recipientRole: string, message: string } | null}
  */
-export function buildStatusNotification({ actorRole, newStatus, ticketHumanId }) {
-  const id    = ticketHumanId || 'a ticket'
+export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
+  const label = ticketLabel || 'Unnamed Ticket'
   const other = actorRole === NOTIFY_ROLES.ADMIN ? NOTIFY_ROLES.TECHNICIAN : NOTIFY_ROLES.ADMIN
 
   switch (newStatus) {
@@ -48,33 +49,33 @@ export function buildStatusNotification({ actorRole, newStatus, ticketHumanId })
       // Admin approved a pending ticket — let the technician know.
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Admin approved ticket ${id}. It's ready for inspection & quote.`,
+        message: `Admin approved ${label}. It's ready for inspection & quote.`,
       }
     case 'Denied':
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Admin denied ticket ${id}.`,
+        message: `Admin denied ${label}.`,
       }
     case 'Repair in Progress':
       return {
         recipientRole: other,
-        message: `${actorRole} moved ticket ${id} to Repair in Progress.`,
+        message: `${actorRole} moved ${label} to Repair in Progress.`,
       }
     case 'Done':
       // Technician finished — admin should review / mark paid.
       return {
         recipientRole: NOTIFY_ROLES.ADMIN,
-        message: `Technician marked ticket ${id} as Done — ready for your review.`,
+        message: `Technician marked ${label} as Done — ready for your review.`,
       }
     case 'Paid':
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Admin marked ticket ${id} as Paid. Job complete.`,
+        message: `Admin marked ${label} as Paid. Job complete.`,
       }
     default:
       return {
         recipientRole: other,
-        message: `${actorRole} updated ticket ${id} to ${newStatus}.`,
+        message: `${actorRole} updated ${label} to ${newStatus}.`,
       }
   }
 }
