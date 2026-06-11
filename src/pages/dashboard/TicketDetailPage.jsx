@@ -26,6 +26,7 @@ import {
 import { supabase }                                    from '../../lib/supabase'
 import { getTrackingUrl, STATUS_ORDER }                from '../../lib/utils'
 import { createNotification, buildStatusNotification } from '../../lib/notifications'
+import { sendGlobalPush } from '../../lib/push'
 import { downloadTicketPDF }                           from '../../lib/pdf'
 import { useRole }                                     from '../../hooks/useRole.jsx'
 import StatusBadge                                     from '../../components/ui/StatusBadge.jsx'
@@ -255,6 +256,13 @@ function useTicket(id) {
         }
       }
       if (newStatus === 'Paid') {
+        // Global push milestone — broadcast to all devices regardless of role
+        // (the role-scoped in-app notification above is unchanged).
+        sendGlobalPush({
+          title: 'Ticket paid',
+          body:  `${data.ticket_id} has been marked as Paid. Job complete.`,
+          url:   `/tickets/${data.id}`,
+        })
         setTimeout(() => downloadTicketPDF(data), PDF_DOWNLOAD_DELAY_MS)
       }
     }

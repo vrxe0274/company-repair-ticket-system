@@ -237,3 +237,27 @@ vrxe-tickets/
 
 SUPABASE PASSWORD:
 CcRW1W8SKBaWhNOf
+
+---
+
+## Push Notifications & Persistent Login (Setup)
+
+One-time setup for global Web Push:
+
+1. **Database** — run `push-setup.sql` in the Supabase SQL Editor (creates `push_subscriptions`).
+2. **VAPID keys** — already generated in `.env` (`VITE_VAPID_PUBLIC_KEY`). To rotate: `npx web-push generate-vapid-keys`.
+3. **Edge Function** — deploy the sender and set its secrets:
+   ```bash
+   supabase functions deploy send-push --no-verify-jwt
+   supabase secrets set VAPID_PUBLIC_KEY=<public key>
+   supabase secrets set VAPID_PRIVATE_KEY=<private key>   # never put this in a VITE_ var
+   supabase secrets set VAPID_SUBJECT=mailto:you@example.com
+   ```
+4. **Vercel** — add `VITE_VAPID_PUBLIC_KEY` to the project env vars and redeploy.
+
+How it works:
+
+- After login the dashboard shows a one-time "Enable notifications" banner. Granting it registers the device in `push_subscriptions` (re-prompt is snoozed 7 days if dismissed).
+- Global pushes go to **all** subscribed devices regardless of role: automatically on new ticket submission and when a ticket is marked Paid, and manually from the Admin panel on the Notifications page. Role-scoped in-app notifications are unchanged.
+- **iOS**: push requires iOS 16.4+ and the app installed via Share → Add to Home Screen. HTTPS is required everywhere (localhost is exempt for dev).
+- **Persistent login**: "Remember me" (browser) or installed-PWA mode keeps the session in localStorage with a 30-day sliding expiry; logout or expiry removes the session and the device push subscription.

@@ -16,6 +16,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useRole, ROLES } from '../hooks/useRole.jsx'
+import { isStandalone } from '../lib/session'
 import Logo from '../components/ui/Logo.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -96,6 +97,10 @@ export default function LoginPage() {
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
+  // Installed PWA → always stay signed in; browser → user-controlled toggle.
+  const standalone = isStandalone()
+  const [rememberMe, setRememberMe] = useState(true)
+
   // Guard: already authenticated — redirect without rendering the form.
   if (authenticated) {
     navigate('/', { replace: true })
@@ -117,7 +122,7 @@ export default function LoginPage() {
     setError('')
 
     setTimeout(() => {
-      const ok = loginWithRole(password, selectedRole)
+      const ok = loginWithRole(password, selectedRole, { rememberMe: standalone || rememberMe })
       if (ok) {
         setRole(selectedRole)
         navigate('/', { replace: true })
@@ -216,6 +221,25 @@ export default function LoginPage() {
               </p>
             )}
           </div>
+
+          {/* Remember me — hidden in installed PWA where persistence is always on */}
+          {standalone ? (
+            <p className="text-xs font-body text-gray-400 mb-6">
+              Installed app — you&apos;ll stay signed in on this device.
+            </p>
+          ) : (
+            <label className="flex items-center gap-2.5 mb-6 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm font-body text-gray-600">
+                Remember me on this device (30 days)
+              </span>
+            </label>
+          )}
 
           {/* Role login buttons */}
           <p className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-widest mb-3">

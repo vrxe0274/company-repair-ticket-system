@@ -19,6 +19,7 @@ import {
   User, Cpu, AlertCircle, CalendarClock, Send,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { sendGlobalPush } from '../lib/push'
 import {
   generateTicketId, generateTrackingToken, getTrackingUrl,
   PLATFORMS, UNIT_TYPES, VR_BRANDS, VR_ISSUES, MODES_OF_SERVICE,
@@ -178,6 +179,12 @@ export default function SubmitTicketPage() {
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
+      // Global push (all subscribed staff devices) — fire-and-forget, fails softly
+      sendGlobalPush({
+        title: 'New repair ticket',
+        body:  `${ticketId} — ${resolvedBrand} ${form.unit_model} submitted by ${form.client_name}.`,
+        url:   `/tickets/${data.id}`,
+      })
       setSubmitted(data)
       setForm(FORM_INITIAL)
       setStep(1)

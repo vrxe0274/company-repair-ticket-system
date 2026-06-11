@@ -7,20 +7,15 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // Custom SW (src/sw.js) so we can handle Web Push events.
+      // Precaching + Supabase runtime caching moved into sw.js.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       manifest: false, // using our own /public/manifest.json
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-            },
-          },
-        ],
       },
     }),
   ],

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { getSession, updateSessionRole } from '../lib/session'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Role definitions
@@ -24,29 +25,31 @@ export const ROLE_TRANSITIONS = {
   },
 }
 
-const SESSION_KEY = 'vrxe_role'
-
 const RoleContext = createContext(null)
 
 export function RoleProvider({ children }) {
   const [role, setRoleState] = useState(null)
 
+  // Role is stored inside the shared session record (lib/session.js) so it
+  // persists alongside auth — localStorage when "Remember me" / PWA,
+  // sessionStorage otherwise.
   useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY)
-    if (stored === ROLES.ADMIN || stored === ROLES.TECHNICIAN) {
-      setRoleState(stored)
+    const session = getSession()
+    if (session?.role === ROLES.ADMIN || session?.role === ROLES.TECHNICIAN) {
+      setRoleState(session.role)
     }
   }, [])
 
   function setRole(r) {
     if (r === ROLES.ADMIN || r === ROLES.TECHNICIAN) {
-      sessionStorage.setItem(SESSION_KEY, r)
+      updateSessionRole(r)
       setRoleState(r)
     }
   }
 
   function clearRole() {
-    sessionStorage.removeItem(SESSION_KEY)
+    // The session record itself is cleared by useAuth.logout();
+    // here we only reset the in-memory role.
     setRoleState(null)
   }
 

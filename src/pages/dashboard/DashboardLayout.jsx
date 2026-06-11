@@ -29,6 +29,7 @@ import { useAuth }          from '../../hooks/useAuth.jsx'
 import { useRole }          from '../../hooks/useRole.jsx'
 import { supabase }         from '../../lib/supabase'
 import Logo                 from '../../components/ui/Logo.jsx'
+import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -74,8 +75,8 @@ export default function DashboardLayout() {
 
   /**
    * Clear auth and role state, then redirect to login.
-   * Both must be cleared: logout() clears sessionStorage auth flag,
-   * clearRole() clears the role key separately.
+   * logout() clears the shared session record AND removes this device's
+   * push subscription; clearRole() resets the in-memory role.
    */
   function handleLogout() {
     clearRole()
@@ -313,6 +314,8 @@ export default function DashboardLayout() {
         </header>
 
         <main className="flex-1 p-5 lg:p-7 bg-gray-50">
+          {/* Push-notification enable banner (renders nothing once granted/snoozed) */}
+          <PushPermissionPrompt />
           {/* Child routes (DashboardHome, TicketListPage, etc.) render here */}
           <Outlet />
         </main>
