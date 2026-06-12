@@ -66,6 +66,29 @@ export function formatTicketLabel(ticket) {
 }
 
 /**
+ * Possessive client + unit label for in-app notification text:
+ *   "Juan Dela Cruz's Meta Quest 3"
+ *
+ * No unit type suffix — notification messages follow the
+ * "<action/status>: <clientName>'s <Brand> <Model>" format.
+ * Falls back to whatever is present, then the raw ticket_id.
+ *
+ * @param {Object|null} ticket - Row with client_name / unit_brand /
+ *   unit_model / ticket_id (extra fields are ignored).
+ * @returns {string}
+ */
+export function formatClientUnitLabel(ticket) {
+  if (!ticket) return 'Unnamed Ticket'
+  const name = ticket.client_name?.trim()
+  const unit = [ticket.unit_brand, ticket.unit_model]
+    .map(v => v?.trim())
+    .filter(Boolean)
+    .join(' ')
+  if (name && unit) return `${name}'s ${unit}`
+  return name || unit || ticket.ticket_id || 'Unnamed Ticket'
+}
+
+/**
  * Status workflow order — updated simplified statuses
  */
 export const STATUS_ORDER = [
@@ -126,7 +149,8 @@ export const UNIT_TYPES = [
 ]
 
 export const VR_BRANDS = [
-  'Meta / Oculus',
+  'Meta',
+  'Oculus',
   'PlayStation VR (PSVR)',
   'HTC Vive',
   'Pico',

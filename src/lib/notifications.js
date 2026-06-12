@@ -35,51 +35,52 @@ export async function createNotification({
 /**
  * Build the right message + recipient for a status change.
  *
+ * Messages follow the "<action/status>: <clientName>'s <Brand> <Model>"
+ * format, e.g. "Ready for pickup: Juan Dela Cruz's Meta Quest 3".
+ *
  * @param {Object}  args
  * @param {string}  args.actorRole    Who made the change ('Admin' | 'Technician')
  * @param {string}  args.newStatus    The status it was moved to
- * @param {string}  args.ticketLabel  Human-readable label from formatTicketLabel(),
- *                                    e.g. 'Maria Santos — Samsung Galaxy S24 (Phone)'
+ * @param {string}  args.ticketLabel  Human-readable label from formatClientUnitLabel(),
+ *                                    e.g. "Juan Dela Cruz's Meta Quest 3"
  * @returns {{ recipientRole: string, message: string } | null}
  */
 export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
   const label = ticketLabel || 'Unnamed Ticket'
   const other = actorRole === NOTIFY_ROLES.ADMIN ? NOTIFY_ROLES.TECHNICIAN : NOTIFY_ROLES.ADMIN
 
-  // Messages are intentionally terse (≤5 words plus the ticket label) —
-  // the inbox meta line already shows the status chip and ticket ID.
   switch (newStatus) {
     case 'Inspection & Quote':
       // Admin approved a pending ticket — let the technician know.
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `${label} approved.`,
+        message: `Approved: ${label}`,
       }
     case 'Denied':
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `${label} denied.`,
+        message: `Denied: ${label}`,
       }
     case 'Repair in Progress':
       return {
         recipientRole: other,
-        message: `${label} repair started.`,
+        message: `Repair started: ${label}`,
       }
     case 'Done':
       // Technician finished — admin should review / mark paid.
       return {
         recipientRole: NOTIFY_ROLES.ADMIN,
-        message: `${label} done — review.`,
+        message: `Ready for pickup: ${label}`,
       }
     case 'Paid':
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `${label} paid.`,
+        message: `Paid: ${label}`,
       }
     default:
       return {
         recipientRole: other,
-        message: `${label} → ${newStatus}.`,
+        message: `${newStatus}: ${label}`,
       }
   }
 }

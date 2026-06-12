@@ -421,10 +421,14 @@ export default function TrackTicketPage() {
           </div>
         )}
 
-        {/* Live-update notice */}
+        {/* Refresh notice */}
         <div className="flex items-start gap-3 bg-blue-50 rounded-xl p-4 text-sm font-body text-blue-700">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>This page updates automatically. Bookmark this link to check your repair status anytime.</p>
+          <p>
+            Status changes are not shown in real time — please refresh this page
+            periodically to see the latest status. Bookmark this link to check
+            your repair anytime.
+          </p>
         </div>
 
         <div className="mt-6 text-center">

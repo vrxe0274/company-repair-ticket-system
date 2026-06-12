@@ -23,7 +23,7 @@ import { sendGlobalPush } from '../lib/push'
 import { createNotification, NOTIFY_ROLES } from '../lib/notifications'
 import {
   generateTicketId, generateTrackingToken, getTrackingUrl,
-  formatUnitLabel, formatTicketLabel,
+  formatUnitLabel, formatClientUnitLabel,
   PLATFORMS, UNIT_TYPES, VR_BRANDS, VR_ISSUES, MODES_OF_SERVICE,
 } from '../lib/utils'
 import Logo from '../components/ui/Logo.jsx'
@@ -185,7 +185,7 @@ export default function SubmitTicketPage() {
       // fire-and-forget, fails softly like the push below.
       createNotification({
         recipientRole: NOTIFY_ROLES.ADMIN,
-        message:       `New ticket: ${formatTicketLabel(data)}.`,
+        message:       `New ticket: ${formatClientUnitLabel(data)}`,
         type:          'new_ticket',
         status:        'Pending',
         ticketUuid:    data.id,

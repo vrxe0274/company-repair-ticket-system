@@ -4,12 +4,18 @@ import { format } from 'date-fns'
 const vrxeLogo = '/vrxe-logo.png'
 
 /**
- * Generate a receipt number for a ticket
+ * Generate a receipt number for a ticket.
+ * Mirrors the ticket ID format with an "-R" designator so receipt and
+ * ticket numbers are visually consistent:
+ *   ticket  VRXE-20241210-A3F7  →  receipt  VRXE-20241210-A3F7-R
+ * Falls back to a freshly generated ID in the same pattern when no
+ * ticket ID is available.
  */
-export function generateReceiptNumber(_ticketId) {
-  const year = new Date().getFullYear().toString().slice(2)
-  const rand = Math.floor(Math.random() * 9000 + 1000)
-  return `26${year.padStart(2, '0')}-00VR02-${rand}`
+export function generateReceiptNumber(ticketId) {
+  if (ticketId) return `${ticketId}-R`
+  const datePart   = format(new Date(), 'yyyyMMdd')
+  const randomPart = Math.random().toString(36).toUpperCase().substring(2, 6)
+  return `VRXE-${datePart}-${randomPart}-R`
 }
 
 /**

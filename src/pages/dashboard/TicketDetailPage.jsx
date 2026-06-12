@@ -24,7 +24,7 @@ import {
   Settings, Eye, CreditCard, AlertTriangle, Undo2,
 } from 'lucide-react'
 import { supabase }                                    from '../../lib/supabase'
-import { getTrackingUrl, STATUS_ORDER, formatTicketLabel } from '../../lib/utils'
+import { getTrackingUrl, STATUS_ORDER, formatClientUnitLabel } from '../../lib/utils'
 import { createNotification, buildStatusNotification } from '../../lib/notifications'
 import { sendGlobalPush } from '../../lib/push'
 import { downloadTicketPDF }                           from '../../lib/pdf'
@@ -276,7 +276,7 @@ function useTicket(id) {
       alert(`Status update failed: ${error.message}`)
     } else {
       hydrate(data)
-      const note = buildStatusNotification({ actorRole: role, newStatus, ticketLabel: formatTicketLabel(data) })
+      const note = buildStatusNotification({ actorRole: role, newStatus, ticketLabel: formatClientUnitLabel(data) })
       if (note) {
         try {
           await createNotification({
@@ -328,7 +328,7 @@ function useTicket(id) {
       try {
         await createNotification({
           recipientRole: other,
-          message:       `${formatTicketLabel(data)} reverted to ${data.status}.`,
+          message:       `Reverted to ${data.status}: ${formatClientUnitLabel(data)}`,
           type:          'status_change',
           status:        data.status,
           ticketUuid:    data.id,
@@ -342,7 +342,13 @@ function useTicket(id) {
     setStatusUpdating(false)
   }
 
-  async function saveNotesAndPricing() {
+  /**
+   * Save the editable form state, limited by scope:
+   *   'notes'     — technician diagnosis/repair notes
+   *   'quotation' — labor/parts items + discount + quotation total (Admin)
+   *   'payment'   — final price only (Admin)
+   */
+  async function saveNotesAndPricing(scope) {
     setSaving(true)
     const cleanLabor = laborItems
       .filter(it => it.description.trim() || String(it.amount).trim() !== '')
@@ -352,23 +358,33 @@ function useTicket(id) {
       .map(({ description, amount }) => ({ description: description.trim(), amount: parseFloat(amount) || 0 }))
     const hasItems  = cleanLabor.length > 0 || cleanParts.length > 0
     const quotation = computeQuotation(cleanLabor, cleanParts, discount)
-    const notesPatch   = isTechnician
-      ? { diagnosis_notes: notes.diagnosis_notes || null, repair_notes: notes.repair_notes || null }
-      : {}
-    const pricingPatch = isAdmin ? {
-      labor_items:      cleanLabor,
-      parts_items:      cleanParts,
-      discount_amount:  parseFloat(discount) || 0,
-      quotation_amount: hasItems ? quotation : null,
-      final_price:      finalPrice !== '' && finalPrice !== null ? Number(finalPrice) : null,
-    } : {}
+    let patch = {}
+    if (scope === 'notes' && isTechnician) {
+      patch = { diagnosis_notes: notes.diagnosis_notes || null, repair_notes: notes.repair_notes || null }
+    } else if (scope === 'quotation' && isAdmin) {
+      patch = {
+        labor_items:      cleanLabor,
+        parts_items:      cleanParts,
+        discount_amount:  parseFloat(discount) || 0,
+        quotation_amount: hasItems ? quotation : null,
+      }
+    } else if (scope === 'payment' && isAdmin) {
+      patch = {
+        final_price: finalPrice !== '' && finalPrice !== null ? Number(finalPrice) : null,
+      }
+    }
+    if (!Object.keys(patch).length) { setSaving(false); return }
     const { data, error } = await supabase
-      .from('tickets').update({ ...notesPatch, ...pricingPatch }).eq('id', id).select(TICKET_COLUMNS).single()
+      .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
     if (error) {
       alert(`Save failed: ${error.message}`)
     } else {
       hydrate(data)
-      setSaveMsg('Saved!')
+      setSaveMsg(
+        scope === 'quotation' ? 'Quotation saved!'
+        : scope === 'payment' ? 'Final payment saved!'
+        : 'Saved!'
+      )
       setTimeout(() => setSaveMsg(''), SAVE_MSG_DURATION_MS)
     }
     setSaving(false)
@@ -634,7 +650,7 @@ function QuotationTab({
   finalPrice, setFinalPrice,
   saving, saveMsg,
   laborTotal, partsTotal, discountValue, quotationLive,
-  onSave,
+  onSaveQuotation, onSaveFinalPayment,
   onUpdateLaborItem, onAddLaborItem, onRemoveLaborItem,
   onUpdatePartsItem, onAddPartsItem, onRemovePartsItem,
 }) {
@@ -756,8 +772,26 @@ function QuotationTab({
               </div>
             </div>
 
+            {/* Save quotation — Admin only */}
+            {isAdmin && (
+              <div className="flex items-center gap-3">
+                <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
+                  {saving
+                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <Save className="w-3.5 h-3.5" />
+                  }
+                  Save Quotation
+                </button>
+                {saveMsg === 'Quotation saved!' && (
+                  <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Final price */}
-            <div className="flex items-center gap-3 pt-1 flex-wrap">
+            <div className="flex items-center gap-3 pt-3 border-t border-gray-100 flex-wrap">
               <div className="flex items-center gap-2 w-40 shrink-0">
                 <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
                 <label className="text-sm font-sans font-bold text-gray-700">Amount Paid</label>
@@ -783,17 +817,21 @@ function QuotationTab({
               )}
             </div>
 
-            {/* Save — Admin only */}
+            {/* Save final payment — Admin only */}
             {isAdmin && (
               <div className="flex items-center gap-3 pt-1">
-                <button onClick={onSave} disabled={saving} className="btn-primary text-sm">
+                <button
+                  onClick={onSaveFinalPayment}
+                  disabled={saving}
+                  className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400"
+                >
                   {saving
                     ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     : <Save className="w-3.5 h-3.5" />
                   }
-                  Save Changes
+                  Save Final Payment
                 </button>
-                {saveMsg && (
+                {saveMsg === 'Final payment saved!' && (
                   <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
                     <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
                   </span>
@@ -914,7 +952,7 @@ export default function TicketDetailPage() {
         </div>
 
         {/* Secondary row: timestamps + paid indicator */}
-        <div className="flex items-center gap-3 flex-wrap mt-2 mb-4">
+        <div className="flex items-center gap-3 flex-wrap mt-2">
           <p className="text-xs font-body text-gray-400">
             Submitted {format(new Date(ticket.created_at), 'MMM d, yyyy · h:mm a')}
           </p>
@@ -931,15 +969,21 @@ export default function TicketDetailPage() {
             </>
           )}
         </div>
+      </div>
 
-        {/* Status step indicator */}
-        <div className="flex items-center">
+      {/* Progress bar — own section below the header, centered */}
+      <div className="card p-5">
+        <p className="section-title">Progress</p>
+        <div className="flex items-center w-full max-w-3xl mx-auto">
           {STATUS_ORDER.map((s, i) => {
             const isComplete = i < progressIdx
             const isCurrent  = i === progressIdx
+            const isLast     = i === STATUS_ORDER.length - 1
+            // Only steps with a trailing connector grow — the last step is
+            // content-sized so the bar has no dead space and stays centered.
             return (
-              <div key={s} className="flex items-center flex-1">
-                <div className="flex items-center gap-1.5">
+              <div key={s} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
+                <div className="flex items-center gap-1.5 shrink-0">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-300
                     ${isComplete ? 'bg-brand-600 text-white' : isCurrent ? 'bg-dark-900 text-white ring-2 ring-brand-500 ring-offset-1' : 'bg-gray-200 text-gray-400'}`}
                   >
@@ -948,13 +992,13 @@ export default function TicketDetailPage() {
                       : <span className="text-xs font-bold">{i + 1}</span>
                     }
                   </div>
-                  <span className={`text-xs font-sans font-semibold hidden lg:block
+                  <span className={`text-xs font-sans font-semibold whitespace-nowrap hidden lg:block
                     ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
                     {s}
                   </span>
                 </div>
-                {i < STATUS_ORDER.length - 1 && (
-                  <div className="flex-1 mx-2 h-0.5 bg-gray-200 rounded-full overflow-hidden">
+                {!isLast && (
+                  <div className="flex-1 min-w-3 mx-2 h-0.5 bg-gray-200 rounded-full overflow-hidden">
                     <div className={`h-full bg-brand-500 transition-all duration-500 ${isComplete ? 'w-full' : 'w-0'}`} />
                   </div>
                 )}
@@ -1025,9 +1069,23 @@ export default function TicketDetailPage() {
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="border-b border-gray-200 -mb-1">
-        <div className="flex gap-1 overflow-x-auto pb-0">
+      {/* Section navigation — dropdown on mobile, tab bar on md+ */}
+      <div className="md:hidden">
+        <label className="label" htmlFor="ticket-section-select">Section</label>
+        <select
+          id="ticket-section-select"
+          value={activeTab}
+          onChange={e => setActiveTab(e.target.value)}
+          className="input-field"
+        >
+          <option value="overview">Overview</option>
+          <option value="tech">Technical Details</option>
+          <option value="admin">Quotation &amp; Payment</option>
+          <option value="settings">Settings</option>
+        </select>
+      </div>
+      <div className="hidden md:block border-b border-gray-200 -mb-1">
+        <div className="flex gap-1 pb-0">
           <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={Eye}        label="Overview" />
           <TabButton active={activeTab === 'tech'}     onClick={() => setActiveTab('tech')}     icon={Wrench}     label="Technical Details" />
           <TabButton active={activeTab === 'admin'}    onClick={() => setActiveTab('admin')}    icon={CreditCard} label="Quotation & Payment" />
@@ -1044,7 +1102,7 @@ export default function TicketDetailPage() {
           isTechnician={isTechnician} isAdmin={isAdmin} canSeeNotes={canSeeNotes}
           saving={saving}         saveMsg={saveMsg}
           uploading={uploading}   fileInputRef={fileInputRef}
-          onSaveNotes={saveNotesAndPricing}
+          onSaveNotes={() => saveNotesAndPricing('notes')}
           onUpload={uploadPhotos}
           onDeletePhoto={deletePhoto}
         />
@@ -1059,7 +1117,8 @@ export default function TicketDetailPage() {
           saving={saving}             saveMsg={saveMsg}
           laborTotal={laborTotal}     partsTotal={partsTotal}
           discountValue={discountValue} quotationLive={quotationLive}
-          onSave={saveNotesAndPricing}
+          onSaveQuotation={() => saveNotesAndPricing('quotation')}
+          onSaveFinalPayment={() => saveNotesAndPricing('payment')}
           onUpdateLaborItem={(itemId, f, v) => updateItem(setLaborItems, itemId, f, v)}
           onAddLaborItem={() => addItem(setLaborItems)}
           onRemoveLaborItem={itemId => removeItem(setLaborItems, itemId)}

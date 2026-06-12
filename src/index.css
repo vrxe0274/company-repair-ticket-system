@@ -29,6 +29,16 @@
    */
   /* 16px base, relaxed line-height — prevents text-sm cascade from shrinking below target */
   body { @apply bg-white text-base text-gray-900 font-body leading-normal antialiased; }
+
+  /*
+   * Mobile: vertical scrolling only — disables pinch-to-zoom and horizontal
+   * panning (iOS Safari ignores user-scalable=no in the viewport meta, so
+   * touch-action is required there). Scoped below the md breakpoint so
+   * horizontally scrollable tables/tab bars on tablets keep working.
+   */
+  @media (max-width: 767px) {
+    html, body { touch-action: pan-y; }
+  }
 }
 
 /* =============================================================================

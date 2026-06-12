@@ -14,7 +14,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Search, Download, RefreshCw, ChevronRight, Filter } from 'lucide-react'
+import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
@@ -42,6 +42,8 @@ export default function TicketListPage() {
   // Live data — realtime keeps the list in sync without a refresh.
   const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
   const [search, setSearch] = useState('')
+  // Status filter panel — collapsed by default, toggled by the filter button.
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Derive active status filter from URL; defaults to 'All' when absent.
   const activeStatus = searchParams.get('status') || 'All'
@@ -84,39 +86,57 @@ export default function TicketListPage() {
 
       {/* Search + filter controls */}
       <div className="card p-4 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by ticket ID, name, email, unit..."
-            className="input-field pl-9"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by ticket ID, name, email, unit..."
+              className="input-field pl-9"
+            />
+          </div>
+
+          {/* Filter toggle — shows the active status when one is applied */}
+          <button
+            onClick={() => setFiltersOpen(o => !o)}
+            aria-expanded={filtersOpen}
+            aria-controls="status-filter-panel"
+            className="btn-secondary text-sm shrink-0"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            {activeStatus === 'All' ? 'Filter' : activeStatus}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filtersOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
-        {/* Status filter pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Filter className="w-3.5 h-3.5 text-gray-400 mr-1" />
-          {ALL_STATUSES.map(s => (
-            <button
-              key={s}
-              onClick={() => setSearchParams(s === 'All' ? {} : { status: s })}
-              className={`text-sm px-3 py-1.5 rounded-full font-sans font-semibold transition-colors min-h-[34px]
-                ${activeStatus === s
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              {s}
-              {s !== 'All' && (
-                <span className={`ml-1.5 ${activeStatus === s ? 'text-white/70' : 'text-gray-400'}`}>
-                  {tickets.filter(t => t.status === s).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Foldable status filter panel — collapsed by default */}
+        {filtersOpen && (
+          <div
+            id="status-filter-panel"
+            className="flex items-center gap-1.5 flex-wrap pt-3 border-t border-gray-100 animate-fade-in"
+          >
+            {ALL_STATUSES.map(s => (
+              <button
+                key={s}
+                onClick={() => setSearchParams(s === 'All' ? {} : { status: s })}
+                className={`text-sm px-3 py-1.5 rounded-full font-sans font-semibold transition-colors min-h-[34px]
+                  ${activeStatus === s
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                {s}
+                {s !== 'All' && (
+                  <span className={`ml-1.5 ${activeStatus === s ? 'text-white/70' : 'text-gray-400'}`}>
+                    {tickets.filter(t => t.status === s).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Ticket table / list */}
