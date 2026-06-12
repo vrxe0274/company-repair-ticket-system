@@ -2,6 +2,29 @@ import ExcelJS from 'exceljs'
 import { format } from 'date-fns'
 
 /**
+ * Build the export file name from the month(s)/year covered by the data:
+ *   "VRXE_Report_June_2026.xlsx"                — single month
+ *   "VRXE_Report_May-June_2026.xlsx"            — multi-month, same year
+ *   "VRXE_Report_December_2025-February_2026.xlsx" — range spans years
+ * Falls back to the current month when there are no dated rows.
+ */
+function reportFileName(tickets) {
+  const dates = tickets
+    .map(t => new Date(t.created_at))
+    .filter(d => !isNaN(d))
+  if (!dates.length) return `VRXE_Report_${format(new Date(), 'MMMM_yyyy')}.xlsx`
+
+  const min = new Date(Math.min(...dates))
+  const max = new Date(Math.max(...dates))
+  const sameYear  = min.getFullYear() === max.getFullYear()
+  const sameMonth = sameYear && min.getMonth() === max.getMonth()
+
+  if (sameMonth) return `VRXE_Report_${format(min, 'MMMM_yyyy')}.xlsx`
+  if (sameYear)  return `VRXE_Report_${format(min, 'MMMM')}-${format(max, 'MMMM_yyyy')}.xlsx`
+  return `VRXE_Report_${format(min, 'MMMM_yyyy')}-${format(max, 'MMMM_yyyy')}.xlsx`
+}
+
+/**
  * Flatten labor/parts items into a readable string for the spreadsheet.
  */
 function formatLineItems(items) {
@@ -161,7 +184,7 @@ export async function exportTicketsToXLSX(tickets) {
   const url    = URL.createObjectURL(blob)
   const link   = document.createElement('a')
   link.href     = url
-  link.download = `VRXE_Tickets_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`
+  link.download = reportFileName(tickets)
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

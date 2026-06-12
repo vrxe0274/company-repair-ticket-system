@@ -113,18 +113,19 @@ export default function NotificationsPage() {
                   <p className={`text-base font-body leading-snug ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
                     {cleanMessage(n.message)}
                   </p>
-                  {/* Meta line — the only place the raw ticket ID appears */}
+                  {/* Meta — timestamp (+ status) on one line, ticket ID below */}
                   <p className="text-sm font-body text-gray-500 mt-0.5">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-                    {n.ticket_human_id && (
-                      <span className="ml-2 font-mono text-gray-400">· {n.ticket_human_id}</span>
-                    )}
                     {n.status && (
                       <span className={`ml-2 font-sans font-semibold ${STATUS_COLORS[n.status]?.text || 'text-gray-500'}`}>
                         · {n.status}
                       </span>
                     )}
                   </p>
+                  {/* The only place the raw ticket ID appears */}
+                  {n.ticket_human_id && (
+                    <p className="text-sm font-mono text-gray-400 mt-0.5">{n.ticket_human_id}</p>
+                  )}
                 </div>
 
                 {/* Navigate indicator — only shown when the notification links to a ticket */}

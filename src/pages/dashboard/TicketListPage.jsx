@@ -11,7 +11,7 @@
  * // rather than fetching all rows and filtering in-memory.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter } from 'lucide-react'
@@ -34,6 +34,9 @@ const ALL_STATUSES = ['All', ...STATUS_ORDER, STATUS_DENIED]
  */
 const SEARCHABLE_FIELDS = ['ticket_id', 'client_name', 'email', 'unit_brand', 'unit_model', 'contact_number']
 
+/** Matches viewports below Tailwind's `md` breakpoint — the app's mobile layout. */
+const MOBILE_QUERY = '(max-width: 767px)'
+
 // ── Page component ─────────────────────────────────────────────────────────────
 
 /** TicketListPage — master list with status filter pills and full-text search. */
@@ -44,6 +47,16 @@ export default function TicketListPage() {
   const [search, setSearch] = useState('')
   // Status filter panel — collapsed by default, toggled by the filter button.
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // Placeholder text can't be styled responsively with CSS, so track the
+  // mobile breakpoint in JS to swap in a shorter placeholder on small screens.
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches)
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY)
+    const onChange = e => setIsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   // Derive active status filter from URL; defaults to 'All' when absent.
   const activeStatus = searchParams.get('status') || 'All'
@@ -93,7 +106,7 @@ export default function TicketListPage() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by ticket ID, name, email, unit..."
+              placeholder={isMobile ? 'Search' : 'Search by ticket ID, name, email, unit...'}
               className="input-field pl-9"
             />
           </div>

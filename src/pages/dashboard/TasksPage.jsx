@@ -9,7 +9,7 @@
  */
 
 import { Link } from 'react-router-dom'
-import { format } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { ClipboardList, CheckCircle, RefreshCw, ChevronRight } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
@@ -84,7 +84,6 @@ export default function TasksPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     <StatusBadge status={t.status} size="sm" />
-                    <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                   </div>
                   <p className="font-sans font-semibold text-base text-gray-900 truncate">
                     {t.client_name} <span className="font-normal text-gray-500">· {t.unit_brand} {t.unit_model}</span>
@@ -95,7 +94,7 @@ export default function TasksPage() {
                 </div>
                 <div className="text-right shrink-0 flex items-center gap-2">
                   <p className="text-sm font-body text-gray-500">
-                    {format(new Date(t.created_at), 'MMM d, yyyy')}
+                    {formatDistanceToNow(new Date(t.created_at), { addSuffix: true })}
                   </p>
                   <ChevronRight className="w-4 h-4 text-gray-300" />
                 </div>

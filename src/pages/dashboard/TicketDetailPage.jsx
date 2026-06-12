@@ -14,7 +14,7 @@
  *   (other)    — pricing hidden until ticket is approved; notes always hidden
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { Fragment, useEffect, useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
@@ -36,6 +36,30 @@ import StatusBadge                                     from '../../components/ui
 const SAVE_MSG_DURATION_MS  = 2500
 const PDF_DOWNLOAD_DELAY_MS = 300
 const MAX_PHOTO_BYTES       = 10 * 1024 * 1024
+
+/**
+ * Role-specific guidance shown under the progress bar — what this viewer
+ * should do next, or which role they are waiting on. Keyed by viewer role,
+ * then ticket status (including the off-track 'Denied' status).
+ */
+const STATUS_GUIDANCE = {
+  Admin: {
+    'Pending':            'Your action: review the request — approve or deny.',
+    'Inspection & Quote': 'Your action: add the quotation. The technician inspects the unit and saves the diagnosis.',
+    'Repair in Progress': 'Waiting for the technician to finish the repair…',
+    'Done':               'Your action: collect payment and mark the ticket as Paid.',
+    'Paid':               'Ticket complete — payment received.',
+    'Denied':             'Request denied — no further action needed.',
+  },
+  Technician: {
+    'Pending':            'Waiting for the admin to review the request…',
+    'Inspection & Quote': 'Your action: inspect the unit and save the diagnosis. The admin adds the quotation.',
+    'Repair in Progress': 'Your action: finish the repair — add notes & photos, then mark Done.',
+    'Done':               'Waiting for the admin to collect payment…',
+    'Paid':               'Ticket complete — payment received.',
+    'Denied':             'Request denied — no further action needed.',
+  },
+}
 
 const TICKET_COLUMNS = [
   'id', 'ticket_id', 'status', 'previous_status', 'created_at', 'updated_at', 'paid_at', 'receipt_number',
@@ -143,6 +167,60 @@ function LockedSection({ message }) {
         <Lock className="w-5 h-5 text-gray-400" />
       </div>
       <p className="text-sm font-body text-gray-500 max-w-xs">{message}</p>
+    </div>
+  )
+}
+
+/**
+ * Status progress bar card. Rendered in two responsive slots: globally below
+ * the ticket header on desktop, and inside the Overview tab on mobile.
+ * `guidance` is the role-specific next-step text shown under the bar.
+ */
+function ProgressCard({ status, guidance, className = '' }) {
+  const progressIdx = STATUS_ORDER.indexOf(status)
+  return (
+    <div className={`card p-5 ${className}`}>
+      <p className="section-title">Progress</p>
+      {/* lg:pb-7 reserves space for the absolutely-positioned labels */}
+      <div className="flex items-center w-full max-w-3xl mx-auto lg:pb-7">
+        {STATUS_ORDER.map((s, i) => {
+          const isComplete = i < progressIdx
+          const isCurrent  = i === progressIdx
+          const isLast     = i === STATUS_ORDER.length - 1
+          // Only the circles participate in the row layout (labels hang
+          // below them absolutely), so every step is exactly circle-width
+          // and all connectors + circle gaps come out identical.
+          return (
+            <Fragment key={s}>
+              <div className="relative shrink-0">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300
+                  ${isComplete ? 'bg-brand-600 text-white' : isCurrent ? 'bg-dark-900 text-white ring-2 ring-brand-500 ring-offset-1' : 'bg-gray-200 text-gray-400'}`}
+                >
+                  {isComplete
+                    ? <CheckCircle className="w-3.5 h-3.5" />
+                    : <span className="text-xs font-bold">{i + 1}</span>
+                  }
+                </div>
+                <span className={`absolute top-full left-1/2 -translate-x-1/2 mt-1.5 text-xs font-sans font-semibold whitespace-nowrap hidden lg:block
+                  ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
+                  {s}
+                </span>
+              </div>
+              {!isLast && (
+                <div className="flex-1 min-w-3 mx-2 h-0.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div className={`h-full bg-brand-500 transition-all duration-500 ${isComplete ? 'w-full' : 'w-0'}`} />
+                </div>
+              )}
+            </Fragment>
+          )
+        })}
+      </div>
+      {guidance && (
+        <p className={`text-sm font-body text-center mt-4
+          ${guidance.startsWith('Your action') ? 'text-brand-700 font-semibold' : 'text-gray-500 italic'}`}>
+          {guidance}
+        </p>
+      )}
     </div>
   )
 }
@@ -461,9 +539,12 @@ function useTicket(id) {
 
 // ── Tab components ────────────────────────────────────────────────────────────
 
-function OverviewTab({ ticket }) {
+function OverviewTab({ ticket, statusGuidance }) {
   return (
     <div className="space-y-5">
+      {/* Mobile only — desktop shows the progress card globally below the header */}
+      <ProgressCard status={ticket.status} guidance={statusGuidance} className="md:hidden" />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -915,7 +996,6 @@ export default function TicketDetailPage() {
   const nextStatuses    = getAllowedTransitions(ticket.status)
   const trackingUrl     = getTrackingUrl(ticket.tracking_token)
   const safeTrackingUrl = trackingUrl?.startsWith('http') ? trackingUrl : '#'
-  const progressIdx     = STATUS_ORDER.indexOf(ticket.status)
   const laborTotal      = sumItems(laborItems)
   const partsTotal      = sumItems(partsItems)
   const discountValue   = parseFloat(discount) || 0
@@ -924,9 +1004,14 @@ export default function TicketDetailPage() {
   const canSeeNotes     = isAdmin || isTechnician
   const canSeePricing   = isAdmin || isApproved
   const canUndo         = (isAdmin || isTechnician) && !!ticket.previous_status && ticket.previous_status !== ticket.status
+  const showActions     = nextStatuses.length > 0 || canUndo
+  const statusGuidance  = isAdmin ? STATUS_GUIDANCE.Admin[ticket.status]
+    : isTechnician ? STATUS_GUIDANCE.Technician[ticket.status]
+    : null
 
   return (
-    <div className="space-y-5 animate-fade-in pb-10">
+    // Extra mobile bottom padding keeps content clear of the fixed action bar
+    <div className={`space-y-5 animate-fade-in ${showActions ? 'pb-32 md:pb-10' : 'pb-10'}`}>
 
       {/* Back + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -971,46 +1056,14 @@ export default function TicketDetailPage() {
         </div>
       </div>
 
-      {/* Progress bar — own section below the header, centered */}
-      <div className="card p-5">
-        <p className="section-title">Progress</p>
-        <div className="flex items-center w-full max-w-3xl mx-auto">
-          {STATUS_ORDER.map((s, i) => {
-            const isComplete = i < progressIdx
-            const isCurrent  = i === progressIdx
-            const isLast     = i === STATUS_ORDER.length - 1
-            // Only steps with a trailing connector grow — the last step is
-            // content-sized so the bar has no dead space and stays centered.
-            return (
-              <div key={s} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-300
-                    ${isComplete ? 'bg-brand-600 text-white' : isCurrent ? 'bg-dark-900 text-white ring-2 ring-brand-500 ring-offset-1' : 'bg-gray-200 text-gray-400'}`}
-                  >
-                    {isComplete
-                      ? <CheckCircle className="w-3.5 h-3.5" />
-                      : <span className="text-xs font-bold">{i + 1}</span>
-                    }
-                  </div>
-                  <span className={`text-xs font-sans font-semibold whitespace-nowrap hidden lg:block
-                    ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
-                    {s}
-                  </span>
-                </div>
-                {!isLast && (
-                  <div className="flex-1 min-w-3 mx-2 h-0.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div className={`h-full bg-brand-500 transition-all duration-500 ${isComplete ? 'w-full' : 'w-0'}`} />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      {/* Progress bar — own section below the header on desktop; on mobile it
+          renders inside the Overview tab instead */}
+      <ProgressCard status={ticket.status} guidance={statusGuidance} className="hidden md:block" />
 
-      {/* Action bar — status transitions + undo, centered below the header */}
-      {(nextStatuses.length > 0 || canUndo) && (
-        <div className="w-full">
+      {/* Action bar — status transitions + undo, centered below the header.
+          Desktop only; mobile uses the fixed bottom bar at the end of the page. */}
+      {showActions && (
+        <div className="w-full hidden md:block">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 flex-wrap">
             {nextStatuses.map(status => (
               <button
@@ -1093,7 +1146,7 @@ export default function TicketDetailPage() {
         </div>
       </div>
 
-      {activeTab === 'overview' && <OverviewTab ticket={ticket} />}
+      {activeTab === 'overview' && <OverviewTab ticket={ticket} statusGuidance={statusGuidance} />}
 
       {activeTab === 'tech' && (
         <TechTab
@@ -1134,6 +1187,73 @@ export default function TicketDetailPage() {
           deleteConfirm={deleteConfirm} setDeleteConfirm={setDeleteConfirm}
           onDelete={deleteTicket}
         />
+      )}
+
+      {/* Mobile action bar — fixed to the bottom of the screen. Status
+          transition button(s) fill ~90% of the row, undo the remaining ~10%.
+          Stays below the sidebar drawer (z-50) and its overlay (z-40). */}
+      {showActions && (
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          {transitionErrors.length > 0 && (
+            <div className="flex flex-col gap-1 mb-2">
+              {transitionErrors.map((msg, i) => (
+                <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  {msg}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {undoConfirm ? (
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <span className="text-sm font-body text-gray-600">
+                Revert to <span className="font-semibold">{ticket.previous_status}</span>?
+              </span>
+              <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm flex-1 justify-center">
+                {statusUpdating
+                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : 'Yes, Revert'
+                }
+              </button>
+              <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-stretch gap-2">
+              {nextStatuses.length > 0 && (
+                <div className="flex flex-[9] gap-2">
+                  {nextStatuses.map(status => (
+                    <button
+                      key={status}
+                      onClick={() => updateStatus(status)}
+                      disabled={statusUpdating}
+                      aria-label={`Transition to ${status}`}
+                      className={`btn-primary text-sm justify-center flex-1 min-w-0 px-2 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
+                    >
+                      {statusUpdating
+                        ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : `→ ${status}`
+                      }
+                    </button>
+                  ))}
+                </div>
+              )}
+              {canUndo && (
+                <button
+                  onClick={() => setUndoConfirm(true)}
+                  disabled={statusUpdating}
+                  aria-label={`Undo — revert to ${ticket.previous_status}`}
+                  className={`btn-secondary text-sm justify-center px-0 ${nextStatuses.length > 0 ? 'flex-1 min-w-[44px]' : 'w-full'}`}
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                  {nextStatuses.length === 0 && <span>Undo</span>}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
     </div>
