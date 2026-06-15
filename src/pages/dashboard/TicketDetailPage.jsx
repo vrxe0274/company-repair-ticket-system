@@ -18,7 +18,7 @@ import { Fragment, useEffect, useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
-  ArrowLeft, Download, ExternalLink, Upload, X, Save,
+  ArrowLeft, ArrowRight, Download, ExternalLink, Upload, X, Save,
   CheckCircle, User, Package, Wrench, FileText, DollarSign,
   Image as ImageIcon, Trash2, Plus, Minus, Lock,
   Settings, Eye, CreditCard, AlertTriangle, Undo2,
@@ -192,8 +192,9 @@ function ProgressCard({ status, guidance, className = '' }) {
   return (
     <div className={`card overflow-hidden ${className}`}>
       {/* Step track */}
-      <div className="px-6 pt-4 pb-5">
-        <div className="flex items-start">
+      <div className="px-4 pt-4 pb-5">
+        {/* pb-6 reserves space for absolutely-positioned labels below icons */}
+        <div className="flex items-center pb-6">
           {STATUS_ORDER.map((s, i) => {
             const isComplete = i < progressIdx
             const isCurrent  = i === progressIdx
@@ -202,8 +203,8 @@ function ProgressCard({ status, guidance, className = '' }) {
 
             return (
               <Fragment key={s}>
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  {/* Node */}
+                {/* Node — shrink-0 with no width-affecting children keeps all nodes identical */}
+                <div className="relative shrink-0">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300
                     ${isComplete
                       ? 'bg-emerald-500 text-white shadow-sm'
@@ -217,17 +218,17 @@ function ProgressCard({ status, guidance, className = '' }) {
                       : <Icon className="w-4 h-4" />
                     }
                   </div>
-                  {/* Label */}
-                  <span className={`text-[10px] font-sans font-semibold whitespace-nowrap
+                  {/* Label absolutely positioned — does not affect node width */}
+                  <span className={`absolute top-full left-1/2 -translate-x-1/2 mt-1.5 text-[10px] font-sans font-semibold whitespace-nowrap
                     ${isCurrent ? 'text-gray-900' : isComplete ? 'text-emerald-600' : 'text-gray-300'}`}
                   >
                     {s}
                   </span>
                 </div>
 
-                {/* Connector aligned to icon center (h-9/2 = 18px) */}
+                {/* Connector — flex-1 fills equally between identical-width nodes */}
                 {!isLast && (
-                  <div className="flex-1 h-0.5 mt-[18px] mx-1 bg-gray-100 rounded-full overflow-hidden shrink">
+                  <div className="flex-1 h-0.5 mx-4 bg-gray-100 rounded-full overflow-hidden">
                     <div className={`h-full bg-emerald-500 transition-all duration-700 ${isComplete ? 'w-full' : 'w-0'}`} />
                   </div>
                 )}
@@ -581,49 +582,66 @@ function OverviewTab({
       {/* Action buttons — desktop only; mobile uses fixed bottom bar */}
       {showActions && (
         <div className="w-full hidden md:block">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 flex-wrap">
-            {nextStatuses.map(status => (
-              <button
-                key={status}
-                onClick={() => updateStatus(status)}
-                disabled={statusUpdating}
-                aria-label={`Transition to ${status}`}
-                className={`btn-primary text-sm justify-center ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
-              >
-                {statusUpdating
-                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : `→ ${status}`
-                }
-              </button>
-            ))}
-            {canUndo && (
-              !undoConfirm ? (
+          {!undoConfirm ? (
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              {nextStatuses.map(status => {
+                const isDeny = status === 'Denied'
+                return (
+                  <button
+                    key={status}
+                    onClick={() => updateStatus(status)}
+                    disabled={statusUpdating}
+                    aria-label={`Transition to ${status}`}
+                    className={`group flex items-center gap-5 px-6 py-3 rounded-xl text-white
+                      transition-colors duration-150 disabled:opacity-60 disabled:pointer-events-none
+                      ${isDeny
+                        ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                        : 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700'
+                      }`}
+                  >
+                    {statusUpdating ? (
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
+                    ) : (
+                      <>
+                        <div className="text-left">
+                          <p className="text-[10px] font-mono uppercase tracking-widest text-white/60 leading-none mb-1">
+                            {isDeny ? 'Action' : 'Next Step'}
+                          </p>
+                          <p className="text-base font-sans font-bold leading-none">{status}</p>
+                        </div>
+                        <ArrowRight className="w-5 h-5 shrink-0 opacity-70 transition-transform duration-200 group-hover:translate-x-1 group-hover:opacity-100" />
+                      </>
+                    )}
+                  </button>
+                )
+              })}
+              {canUndo && (
                 <button
                   onClick={() => setUndoConfirm(true)}
                   disabled={statusUpdating}
                   aria-label={`Undo — revert to ${ticket.previous_status}`}
                   className="btn-secondary text-sm justify-center"
                 >
-                  <Undo2 className="w-3.5 h-3.5" /> Undo
+                  <Undo2 className="w-4 h-4" /> Undo
                 </button>
-              ) : (
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <span className="text-sm font-body text-gray-600">
-                    Revert to <span className="font-semibold">{ticket.previous_status}</span>?
-                  </span>
-                  <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm">
-                    {statusUpdating
-                      ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      : 'Yes, Revert'
-                    }
-                  </button>
-                  <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
-                    Cancel
-                  </button>
-                </div>
-              )
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <span className="text-sm font-body text-gray-600">
+                Revert to <span className="font-semibold">{ticket.previous_status}</span>?
+              </span>
+              <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm">
+                {statusUpdating
+                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : 'Yes, Revert'
+                }
+              </button>
+              <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
+                Cancel
+              </button>
+            </div>
+          )}
           {transitionErrors.length > 0 && (
             <div className="flex flex-col items-center gap-1 mt-3">
               {transitionErrors.map((msg, i) => (
@@ -1246,7 +1264,7 @@ export default function TicketDetailPage() {
                       onClick={() => updateStatus(status)}
                       disabled={statusUpdating}
                       aria-label={`Transition to ${status}`}
-                      className={`btn-primary text-sm justify-center flex-1 min-w-0 px-2 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
+                      className={`btn-primary text-sm justify-center flex-1 min-w-0 px-2 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-400'}`}
                     >
                       {statusUpdating
                         ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
