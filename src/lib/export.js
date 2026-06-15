@@ -164,18 +164,12 @@ export async function exportTicketsToXLSX(tickets) {
       }
     })
 
-    row.height = 18
+    row.height = 50
   })
 
-  // ── Auto-fit column widths ────────────────────────────────────────
+  // ── Fixed column widths ───────────────────────────────────────────
   sheet.columns.forEach(col => {
-    let maxLen = col.header?.length || 10
-    col.eachCell({ includeEmpty: false }, cell => {
-      const val = cell.value != null ? String(cell.value) : ''
-      const firstLine = val.split('\n')[0] || ''
-      if (firstLine.length > maxLen) maxLen = firstLine.length
-    })
-    col.width = Math.min(maxLen + 2, 60)
+    col.width = 120
   })
 
   // ── Download ──────────────────────────────────────────────────────
