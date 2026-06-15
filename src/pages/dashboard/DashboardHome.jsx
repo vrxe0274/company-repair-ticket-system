@@ -129,7 +129,7 @@ export default function DashboardHome() {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
                 {tasks.map(t => (
                   <Link
                     key={t.id}
@@ -182,7 +182,7 @@ export default function DashboardHome() {
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {notifications.slice(0, 6).map(n => (
+                {notifications.slice(0, 5).map(n => (
                   <Link
                     key={n.id}
                     to={n.ticket_uuid ? `tickets/${n.ticket_uuid}` : 'notifications'}

@@ -128,8 +128,7 @@
 
   /** Light-surface card — used throughout the public-facing pages. */
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-sm
-           ring-1 ring-black/[0.03];
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
   }
 
   /** Dark-surface card — used inside the staff dashboard sidebar panels. */

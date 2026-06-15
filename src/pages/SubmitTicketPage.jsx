@@ -288,31 +288,33 @@ export default function SubmitTicketPage() {
       {/* Step progress indicator */}
       <div className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-3">
-            {STEPS.map((s, i) => {
+          <div className="flex items-start mb-3">
+            {STEPS.flatMap((s, i) => {
               const Icon       = s.icon
               const isComplete = step > s.id
               const isCurrent  = step === s.id
-              return (
-                <div key={s.id} className="flex items-center flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-300
-                      ${isComplete ? 'bg-brand-600 text-white' : isCurrent ? 'bg-dark-900 text-white ring-2 ring-brand-500 ring-offset-1' : 'bg-gray-200 text-gray-400'}`}
-                    >
-                      {isComplete ? <CheckCircle className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
-                    </div>
-                    <span className={`text-sm font-sans font-medium hidden sm:block
-                      ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
-                      {s.label}
-                    </span>
+              const els = []
+              if (i > 0) {
+                els.push(
+                  <div key={`line-${s.id}`} className="flex-1 mx-2 sm:mx-3 h-0.5 bg-gray-200 rounded-full overflow-hidden mt-4 shrink">
+                    <div className={`h-full bg-brand-500 transition-all duration-500 ${step >= s.id ? 'w-full' : 'w-0'}`} />
                   </div>
-                  {i < STEPS.length - 1 && (
-                    <div className="flex-1 mx-2 sm:mx-3 h-0.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className={`h-full bg-brand-500 transition-all duration-500 ${isComplete ? 'w-full' : 'w-0'}`} />
-                    </div>
-                  )}
+                )
+              }
+              els.push(
+                <div key={s.id} className="flex flex-col items-center gap-1 shrink-0">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
+                    ${isComplete ? 'bg-brand-600 text-white' : isCurrent ? 'bg-dark-900 text-white ring-2 ring-brand-500 ring-offset-1' : 'bg-gray-200 text-gray-400'}`}
+                  >
+                    {isComplete ? <CheckCircle className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                  </div>
+                  <span className={`text-xs font-sans font-medium hidden sm:block text-center leading-tight
+                    ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
+                    {s.label}
+                  </span>
                 </div>
               )
+              return els
             })}
           </div>
           <div className="text-sm font-body text-gray-500 text-center">
@@ -422,10 +424,10 @@ export default function SubmitTicketPage() {
                 <StepHeading icon={CalendarClock} title="Appointment" subtitle="When would you like to bring in your device?" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Preferred Date">
-                    <input className="input-field" type="date" name="preferred_date" value={form.preferred_date} onChange={handleChange} />
+                    <input className="input-field min-w-0 max-w-full" type="date" name="preferred_date" value={form.preferred_date} onChange={handleChange} />
                   </Field>
                   <Field label="Preferred Time">
-                    <input className="input-field" type="time" name="preferred_time" value={form.preferred_time} onChange={handleChange} />
+                    <input className="input-field min-w-0 max-w-full" type="time" name="preferred_time" value={form.preferred_time} onChange={handleChange} />
                   </Field>
                 </div>
                 <Field label="Mode of Service *" error={errors.mode_of_service}>
@@ -434,7 +436,7 @@ export default function SubmitTicketPage() {
                     {MODES_OF_SERVICE.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
-                <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-100">
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                   <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">Summary</p>
                   <SummaryRow label="Name"  value={form.client_name} />
                   <SummaryRow

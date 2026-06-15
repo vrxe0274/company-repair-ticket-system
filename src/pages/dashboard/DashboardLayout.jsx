@@ -18,7 +18,7 @@
  * // of truth (see index.css REVIEW notes).
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
@@ -41,7 +41,7 @@ import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
  */
 const NAV = [
   { to: '/',             label: 'Overview',      icon: LayoutDashboard, exact: true },
-  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList },
+  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
 ]
@@ -60,12 +60,32 @@ const FLUSH_SUCCESS_BANNER_MS = 2500
 /** DashboardLayout — the persistent shell rendered for all dashboard routes. */
 export default function DashboardLayout() {
   const { logout }               = useAuth()
-  const { role, clearRole, isAdmin } = useRole()
+  const { role, clearRole, isAdmin, getAllowedTransitions } = useRole()
   const { unseenCount }          = useNotifications()
+  const [taskCount, setTaskCount] = useState(0)
   const location                 = useLocation()
   const navigate                 = useNavigate()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Fetch task count separately with a unique channel name to avoid
+  // conflicting with the 'tickets-live' channel used by child pages.
+  useEffect(() => {
+    if (!role) { setTaskCount(0); return }
+
+    async function fetchCount() {
+      const { data } = await supabase.from('tickets').select('status')
+      if (data) setTaskCount(data.filter(t => getAllowedTransitions(t.status).length > 0).length)
+    }
+    fetchCount()
+
+    const channel = supabase
+      .channel('sidebar-task-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, fetchCount)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [role, getAllowedTransitions])
 
   // Flush DB state — only relevant for Admin role
   const [showFlush,  setShowFlush]  = useState(false)
@@ -192,6 +212,12 @@ export default function DashboardLayout() {
                 {unseenCount > NOTIFICATION_BADGE_MAX ? `${NOTIFICATION_BADGE_MAX}+` : unseenCount}
               </span>
             )}
+            {/* Tasks badge — pending tasks for the current role */}
+            {id === 'tasks' && taskCount > 0 && (
+              <span className="ml-auto min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-600 text-white text-xs font-mono font-bold leading-none">
+                {taskCount > NOTIFICATION_BADGE_MAX ? `${NOTIFICATION_BADGE_MAX}+` : taskCount}
+              </span>
+            )}
           </Link>
         ))}
 
@@ -306,10 +332,15 @@ export default function DashboardLayout() {
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-dark-900 border-b border-dark-700">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 text-gray-400 hover:text-white"
+            className="relative p-1.5 text-gray-400 hover:text-white"
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
+            {taskCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 inline-flex items-center justify-center rounded-full bg-brand-600 text-white text-[10px] font-mono font-bold leading-none">
+                {taskCount > NOTIFICATION_BADGE_MAX ? `${NOTIFICATION_BADGE_MAX}+` : taskCount}
+              </span>
+            )}
           </button>
           <Logo size="xs" />
         </header>
