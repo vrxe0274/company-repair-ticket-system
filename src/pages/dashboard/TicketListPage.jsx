@@ -11,12 +11,12 @@
  * // rather than fetching all rows and filtering in-memory.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
-import { STATUS_ORDER, STATUS_DENIED } from '../../lib/utils'
+import { STATUS_ORDER, STATUS_DENIED, STATUS_COLORS } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
@@ -47,6 +47,7 @@ export default function TicketListPage() {
   const [search, setSearch] = useState('')
   // Status filter panel — collapsed by default, toggled by the filter button.
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const filterRef = useRef(null)
   // Placeholder text can't be styled responsively with CSS, so track the
   // mobile breakpoint in JS to swap in a shorter placeholder on small screens.
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches)
@@ -57,6 +58,17 @@ export default function TicketListPage() {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+
+  useEffect(() => {
+    if (!filtersOpen) return
+    function handleClickOutside(e) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setFiltersOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [filtersOpen])
 
   // Derive active status filter from URL; defaults to 'All' when absent.
   const activeStatus = searchParams.get('status') || 'All'
@@ -90,7 +102,7 @@ export default function TicketListPage() {
           <button
             onClick={() => exportTicketsToXLSX(tickets).catch(console.error)}
             disabled={!tickets.length}
-            className="btn-secondary text-sm"
+            className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 disabled:opacity-40"
           >
             <Download className="w-3.5 h-3.5" /> Export XLSX
           </button>
@@ -98,58 +110,65 @@ export default function TicketListPage() {
       </div>
 
       {/* Search + filter controls */}
-      <div className="card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={isMobile ? 'Search' : 'Search by ticket ID, name, email, unit...'}
-              className="input-field pl-9"
-            />
-          </div>
+      <div className="flex items-center gap-2 max-w-2xl mx-auto">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={isMobile ? 'Search' : 'Search by ticket ID, name, email, unit...'}
+            className="input-field pl-9"
+          />
+        </div>
 
-          {/* Filter toggle — shows the active status when one is applied */}
+        {/* Filter dropdown */}
+        <div className="relative shrink-0" ref={filterRef}>
           <button
             onClick={() => setFiltersOpen(o => !o)}
             aria-expanded={filtersOpen}
             aria-controls="status-filter-panel"
-            className="btn-secondary text-sm shrink-0"
+            className="btn-secondary text-sm"
           >
             <Filter className="w-3.5 h-3.5" />
+            {activeStatus !== 'All' && (
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[activeStatus]?.dot || 'bg-gray-300'}`}
+              />
+            )}
             {activeStatus === 'All' ? 'Filter' : activeStatus}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filtersOpen ? 'rotate-180' : ''}`} />
           </button>
-        </div>
 
-        {/* Foldable status filter panel — collapsed by default */}
-        {filtersOpen && (
-          <div
-            id="status-filter-panel"
-            className="flex items-center gap-1.5 flex-wrap pt-3 border-t border-gray-100 animate-fade-in"
-          >
-            {ALL_STATUSES.map(s => (
-              <button
-                key={s}
-                onClick={() => setSearchParams(s === 'All' ? {} : { status: s })}
-                className={`text-sm px-3 py-1.5 rounded-full font-sans font-semibold transition-colors min-h-[34px]
-                  ${activeStatus === s
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-              >
-                {s}
-                {s !== 'All' && (
-                  <span className={`ml-1.5 ${activeStatus === s ? 'text-white/70' : 'text-gray-400'}`}>
-                    {tickets.filter(t => t.status === s).length}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+          {filtersOpen && (
+            <div
+              id="status-filter-panel"
+              className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 animate-fade-in"
+            >
+              {ALL_STATUSES.map(s => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setSearchParams(s === 'All' ? {} : { status: s })
+                    setFiltersOpen(false)
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-left transition-colors
+                    ${activeStatus === s ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0
+                    ${s === 'All' ? 'bg-gray-300' : STATUS_COLORS[s]?.dot || 'bg-gray-300'}`}
+                  />
+                  <span className="flex-1">{s}</span>
+                  {s !== 'All' && (
+                    <span className="text-xs font-mono text-gray-400">
+                      {tickets.filter(t => t.status === s).length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Ticket table / list */}

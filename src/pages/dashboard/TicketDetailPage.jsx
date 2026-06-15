@@ -20,7 +20,7 @@ import { format } from 'date-fns'
 import {
   ArrowLeft, Download, ExternalLink, Upload, X, Save,
   CheckCircle, User, Package, Wrench, FileText, DollarSign,
-  Image as ImageIcon, Trash2, Plus, Minus, Lock, Shield,
+  Image as ImageIcon, Trash2, Plus, Minus, Lock,
   Settings, Eye, CreditCard, AlertTriangle, Undo2,
 } from 'lucide-react'
 import { supabase }                                    from '../../lib/supabase'
@@ -427,6 +427,7 @@ function useTicket(id) {
    *   'payment'   — final price only (Admin)
    */
   async function saveNotesAndPricing(scope) {
+    if (ticket?.status === 'Paid') return  // locked once paid
     setSaving(true)
     const cleanLabor = laborItems
       .filter(it => it.description.trim() || String(it.amount).trim() !== '')
@@ -475,6 +476,7 @@ function useTicket(id) {
   function removeItem(setter, itemId) { setter(prev => prev.filter(it => it.id !== itemId)) }
 
   async function uploadPhotos(e) {
+    if (ticket?.status === 'Paid') return  // locked once paid
     const files = Array.from(e.target.files)
     if (!files.length) return
     for (const file of files) {
@@ -507,6 +509,7 @@ function useTicket(id) {
   }
 
   async function deletePhoto(url) {
+    if (ticket?.status === 'Paid') return  // locked once paid
     const updatedPhotos = (ticket.repair_photos || []).filter(u => u !== url)
     const { data, error } = await supabase
       .from('tickets').update({ repair_photos: updatedPhotos }).eq('id', id).select(TICKET_COLUMNS).single()
@@ -591,35 +594,22 @@ function OverviewTab({ ticket, statusGuidance }) {
 
 function TechTab({
   ticket, notes, setNotes,
-  isTechnician, isAdmin, canSeeNotes,
+  canSeeNotes, canEdit,
   saving, saveMsg, uploading, fileInputRef,
   onSaveNotes, onUpload, onDeletePhoto,
 }) {
   return (
-    <div className="space-y-5">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+      {/* Left — technician notes */}
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <p className="section-title flex items-center gap-2 mb-0">
-            <Wrench className="w-3.5 h-3.5" /> Technician Notes
-          </p>
-          {isTechnician ? (
-            <span className="inline-flex items-center gap-1 text-xs font-mono text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-              <CheckCircle className="w-2.5 h-2.5" /> Editing enabled
-            </span>
-          ) : isAdmin ? (
-            <span className="inline-flex items-center gap-1 text-xs font-mono text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full">
-              <Shield className="w-2.5 h-2.5" /> Admin view
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-mono text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
-              <Lock className="w-2.5 h-2.5" /> View only
-            </span>
-          )}
-        </div>
+        <p className="section-title flex items-center gap-2 mb-4">
+          <Wrench className="w-3.5 h-3.5" /> Technician Notes
+        </p>
 
         {canSeeNotes ? (
           <div className="space-y-4">
-            {isTechnician ? (
+            {canEdit ? (
               <>
                 <div>
                   <label className="label">Diagnosis Notes</label>
@@ -676,13 +666,13 @@ function TechTab({
         )}
       </div>
 
-      {/* Documentation / photos */}
+      {/* Right — documentation / photos */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <p className="section-title flex items-center gap-2 mb-0">
             <ImageIcon className="w-3.5 h-3.5" /> Documentation
           </p>
-          {isTechnician && (
+          {canEdit && (
             <div>
               <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} id="photo-upload" />
               <label htmlFor="photo-upload" className="btn-secondary text-sm cursor-pointer">
@@ -696,7 +686,7 @@ function TechTab({
           )}
         </div>
         {ticket.repair_photos && ticket.repair_photos.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {ticket.repair_photos.map((url) => (
               <div key={url} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
                 <img src={url} alt="Documentation photo" className="w-full h-full object-cover" />
@@ -704,7 +694,7 @@ function TechTab({
                   <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-white/90 rounded-lg hover:bg-white">
                     <ExternalLink className="w-3.5 h-3.5 text-gray-700" />
                   </a>
-                  {isTechnician && (
+                  {canEdit && (
                     <button onClick={() => onDeletePhoto(url)} className="p-1.5 bg-red-500 rounded-lg hover:bg-red-600">
                       <X className="w-3.5 h-3.5 text-white" />
                     </button>
@@ -725,7 +715,7 @@ function TechTab({
 }
 
 function QuotationTab({
-  isAdmin, canSeePricing,
+  isAdmin, canSeePricing, canEdit,
   laborItems, partsItems,
   discount, setDiscount,
   finalPrice, setFinalPrice,
@@ -738,188 +728,181 @@ function QuotationTab({
   return (
     <div className="space-y-5">
       {canSeePricing ? (
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-5">
-            <p className="section-title flex items-center gap-2 mb-0">
-              <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation
-            </p>
-            {!isAdmin && (
-              <span className="inline-flex items-center gap-1 text-xs font-mono text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                <Lock className="w-2.5 h-2.5" /> View only
-              </span>
-            )}
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-          <div className="space-y-5">
-            {/* Labor items */}
-            <div>
-              <label className="label mb-2">Labor Items</label>
-              <div className="space-y-2">
-                {isAdmin ? (
-                  laborItems.map(item => (
-                    <LineItem
-                      key={item.id}
-                      item={item}
-                      onChange={onUpdateLaborItem}
-                      onRemove={onRemoveLaborItem}
-                      canRemove={laborItems.length > 1}
-                    />
-                  ))
-                ) : (
-                  laborItems.filter(i => i.description || i.amount).map(item => (
-                    <div key={item.id} className="flex justify-between text-sm py-1">
-                      <span className="font-body text-gray-700">{item.description || '—'}</span>
-                      <span className="font-mono text-gray-800">{peso(item.amount)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={onAddLaborItem}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Labor Item
-                </button>
-              )}
-            </div>
-
-            {/* Parts items */}
-            <div>
-              <label className="label mb-2">Parts Items</label>
-              <div className="space-y-2">
-                {isAdmin ? (
-                  partsItems.map(item => (
-                    <LineItem
-                      key={item.id}
-                      item={item}
-                      onChange={onUpdatePartsItem}
-                      onRemove={onRemovePartsItem}
-                      canRemove={partsItems.length > 1}
-                    />
-                  ))
-                ) : (
-                  partsItems.filter(i => i.description || i.amount).map(item => (
-                    <div key={item.id} className="flex justify-between text-sm py-1">
-                      <span className="font-body text-gray-700">{item.description || '—'}</span>
-                      <span className="font-mono text-gray-800">{peso(item.amount)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={onAddPartsItem}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Parts Item
-                </button>
-              )}
-            </div>
-
-            {/* Discount */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="label w-40 shrink-0 mb-0">Discount</label>
-              {isAdmin ? (
-                <div className="relative flex-1 min-w-[10rem] sm:flex-none sm:w-32">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={discount}
-                    onChange={e => setDiscount(e.target.value)}
-                    placeholder="0.00"
-                    className="input-field pl-7 text-sm text-right font-mono"
-                  />
+            {/* Left — line items + discount */}
+            <div className="card p-5 space-y-5">
+              <p className="section-title flex items-center gap-2 mb-0">
+                <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation
+              </p>
+              {/* Labor items */}
+              <div>
+                <label className="label mb-2">Labor Items</label>
+                <div className="space-y-2">
+                  {canEdit ? (
+                    laborItems.map(item => (
+                      <LineItem
+                        key={item.id}
+                        item={item}
+                        onChange={onUpdateLaborItem}
+                        onRemove={onRemoveLaborItem}
+                        canRemove={laborItems.length > 1}
+                      />
+                    ))
+                  ) : (
+                    laborItems.filter(i => i.description || i.amount).map(item => (
+                      <div key={item.id} className="flex justify-between text-sm py-1">
+                        <span className="font-body text-gray-700">{item.description || '—'}</span>
+                        <span className="font-mono text-gray-800">{peso(item.amount)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
-              ) : (
-                <span className="font-mono text-sm text-gray-700">
-                  {discountValue > 0 ? `− ${peso(discountValue)}` : '—'}
-                </span>
-              )}
-            </div>
-
-            {/* Totals summary */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-              <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
-              <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
-              {discountValue > 0 && (
-                <SummaryLine label="Discount" value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
-              )}
-              <div className="border-t border-gray-200 pt-2 mt-2 flex items-center justify-between">
-                <span className="text-sm font-sans font-bold text-gray-700">Quotation Total</span>
-                <span className="text-lg font-display tracking-wider text-brand-600">{peso(quotationLive)}</span>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={onAddLaborItem}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Labor Item
+                  </button>
+                )}
               </div>
-            </div>
 
-            {/* Save quotation — Admin only */}
-            {isAdmin && (
-              <div className="flex items-center gap-3">
-                <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
-                  {saving
-                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    : <Save className="w-3.5 h-3.5" />
-                  }
-                  Save Quotation
-                </button>
-                {saveMsg === 'Quotation saved!' && (
-                  <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
+              {/* Parts items */}
+              <div>
+                <label className="label mb-2">Parts Items</label>
+                <div className="space-y-2">
+                  {canEdit ? (
+                    partsItems.map(item => (
+                      <LineItem
+                        key={item.id}
+                        item={item}
+                        onChange={onUpdatePartsItem}
+                        onRemove={onRemovePartsItem}
+                        canRemove={partsItems.length > 1}
+                      />
+                    ))
+                  ) : (
+                    partsItems.filter(i => i.description || i.amount).map(item => (
+                      <div key={item.id} className="flex justify-between text-sm py-1">
+                        <span className="font-body text-gray-700">{item.description || '—'}</span>
+                        <span className="font-mono text-gray-800">{peso(item.amount)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={onAddPartsItem}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Parts Item
+                  </button>
+                )}
+              </div>
+
+              {/* Discount */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="label w-24 shrink-0 mb-0">Discount</label>
+                {canEdit ? (
+                  <div className="relative flex-1 min-w-[10rem] sm:flex-none sm:w-32">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={discount}
+                      onChange={e => setDiscount(e.target.value)}
+                      placeholder="0.00"
+                      className="input-field pl-7 text-sm text-right font-mono"
+                    />
+                  </div>
+                ) : (
+                  <span className="font-mono text-sm text-gray-700">
+                    {discountValue > 0 ? `− ${peso(discountValue)}` : '—'}
                   </span>
                 )}
               </div>
-            )}
 
-            {/* Final price */}
-            <div className="flex items-center gap-3 pt-3 border-t border-gray-100 flex-wrap">
-              <div className="flex items-center gap-2 w-40 shrink-0">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
-                <label className="text-sm font-sans font-bold text-gray-700">Amount Paid</label>
-              </div>
-              {isAdmin ? (
-                <div className="relative flex-1 min-w-[10rem] sm:flex-none sm:w-36">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={finalPrice}
-                    onChange={e => setFinalPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="input-field pl-7 text-sm text-right font-mono"
-                  />
+              {/* Save quotation */}
+              {canEdit && (
+                <div className="flex items-center gap-3 pt-1">
+                  <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
+                    {saving
+                      ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <Save className="w-3.5 h-3.5" />
+                    }
+                    Save Quotation
+                  </button>
+                  {saveMsg === 'Quotation saved!' && (
+                    <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <span className="font-mono text-sm font-semibold text-emerald-700">
-                  {finalPrice ? peso(finalPrice) : '—'}
-                </span>
-              )}
-              {isAdmin && (
-                <span className="text-xs font-body text-gray-400">(set when payment is collected)</span>
               )}
             </div>
 
-            {/* Save final payment — Admin only */}
-            {isAdmin && (
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  onClick={onSaveFinalPayment}
-                  disabled={saving}
-                  className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400"
-                >
-                  {saving
-                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    : <Save className="w-3.5 h-3.5" />
-                  }
-                  Save Final Payment
-                </button>
-                {saveMsg === 'Final payment saved!' && (
-                  <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
-                  </span>
+            {/* Right — totals + amount paid */}
+            <div className="card p-5 space-y-4">
+              {/* Totals summary */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
+                <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
+                {discountValue > 0 && (
+                  <SummaryLine label="Discount" value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
+                )}
+                <div className="border-t border-gray-200 pt-2 mt-2 flex items-center justify-between">
+                  <span className="text-sm font-sans font-bold text-gray-700">Quotation Total</span>
+                  <span className="text-lg font-display tracking-wider text-brand-600">{peso(quotationLive)}</span>
+                </div>
+              </div>
+
+              {/* Amount paid */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                  <label className="text-sm font-sans font-bold text-gray-700">Amount Paid</label>
+                </div>
+                {canEdit ? (
+                  <div className="relative w-full">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={finalPrice}
+                      onChange={e => setFinalPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="input-field pl-7 text-sm text-right font-mono w-full"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-2xl font-display tracking-wider text-emerald-700">
+                    {finalPrice ? peso(finalPrice) : <span className="text-gray-300 text-base italic font-sans font-normal">Not yet collected</span>}
+                  </p>
+                )}
+                {canEdit && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      onClick={onSaveFinalPayment}
+                      disabled={saving}
+                      className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400"
+                    >
+                      {saving
+                        ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <Save className="w-3.5 h-3.5" />
+                      }
+                      Save Final Payment
+                    </button>
+                    {saveMsg === 'Final payment saved!' && (
+                      <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+
         </div>
       ) : (
         <div className="card p-5">
@@ -1001,8 +984,12 @@ export default function TicketDetailPage() {
   const discountValue   = parseFloat(discount) || 0
   const quotationLive   = Math.max(0, laborTotal + partsTotal - discountValue)
   const isApproved      = ticket.status !== 'Pending' && ticket.status !== 'Denied'
+  const isPaid          = ticket.status === 'Paid'
   const canSeeNotes     = isAdmin || isTechnician
   const canSeePricing   = isAdmin || isApproved
+  // Once paid the ticket is locked — all fields become read-only regardless of role.
+  const canEditNotes    = isTechnician && !isPaid
+  const canEditPricing  = isAdmin && !isPaid
   const canUndo         = (isAdmin || isTechnician) && !!ticket.previous_status && ticket.previous_status !== ticket.status
   const showActions     = nextStatuses.length > 0 || canUndo
   const statusGuidance  = isAdmin ? STATUS_GUIDANCE.Admin[ticket.status]
@@ -1152,7 +1139,7 @@ export default function TicketDetailPage() {
         <TechTab
           ticket={ticket}
           notes={notes}           setNotes={setNotes}
-          isTechnician={isTechnician} isAdmin={isAdmin} canSeeNotes={canSeeNotes}
+          canSeeNotes={canSeeNotes}   canEdit={canEditNotes}
           saving={saving}         saveMsg={saveMsg}
           uploading={uploading}   fileInputRef={fileInputRef}
           onSaveNotes={() => saveNotesAndPricing('notes')}
@@ -1164,6 +1151,7 @@ export default function TicketDetailPage() {
       {activeTab === 'admin' && (
         <QuotationTab
           isAdmin={isAdmin}           canSeePricing={canSeePricing}
+          canEdit={canEditPricing}
           laborItems={laborItems}     partsItems={partsItems}
           discount={discount}         setDiscount={setDiscount}
           finalPrice={finalPrice}     setFinalPrice={setFinalPrice}
