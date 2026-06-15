@@ -14,7 +14,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter } from 'lucide-react'
+import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, User } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { STATUS_ORDER, STATUS_DENIED, STATUS_COLORS } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
@@ -202,8 +202,15 @@ export default function TicketListPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <p className="font-sans font-semibold text-gray-900">{t.client_name}</p>
-                        <p className="text-sm font-body text-gray-500">{t.email}</p>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                            <User className="w-4 h-4 text-gray-500" />
+                          </div>
+                          <div>
+                            <p className="font-sans font-semibold text-gray-900">{t.client_name}</p>
+                            <p className="text-sm font-body text-gray-500">{t.email}</p>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-5 py-3.5">
                         <p className="font-body text-gray-700">{t.unit_brand} {t.unit_model}</p>
@@ -237,6 +244,9 @@ export default function TicketListPage() {
                   to={`/tickets/${t.id}`}
                   className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors"
                 >
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-gray-500" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>

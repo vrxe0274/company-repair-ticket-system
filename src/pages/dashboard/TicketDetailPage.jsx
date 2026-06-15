@@ -22,6 +22,7 @@ import {
   CheckCircle, User, Package, Wrench, FileText, DollarSign,
   Image as ImageIcon, Trash2, Plus, Minus, Lock,
   Settings, Eye, CreditCard, AlertTriangle, Undo2,
+  Clock, Search,
 } from 'lucide-react'
 import { supabase }                                    from '../../lib/supabase'
 import { getTrackingUrl, STATUS_ORDER, formatClientUnitLabel } from '../../lib/utils'
@@ -130,9 +131,9 @@ function SummaryLine({ label, value, valueClass = 'text-gray-800' }) {
 
 function InfoBox({ label, value, accent = false }) {
   return (
-    <div className={`rounded-lg px-3 py-2.5 border ${accent ? 'bg-brand-50 border-brand-100' : 'bg-gray-50 border-gray-100'}`}>
-      <p className="text-xs font-mono uppercase tracking-widest text-gray-500 mb-0.5">{label}</p>
-      <p className={`text-sm font-sans font-semibold ${accent ? 'text-brand-700' : 'text-gray-800'}`}>
+    <div className={`rounded-lg px-2.5 py-1.5 border ${accent ? 'bg-brand-50 border-brand-100' : 'bg-gray-50 border-gray-100'}`}>
+      <p className="text-[10px] font-mono uppercase tracking-widest text-gray-500 mb-0">{label}</p>
+      <p className={`text-xs font-sans font-semibold leading-snug ${accent ? 'text-brand-700' : 'text-gray-800'}`}>
         {value || <span className="text-gray-300 italic font-normal">—</span>}
       </p>
     </div>
@@ -176,50 +177,76 @@ function LockedSection({ message }) {
  * the ticket header on desktop, and inside the Overview tab on mobile.
  * `guidance` is the role-specific next-step text shown under the bar.
  */
+const STEP_ICONS = {
+  'Pending':            Clock,
+  'Inspection & Quote': Search,
+  'Repair in Progress': Wrench,
+  'Done':               CheckCircle,
+  'Paid':               CreditCard,
+}
+
 function ProgressCard({ status, guidance, className = '' }) {
-  const progressIdx = STATUS_ORDER.indexOf(status)
+  const progressIdx  = STATUS_ORDER.indexOf(status)
+  const isActionable = guidance?.startsWith('Your action')
+
   return (
-    <div className={`card p-5 ${className}`}>
-      <p className="section-title">Progress</p>
-      {/* lg:pb-7 reserves space for the absolutely-positioned labels */}
-      <div className="flex items-center w-full max-w-3xl mx-auto lg:pb-7">
-        {STATUS_ORDER.map((s, i) => {
-          const isComplete = i < progressIdx
-          const isCurrent  = i === progressIdx
-          const isLast     = i === STATUS_ORDER.length - 1
-          // Only the circles participate in the row layout (labels hang
-          // below them absolutely), so every step is exactly circle-width
-          // and all connectors + circle gaps come out identical.
-          return (
-            <Fragment key={s}>
-              <div className="relative shrink-0">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300
-                  ${isComplete ? 'bg-brand-600 text-white' : isCurrent ? 'bg-dark-900 text-white ring-2 ring-brand-500 ring-offset-1' : 'bg-gray-200 text-gray-400'}`}
-                >
-                  {isComplete
-                    ? <CheckCircle className="w-3.5 h-3.5" />
-                    : <span className="text-xs font-bold">{i + 1}</span>
-                  }
+    <div className={`card overflow-hidden ${className}`}>
+      {/* Step track */}
+      <div className="px-6 pt-4 pb-5">
+        <div className="flex items-start">
+          {STATUS_ORDER.map((s, i) => {
+            const isComplete = i < progressIdx
+            const isCurrent  = i === progressIdx
+            const isLast     = i === STATUS_ORDER.length - 1
+            const Icon       = STEP_ICONS[s]
+
+            return (
+              <Fragment key={s}>
+                <div className="flex flex-col items-center gap-1.5 shrink-0 w-[60px]">
+                  {/* Node */}
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300
+                    ${isComplete
+                      ? 'bg-emerald-500 text-white shadow-sm'
+                      : isCurrent
+                        ? 'bg-dark-900 text-white shadow-md ring-2 ring-brand-400 ring-offset-2'
+                        : 'bg-gray-100 text-gray-300'
+                    }`}
+                  >
+                    {isComplete
+                      ? <CheckCircle className="w-4 h-4" />
+                      : <Icon className="w-4 h-4" />
+                    }
+                  </div>
+                  {/* Label */}
+                  <span className={`text-[10px] font-sans font-semibold text-center leading-tight
+                    ${isCurrent ? 'text-gray-900' : isComplete ? 'text-emerald-600' : 'text-gray-300'}`}
+                  >
+                    {s}
+                  </span>
                 </div>
-                <span className={`absolute top-full left-1/2 -translate-x-1/2 mt-1.5 text-xs font-sans font-semibold whitespace-nowrap hidden lg:block
-                  ${isCurrent ? 'text-gray-900' : isComplete ? 'text-brand-600' : 'text-gray-400'}`}>
-                  {s}
-                </span>
-              </div>
-              {!isLast && (
-                <div className="flex-1 min-w-3 mx-2 h-0.5 bg-gray-200 rounded-full overflow-hidden">
-                  <div className={`h-full bg-brand-500 transition-all duration-500 ${isComplete ? 'w-full' : 'w-0'}`} />
-                </div>
-              )}
-            </Fragment>
-          )
-        })}
+
+                {/* Connector aligned to icon center (h-9/2 = 18px) */}
+                {!isLast && (
+                  <div className="flex-1 h-0.5 mt-[18px] mx-1 bg-gray-100 rounded-full overflow-hidden shrink">
+                    <div className={`h-full bg-emerald-500 transition-all duration-700 ${isComplete ? 'w-full' : 'w-0'}`} />
+                  </div>
+                )}
+              </Fragment>
+            )
+          })}
+        </div>
       </div>
+
+      {/* Guidance banner */}
       {guidance && (
-        <p className={`text-sm font-body text-center mt-4
-          ${guidance.startsWith('Your action') ? 'text-brand-700 font-semibold' : 'text-gray-500 italic'}`}>
-          {guidance}
-        </p>
+        <div className={`flex items-center gap-3 px-5 py-2.5 border-t
+          ${isActionable ? 'bg-brand-50 border-brand-100' : 'bg-gray-50 border-gray-100'}`}
+        >
+          <div className={`w-1 self-stretch rounded-full shrink-0 ${isActionable ? 'bg-brand-400' : 'bg-gray-300'}`} />
+          <p className={`text-xs font-body ${isActionable ? 'text-brand-700 font-semibold' : 'text-gray-500 italic'}`}>
+            {guidance}
+          </p>
+        </div>
       )}
     </div>
   )
@@ -542,21 +569,83 @@ function useTicket(id) {
 
 // ── Tab components ────────────────────────────────────────────────────────────
 
-function OverviewTab({ ticket, statusGuidance }) {
+function OverviewTab({
+  ticket, statusGuidance,
+  showActions, nextStatuses, canUndo, undoConfirm, setUndoConfirm,
+  statusUpdating, transitionErrors, updateStatus, undoStatus,
+}) {
   return (
-    <div className="space-y-5">
-      {/* Mobile only — desktop shows the progress card globally below the header */}
-      <ProgressCard status={ticket.status} guidance={statusGuidance} className="md:hidden" />
+    <div className="flex flex-col flex-1 gap-3 min-h-0">
+      <ProgressCard status={ticket.status} guidance={statusGuidance} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-brand-100 flex items-center justify-center">
-              <User className="w-3.5 h-3.5 text-brand-600" />
-            </div>
-            <p className="section-title mb-0">Client Information</p>
+      {/* Action buttons — desktop only; mobile uses fixed bottom bar */}
+      {showActions && (
+        <div className="w-full hidden md:block">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 flex-wrap">
+            {nextStatuses.map(status => (
+              <button
+                key={status}
+                onClick={() => updateStatus(status)}
+                disabled={statusUpdating}
+                aria-label={`Transition to ${status}`}
+                className={`btn-primary text-sm justify-center ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
+              >
+                {statusUpdating
+                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : `→ ${status}`
+                }
+              </button>
+            ))}
+            {canUndo && (
+              !undoConfirm ? (
+                <button
+                  onClick={() => setUndoConfirm(true)}
+                  disabled={statusUpdating}
+                  aria-label={`Undo — revert to ${ticket.previous_status}`}
+                  className="btn-secondary text-sm justify-center"
+                >
+                  <Undo2 className="w-3.5 h-3.5" /> Undo
+                </button>
+              ) : (
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <span className="text-sm font-body text-gray-600">
+                    Revert to <span className="font-semibold">{ticket.previous_status}</span>?
+                  </span>
+                  <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm">
+                    {statusUpdating
+                      ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : 'Yes, Revert'
+                    }
+                  </button>
+                  <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
+                    Cancel
+                  </button>
+                </div>
+              )
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          {transitionErrors.length > 0 && (
+            <div className="flex flex-col items-center gap-1 mt-3">
+              {transitionErrors.map((msg, i) => (
+                <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  {msg}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0 lg:grid-rows-[auto_1fr]">
+        <div className="card p-4 flex flex-col">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center">
+              <User className="w-3 h-3 text-brand-600" />
+            </div>
+            <p className="section-title mb-0 text-xs">Client Information</p>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 flex-1 content-start">
             <div className="col-span-2"><InfoBox label="Full Name" value={ticket.client_name} accent /></div>
             <InfoBox label="Contact"  value={ticket.contact_number} />
             <InfoBox label="Platform" value={ticket.platform} />
@@ -565,28 +654,28 @@ function OverviewTab({ ticket, statusGuidance }) {
           </div>
         </div>
 
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-accent-100 flex items-center justify-center">
-              <Package className="w-3.5 h-3.5 text-accent-600" />
+        <div className="card p-4 flex flex-col">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-6 h-6 rounded-lg bg-accent-100 flex items-center justify-center">
+              <Package className="w-3 h-3 text-accent-600" />
             </div>
-            <p className="section-title mb-0">Unit Information</p>
+            <p className="section-title mb-0 text-xs">Unit Information</p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-1.5 flex-1 content-start">
             <InfoBox label="Brand"           value={ticket.unit_brand} accent />
             <InfoBox label="Model"           value={ticket.unit_model} accent />
             <InfoBox label="Type"            value={ticket.unit_type} />
             <InfoBox label="Mode of Service" value={ticket.mode_of_service} />
-            <InfoBox label="Preferred Date"  value={ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMMM d, yyyy') : '—'} />
+            <InfoBox label="Preferred Date"  value={ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'} />
             <InfoBox label="Preferred Time"  value={ticket.preferred_time || '—'} />
-            <div className="col-span-2"><InfoBox label="Accessories" value={ticket.accessories_included || '—'} /></div>
+            <div className="col-span-3"><InfoBox label="Accessories" value={ticket.accessories_included || '—'} /></div>
           </div>
         </div>
-      </div>
 
-      <div className="card p-5">
-        <p className="section-title flex items-center gap-2"><FileText className="w-3.5 h-3.5" /> Issue Description</p>
-        <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4">{ticket.issue_description}</p>
+        <div className="card p-4 flex flex-col lg:col-span-2">
+          <p className="section-title flex items-center gap-2 text-xs mb-2 shrink-0"><FileText className="w-3 h-3" /> Issue Description</p>
+          <p className="text-xs font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 flex-1 overflow-y-auto">{ticket.issue_description}</p>
+        </div>
       </div>
     </div>
   )
@@ -998,7 +1087,7 @@ export default function TicketDetailPage() {
 
   return (
     // Extra mobile bottom padding keeps content clear of the fixed action bar
-    <div className={`space-y-5 animate-fade-in ${showActions ? 'pb-32 md:pb-10' : 'pb-10'}`}>
+    <div className={`flex flex-col flex-1 gap-3 animate-fade-in min-h-0 ${showActions ? 'pb-32 md:pb-0' : 'pb-0'}`}>
 
       {/* Back + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1006,10 +1095,12 @@ export default function TicketDetailPage() {
           <ArrowLeft className="w-4 h-4" /> All Tickets
         </Link>
         <div className="flex items-center gap-2">
-          <a href={safeTrackingUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm">
+          <a href={safeTrackingUrl} target="_blank" rel="noopener noreferrer"
+            className="btn-secondary text-sm bg-teal-600 border-teal-600 text-white hover:bg-teal-700 hover:border-teal-700">
             <ExternalLink className="w-3.5 h-3.5" /> Tracking Page
           </a>
-          <button onClick={() => downloadTicketPDF(ticket)} className="btn-secondary text-sm">
+          <button onClick={() => downloadTicketPDF(ticket)}
+            className="btn-secondary text-sm bg-gray-900 border-gray-900 text-white hover:bg-black hover:border-black">
             <Download className="w-3.5 h-3.5" /> PDF
           </button>
         </div>
@@ -1043,72 +1134,6 @@ export default function TicketDetailPage() {
         </div>
       </div>
 
-      {/* Progress bar — own section below the header on desktop; on mobile it
-          renders inside the Overview tab instead */}
-      <ProgressCard status={ticket.status} guidance={statusGuidance} className="hidden md:block" />
-
-      {/* Action bar — status transitions + undo, centered below the header.
-          Desktop only; mobile uses the fixed bottom bar at the end of the page. */}
-      {showActions && (
-        <div className="w-full hidden md:block">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 flex-wrap">
-            {nextStatuses.map(status => (
-              <button
-                key={status}
-                onClick={() => updateStatus(status)}
-                disabled={statusUpdating}
-                aria-label={`Transition to ${status}`}
-                className={`btn-primary text-sm justify-center ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : ''}`}
-              >
-                {statusUpdating
-                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : `→ ${status}`
-                }
-              </button>
-            ))}
-
-            {canUndo && (
-              !undoConfirm ? (
-                <button
-                  onClick={() => setUndoConfirm(true)}
-                  disabled={statusUpdating}
-                  aria-label={`Undo — revert to ${ticket.previous_status}`}
-                  className="btn-secondary text-sm justify-center"
-                >
-                  <Undo2 className="w-3.5 h-3.5" /> Undo
-                </button>
-              ) : (
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <span className="text-sm font-body text-gray-600">
-                    Revert to <span className="font-semibold">{ticket.previous_status}</span>?
-                  </span>
-                  <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm">
-                    {statusUpdating
-                      ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      : 'Yes, Revert'
-                    }
-                  </button>
-                  <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
-                    Cancel
-                  </button>
-                </div>
-              )
-            )}
-          </div>
-
-          {transitionErrors.length > 0 && (
-            <div className="flex flex-col items-center gap-1 mt-3">
-              {transitionErrors.map((msg, i) => (
-                <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                  {msg}
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Section navigation — dropdown on mobile, tab bar on md+ */}
       <div className="md:hidden">
         <label className="label" htmlFor="ticket-section-select">Section</label>
@@ -1133,7 +1158,15 @@ export default function TicketDetailPage() {
         </div>
       </div>
 
-      {activeTab === 'overview' && <OverviewTab ticket={ticket} statusGuidance={statusGuidance} />}
+      {activeTab === 'overview' && (
+        <OverviewTab
+          ticket={ticket}           statusGuidance={statusGuidance}
+          showActions={showActions} nextStatuses={nextStatuses}
+          canUndo={canUndo}         undoConfirm={undoConfirm}   setUndoConfirm={setUndoConfirm}
+          statusUpdating={statusUpdating} transitionErrors={transitionErrors}
+          updateStatus={updateStatus}     undoStatus={undoStatus}
+        />
+      )}
 
       {activeTab === 'tech' && (
         <TechTab
@@ -1180,7 +1213,7 @@ export default function TicketDetailPage() {
       {/* Mobile action bar — fixed to the bottom of the screen. Status
           transition button(s) fill ~90% of the row, undo the remaining ~10%.
           Stays below the sidebar drawer (z-50) and its overlay (z-40). */}
-      {showActions && (
+      {showActions && activeTab === 'overview' && (
         <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {transitionErrors.length > 0 && (
             <div className="flex flex-col gap-1 mb-2">

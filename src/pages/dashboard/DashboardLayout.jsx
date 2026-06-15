@@ -345,7 +345,7 @@ export default function DashboardLayout() {
           <Logo size="xs" />
         </header>
 
-        <main className="flex-1 p-5 lg:p-7 bg-gray-50">
+        <main className="flex-1 flex flex-col p-5 lg:p-7 bg-gray-50 min-h-0">
           {/* Push-notification enable banner (renders nothing once granted/snoozed) */}
           <PushPermissionPrompt />
           {/* Child routes (DashboardHome, TicketListPage, etc.) render here */}
