@@ -148,9 +148,9 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* Tasks + Recent Activities — side by side */}
+      {/* Tasks + Recent Activities — side by side, desktop only */}
       {!loading && tickets.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
+        <div className="hidden lg:grid grid-cols-2 gap-6">
 
           {/* Tasks — tickets the current role has a pending action on */}
           <div className="card overflow-hidden">
