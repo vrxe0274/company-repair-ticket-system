@@ -111,9 +111,9 @@ export default function TasksPage() {
           )}
         </div>
 
-        {/* Role guidance card */}
+        {/* Role guidance card — desktop only */}
         {role && TASK_ACTIONS[role] && (
-          <div className="card p-5 w-full">
+          <div className="hidden lg:block card p-5 w-full">
             <div className="flex items-center gap-2.5 mb-4">
               <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${role === 'Admin' ? 'bg-brand-50' : 'bg-accent-50'}`}>
                 {role === 'Admin'
