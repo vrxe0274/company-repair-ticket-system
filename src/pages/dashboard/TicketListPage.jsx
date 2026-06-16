@@ -225,9 +225,9 @@ export default function TicketListPage() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left bg-gray-50">
+                  <tr className="border-b border-gray-300 text-left bg-gray-200">
                     {['Ticket ID', 'Client', 'Unit', 'Status', 'Date', ''].map(h => (
-                      <th key={h} className="px-5 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wider">
+                      <th key={h} className="px-5 py-3 text-xs font-sans font-semibold text-gray-500 uppercase tracking-wider">
                         {h}
                       </th>
                     ))}
@@ -237,7 +237,7 @@ export default function TicketListPage() {
                   {filtered.map((t, i) => (
                     <tr key={t.id} className={`transition-colors hover:bg-brand-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-[#f5f6f7]'}`}>
                       <td className="px-5 py-3.5">
-                        <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded">
                           {t.ticket_id}
                         </span>
                       </td>

@@ -10,10 +10,10 @@
 
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { ClipboardList, CheckCircle, RefreshCw, ChevronRight } from 'lucide-react'
+import { ClipboardList, CheckCircle, RefreshCw, ChevronRight, Shield, Wrench } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
-import { TASK_ACTIONS } from '../../lib/utils'
+import { TASK_ACTIONS, STATUS_COLORS } from '../../lib/utils'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
 /** TasksPage — the /tasks route of the staff dashboard. */
@@ -52,60 +52,96 @@ export default function TasksPage() {
         </button>
       </div>
 
-      {/* Task list */}
-      <div className="card overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <p className="section-title mb-0 flex items-center gap-2">
-            <ClipboardList className="w-3.5 h-3.5" /> Your Tasks
-            {tasks.length > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-600 text-white text-xs font-mono font-bold leading-none">
-                {tasks.length}
-              </span>
-            )}
-          </p>
-        </div>
+      {/* Two-column layout on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
 
-        {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <span className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-            <CheckCircle className="w-8 h-8 text-green-300" />
-            <p className="text-base font-body text-gray-500">
-              All caught up — nothing needs your action right now.
+        {/* Task list */}
+        <div className="card overflow-hidden w-full">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <p className="section-title mb-0 flex items-center gap-2">
+              <ClipboardList className="w-3.5 h-3.5" /> Your Tasks
+              {tasks.length > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-600 text-white text-xs font-mono font-bold leading-none">
+                  {tasks.length}
+                </span>
+              )}
             </p>
           </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {tasks.map(t => (
-              <Link
-                key={t.id}
-                to={`/tickets/${t.id}`}
-                className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <StatusBadge status={t.status} size="sm" />
+
+          {loading ? (
+            <div className="flex items-center justify-center py-10">
+              <span className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : tasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <CheckCircle className="w-8 h-8 text-green-300" />
+              <p className="text-base font-body text-gray-500">
+                All caught up — nothing needs your action right now.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {tasks.map(t => (
+                <Link
+                  key={t.id}
+                  to={`/tickets/${t.id}`}
+                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <StatusBadge status={t.status} size="sm" />
+                    </div>
+                    <p className="font-sans font-semibold text-base text-gray-900 truncate">
+                      {t.client_name}
+                      <span className="hidden sm:inline font-normal text-gray-500"> · {t.unit_brand} {t.unit_model}</span>
+                    </p>
+                    <p className="text-sm font-body text-brand-700 mt-0.5">
+                      {TASK_ACTIONS[role]?.[t.status] || 'Action required'}
+                    </p>
                   </div>
-                  <p className="font-sans font-semibold text-base text-gray-900 truncate">
-                    {t.client_name}
-                    <span className="hidden sm:inline font-normal text-gray-500"> · {t.unit_brand} {t.unit_model}</span>
-                  </p>
-                  <p className="text-sm font-body text-brand-700 mt-0.5">
-                    {TASK_ACTIONS[role]?.[t.status] || 'Action required'}
-                  </p>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    <p className="text-sm font-body text-gray-500">
+                      {formatDistanceToNow(new Date(t.created_at), { addSuffix: true })}
+                    </p>
+                    <ChevronRight className="w-4 h-4 text-gray-300" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Role guidance card */}
+        {role && TASK_ACTIONS[role] && (
+          <div className="card p-5 w-full">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${role === 'Admin' ? 'bg-brand-50' : 'bg-accent-50'}`}>
+                {role === 'Admin'
+                  ? <Shield className="w-3.5 h-3.5 text-brand-600" />
+                  : <Wrench className="w-3.5 h-3.5 text-accent-600" />
+                }
+              </div>
+              <div>
+                <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider leading-none mb-0.5">Role</p>
+                <p className="text-sm font-sans font-bold text-gray-800">{role}</p>
+              </div>
+            </div>
+
+            <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-3">Your Responsibilities</p>
+            <div className="space-y-3">
+              {Object.entries(TASK_ACTIONS[role]).map(([status, action]) => (
+                <div key={status} className="flex items-start gap-2.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${STATUS_COLORS[status]?.dot || 'bg-gray-300'}`} />
+                  <div>
+                    <p className="text-xs font-sans font-semibold text-gray-700">{status}</p>
+                    <p className="text-xs font-body text-gray-500 leading-snug mt-0.5">{action}</p>
+                  </div>
                 </div>
-                <div className="text-right shrink-0 flex items-center gap-2">
-                  <p className="text-sm font-body text-gray-500">
-                    {formatDistanceToNow(new Date(t.created_at), { addSuffix: true })}
-                  </p>
-                  <ChevronRight className="w-4 h-4 text-gray-300" />
-                </div>
-              </Link>
-            ))}
+              ))}
+            </div>
           </div>
         )}
+
       </div>
     </div>
   )
