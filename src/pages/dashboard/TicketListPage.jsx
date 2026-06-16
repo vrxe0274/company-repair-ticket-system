@@ -133,13 +133,6 @@ export default function TicketListPage() {
             className="btn-secondary text-sm"
           >
             <Filter className="w-3.5 h-3.5" />
-            {activeStatus !== 'All' && (
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[activeStatus]?.dot || 'bg-gray-300'}`}
-              />
-            )}
-            <span className="hidden sm:inline">{activeStatus === 'All' ? 'Filter' : activeStatus}</span>
-            {activeStatus !== 'All' && <span className="sm:hidden">{activeStatus}</span>}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filtersOpen ? 'rotate-180' : ''}`} />
           </button>
 

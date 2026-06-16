@@ -142,7 +142,7 @@ export default function DashboardHome() {
                         <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                       </div>
                       <p className="font-sans font-semibold text-base text-gray-900 truncate">
-                        {t.client_name} <span className="font-normal text-gray-500">· {t.unit_brand} {t.unit_model}</span>
+                        {t.client_name}
                       </p>
                       <p className="text-sm font-body text-brand-700 mt-0.5">
                         {TASK_ACTIONS[role]?.[t.status] || 'Action required'}
@@ -204,9 +204,6 @@ export default function DashboardHome() {
                         <p className="text-xs font-body text-gray-400">
                           {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                         </p>
-                        {n.ticket_human_id && (
-                          <span className="text-xs font-mono text-gray-400">{n.ticket_human_id}</span>
-                        )}
                       </div>
                     </div>
                     {n.ticket_uuid && (

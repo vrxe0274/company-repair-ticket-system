@@ -1121,7 +1121,7 @@ export default function TicketDetailPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono font-bold text-xl sm:text-2xl text-white tracking-wider">{ticket.ticket_id}</span>
-                <StatusBadge status={ticket.status} size="lg" />
+                <StatusBadge status={ticket.status} size="sm" />
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1.5 gap-0.5">
                 <p className="text-xs font-body text-gray-500">

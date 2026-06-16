@@ -42,7 +42,7 @@ export default function TasksPage() {
           </p>
         </div>
         <button onClick={fetchTickets} className="btn-secondary text-sm">
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -57,9 +57,6 @@ export default function TasksPage() {
               </span>
             )}
           </p>
-          <Link to="/tickets" className="text-xs font-sans font-semibold text-brand-600 hover:underline">
-            View all tickets
-          </Link>
         </div>
 
         {loading ? (

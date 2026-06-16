@@ -336,11 +336,6 @@ export default function DashboardLayout() {
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
-            {taskCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 inline-flex items-center justify-center rounded-full bg-brand-600 text-white text-[10px] font-mono font-bold leading-none">
-                {taskCount > NOTIFICATION_BADGE_MAX ? `${NOTIFICATION_BADGE_MAX}+` : taskCount}
-              </span>
-            )}
           </button>
           <Logo size="xs" />
         </header>
