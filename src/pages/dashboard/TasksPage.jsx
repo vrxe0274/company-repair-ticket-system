@@ -86,7 +86,8 @@ export default function TasksPage() {
                     <StatusBadge status={t.status} size="sm" />
                   </div>
                   <p className="font-sans font-semibold text-base text-gray-900 truncate">
-                    {t.client_name} <span className="font-normal text-gray-500">· {t.unit_brand} {t.unit_model}</span>
+                    {t.client_name}
+                    <span className="hidden sm:inline font-normal text-gray-500"> · {t.unit_brand} {t.unit_model}</span>
                   </p>
                   <p className="text-sm font-body text-brand-700 mt-0.5">
                     {TASK_ACTIONS[role]?.[t.status] || 'Action required'}

@@ -1,12 +1,28 @@
 import { format } from 'date-fns'
 
 /**
- * Generate a human-readable Ticket ID like VRXE-20241210-A3F7
+ * Generate a sequential Ticket ID like VR-2606-001.
+ * Queries the DB for the highest existing number in the current YYMM period
+ * and increments by 1. Requires supabase client as argument.
  */
-export function generateTicketId() {
-  const datePart = format(new Date(), 'yyyyMMdd')
-  const randomPart = Math.random().toString(36).toUpperCase().substring(2, 6)
-  return `VRXE-${datePart}-${randomPart}`
+export async function generateTicketId(supabase) {
+  const yymm   = format(new Date(), 'yyMM')
+  const prefix = `VR-${yymm}-`
+
+  const { data } = await supabase
+    .from('tickets')
+    .select('ticket_id')
+    .like('ticket_id', `${prefix}%`)
+    .order('ticket_id', { ascending: false })
+    .limit(1)
+
+  let nextNum = 1
+  if (data?.length) {
+    const parsed = parseInt(data[0].ticket_id.slice(prefix.length), 10)
+    if (!isNaN(parsed)) nextNum = parsed + 1
+  }
+
+  return `${prefix}${String(nextNum).padStart(3, '0')}`
 }
 
 /**

@@ -83,18 +83,18 @@ export default function DashboardHome() {
       </div>
 
       {/* Stat cards — each links to the ticket list filtered by status */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         {STAT_CONFIGS.map(({ label, key, color, bg, border, icon: Icon }) => (
           <Link
             key={key}
             to={key === 'total' ? 'tickets' : `tickets?status=${encodeURIComponent(key)}`}
-            className={`rounded-xl border p-4 hover:shadow-md transition-all duration-150 ${bg} ${border}`}
+            className={`rounded-xl border p-2 sm:p-4 hover:shadow-md transition-all duration-150 ${bg} ${border}`}
           >
-            <Icon className={`w-5 h-5 mb-2 ${color}`} />
-            <p className={`text-2xl font-display tracking-wider ${color}`}>
+            <Icon className={`w-4 h-4 sm:w-5 sm:h-5 mb-1 sm:mb-2 ${color}`} />
+            <p className={`text-lg sm:text-2xl font-display tracking-wider ${color}`}>
               {loading ? '–' : countByStatus(key)}
             </p>
-            <p className={`text-xs font-sans font-semibold tracking-wide mt-0.5 ${color} opacity-80`}>
+            <p className={`text-[10px] sm:text-xs font-sans font-semibold tracking-wide mt-0.5 ${color} opacity-80`}>
               {label}
             </p>
           </Link>
@@ -198,7 +198,7 @@ export default function DashboardHome() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-body leading-snug truncate ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
-                        {n.message?.replace(/VRXE-\d{8}-[A-Z0-9]{4}/g, '').trim()}
+                        {n.message?.replace(/(?:VRXE-\d{8}-[A-Z0-9]{4}|VR-\d{4}-\d{3})/g, '').trim()}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <p className="text-xs font-body text-gray-400">

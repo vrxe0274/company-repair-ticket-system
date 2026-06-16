@@ -8,7 +8,7 @@ export default function StatusBadge({ status, size = 'md' }) {
     lg: 'text-sm px-3 py-1.5',
   }
   return (
-    <span className={`inline-flex items-center gap-1.5 font-sans font-semibold tracking-wide rounded-full ${colors.bg} ${colors.text} ${sizes[size]}`}>
+    <span className={`inline-flex items-center gap-1.5 font-sans font-semibold tracking-wide rounded-full whitespace-nowrap ${colors.bg} ${colors.text} ${sizes[size]}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
       {status}
     </span>

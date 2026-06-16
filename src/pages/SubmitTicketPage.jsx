@@ -158,7 +158,7 @@ export default function SubmitTicketPage() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setSubmitting(true)
     try {
-      const ticketId      = generateTicketId()
+      const ticketId      = await generateTicketId(supabase)
       const trackingToken = generateTrackingToken()
       const resolvedBrand = form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand
       const payload = {

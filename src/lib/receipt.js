@@ -13,9 +13,8 @@ const vrxeLogo = '/vrxe-logo.png'
  */
 export function generateReceiptNumber(ticketId) {
   if (ticketId) return `${ticketId}-R`
-  const datePart   = format(new Date(), 'yyyyMMdd')
-  const randomPart = Math.random().toString(36).toUpperCase().substring(2, 6)
-  return `VRXE-${datePart}-${randomPart}-R`
+  const yymm = format(new Date(), 'yyMM')
+  return `VR-${yymm}-000-R`
 }
 
 /**

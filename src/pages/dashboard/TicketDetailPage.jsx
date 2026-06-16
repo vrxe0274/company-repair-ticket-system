@@ -87,15 +87,15 @@ function computeQuotation(laborItems, partsItems, discount) {
 
 function LineItem({ item, onChange, onRemove, canRemove }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0">
       <input
         type="text"
         value={item.description}
         onChange={e => onChange(item.id, 'description', e.target.value)}
         placeholder="Description"
-        className="input-field w-48 sm:w-56 text-sm shrink-0"
+        className="input-field flex-1 min-w-0 text-sm"
       />
-      <div className="relative w-32 shrink-0">
+      <div className="relative w-24 sm:w-32 shrink-0">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
         <input
           type="number"
@@ -104,7 +104,7 @@ function LineItem({ item, onChange, onRemove, canRemove }) {
           value={item.amount}
           onChange={e => onChange(item.id, 'amount', e.target.value)}
           placeholder="0.00"
-          className="input-field pl-7 text-sm text-right font-mono"
+          className="input-field pl-7 text-sm text-right font-mono w-full"
         />
       </div>
       <button
@@ -192,9 +192,8 @@ function ProgressCard({ status, guidance, className = '' }) {
   return (
     <div className={`card overflow-hidden ${className}`}>
       {/* Step track */}
-      <div className="px-4 pt-4 pb-5">
-        {/* pb-6 reserves space for absolutely-positioned labels below icons */}
-        <div className="flex items-center pb-6">
+      <div className="px-3 sm:px-4 py-4">
+        <div className="flex items-center w-full">
           {STATUS_ORDER.map((s, i) => {
             const isComplete = i < progressIdx
             const isCurrent  = i === progressIdx
@@ -203,32 +202,26 @@ function ProgressCard({ status, guidance, className = '' }) {
 
             return (
               <Fragment key={s}>
-                {/* Node — shrink-0 with no width-affecting children keeps all nodes identical */}
-                <div className="relative shrink-0">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300
+                {/* Node */}
+                <div className="shrink-0">
+                  <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-300
                     ${isComplete
                       ? 'bg-emerald-500 text-white shadow-sm'
                       : isCurrent
-                        ? 'bg-dark-900 text-white shadow-md ring-2 ring-brand-400 ring-offset-2'
+                        ? 'bg-dark-900 text-white shadow-md ring-2 ring-brand-400 ring-offset-1 sm:ring-offset-2'
                         : 'bg-gray-100 text-gray-300'
                     }`}
                   >
                     {isComplete
-                      ? <CheckCircle className="w-4 h-4" />
-                      : <Icon className="w-4 h-4" />
+                      ? <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     }
                   </div>
-                  {/* Label absolutely positioned — does not affect node width */}
-                  <span className={`absolute top-full left-1/2 -translate-x-1/2 mt-1.5 text-[10px] font-sans font-semibold whitespace-nowrap
-                    ${isCurrent ? 'text-gray-900' : isComplete ? 'text-emerald-600' : 'text-gray-300'}`}
-                  >
-                    {s}
-                  </span>
                 </div>
 
                 {/* Connector — flex-1 fills equally between identical-width nodes */}
                 {!isLast && (
-                  <div className="flex-1 h-0.5 mx-4 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="flex-1 h-0.5 mx-1.5 sm:mx-4 bg-gray-100 rounded-full overflow-hidden">
                     <div className={`h-full bg-emerald-500 transition-all duration-700 ${isComplete ? 'w-full' : 'w-0'}`} />
                   </div>
                 )}
@@ -655,10 +648,10 @@ function OverviewTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0 lg:grid-rows-[auto_1fr]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 lg:grid-rows-[auto_1fr]">
         <div className="card p-4 flex flex-col">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
               <User className="w-3 h-3 text-brand-600" />
             </div>
             <p className="section-title mb-0 text-xs">Client Information</p>
@@ -673,8 +666,8 @@ function OverviewTab({
         </div>
 
         <div className="card p-4 flex flex-col">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-lg bg-accent-100 flex items-center justify-center">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-lg bg-accent-100 flex items-center justify-center shrink-0">
               <Package className="w-3 h-3 text-accent-600" />
             </div>
             <p className="section-title mb-0 text-xs">Unit Information</p>
@@ -841,7 +834,7 @@ function QuotationTab({
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5 min-h-0">
 
           {/* Left — scrollable line items + discount + save */}
-          <div className="card p-5 flex flex-col min-h-0">
+          <div className="card p-3 sm:p-5 flex flex-col min-h-0">
             <p className="section-title flex items-center gap-2 mb-4 shrink-0">
               <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation
             </p>
@@ -949,7 +942,7 @@ function QuotationTab({
           {/* Right — totals summary + amount paid, stacked vertically */}
           <div className="flex flex-col gap-4">
             {/* Totals */}
-            <div className="card p-5 space-y-2">
+            <div className="card p-3 sm:p-5 space-y-2">
               <p className="section-title text-xs mb-3">Summary</p>
               <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
               <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
@@ -963,7 +956,7 @@ function QuotationTab({
             </div>
 
             {/* Amount paid */}
-            <div className="card p-5 space-y-3 flex-1 flex flex-col">
+            <div className="card p-3 sm:p-5 space-y-3 flex-1 flex flex-col">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-emerald-500" />
                 <p className="section-title text-xs mb-0">Amount Paid</p>
@@ -1100,18 +1093,20 @@ export default function TicketDetailPage() {
       {/* ── Hero — bleeds to edges of the main padding ── */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-800 px-5 lg:px-7 pt-7 lg:pt-12 pb-0">
         {/* Back + actions */}
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-          <Link to="/tickets" className="inline-flex items-center gap-2 text-sm font-body text-gray-400 hover:text-white transition-colors">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <Link to="/tickets" className="inline-flex items-center gap-2 text-sm font-body text-gray-400 hover:text-white transition-colors shrink-0">
             <ArrowLeft className="w-4 h-4" /> All Tickets
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <a href={safeTrackingUrl} target="_blank" rel="noopener noreferrer"
               className="btn-secondary text-sm bg-teal-600 border-teal-600 text-white hover:bg-teal-700 hover:border-teal-700">
-              <ExternalLink className="w-3.5 h-3.5" /> Tracking Page
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tracking Page</span>
             </a>
             <button onClick={() => downloadTicketPDF(ticket)}
               className="btn-secondary text-sm bg-white border-white text-gray-900 hover:bg-gray-100 hover:border-gray-100">
-              <Download className="w-3.5 h-3.5" /> PDF
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">PDF</span>
             </button>
           </div>
         </div>
@@ -1123,26 +1118,23 @@ export default function TicketDetailPage() {
             <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0 mt-0.5">
               <User className="w-6 h-6 text-white/60" />
             </div>
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-mono font-bold text-2xl text-white tracking-wider">{ticket.ticket_id}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-bold text-xl sm:text-2xl text-white tracking-wider">{ticket.ticket_id}</span>
                 <StatusBadge status={ticket.status} size="lg" />
               </div>
-              <div className="flex items-center gap-3 flex-wrap mt-1.5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1.5 gap-0.5">
                 <p className="text-xs font-body text-gray-500">
                   Submitted {format(new Date(ticket.created_at), 'MMM d, yyyy · h:mm a')}
                 </p>
-                <span className="text-gray-600 text-xs">·</span>
+                <span className="hidden sm:inline text-gray-600 text-xs">·</span>
                 <p className="text-xs font-body text-gray-500">
-                  Updated {format(new Date(ticket.updated_at), 'MMM d, h:mm a')}
+                  Updated {format(new Date(ticket.updated_at), 'MMM d, yyyy · h:mm a')}
                 </p>
                 {ticket.paid_at && (
-                  <>
-                    <span className="text-gray-600 text-xs">·</span>
-                    <p className="text-xs font-body text-emerald-400 font-semibold">
-                      ✓ Paid {format(new Date(ticket.paid_at), 'MMM d, yyyy')}
-                    </p>
-                  </>
+                  <p className="text-xs font-body text-emerald-400 font-semibold">
+                    ✓ Paid {format(new Date(ticket.paid_at), 'MMM d, yyyy')}
+                  </p>
                 )}
               </div>
             </div>

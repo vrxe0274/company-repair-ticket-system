@@ -88,29 +88,31 @@ export default function TicketListPage() {
     <div className="space-y-5 animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="font-display text-4xl tracking-widest text-gray-900">ALL TICKETS</h1>
           <p className="text-sm font-body text-gray-500 mt-0.5">
             {filtered.length} ticket{filtered.length !== 1 ? 's' : ''} shown
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button onClick={fetchTickets} className="btn-secondary text-sm">
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
             onClick={() => exportTicketsToXLSX(tickets).catch(console.error)}
             disabled={!tickets.length}
             className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 disabled:opacity-40"
           >
-            <Download className="w-3.5 h-3.5" /> Export XLSX
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export XLSX</span>
           </button>
         </div>
       </div>
 
       {/* Search + filter controls */}
-      <div className="flex items-center gap-2 max-w-2xl mx-auto">
+      <div className="flex items-center gap-2 sm:max-w-2xl sm:mx-auto">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -136,7 +138,8 @@ export default function TicketListPage() {
                 className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[activeStatus]?.dot || 'bg-gray-300'}`}
               />
             )}
-            {activeStatus === 'All' ? 'Filter' : activeStatus}
+            <span className="hidden sm:inline">{activeStatus === 'All' ? 'Filter' : activeStatus}</span>
+            {activeStatus !== 'All' && <span className="sm:hidden">{activeStatus}</span>}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filtersOpen ? 'rotate-180' : ''}`} />
           </button>
 
@@ -248,12 +251,12 @@ export default function TicketListPage() {
                     <User className="w-5 h-5 text-gray-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="font-mono text-xs text-gray-400 shrink-0">{t.ticket_id}</span>
                       <StatusBadge status={t.status} size="sm" />
                     </div>
                     <p className="font-sans font-semibold text-base text-gray-900 truncate">{t.client_name}</p>
-                    <p className="text-sm font-body text-gray-500">{t.unit_brand} {t.unit_model}</p>
+                    <p className="text-sm font-body text-gray-500 truncate">{t.unit_brand} {t.unit_model}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                 </Link>
