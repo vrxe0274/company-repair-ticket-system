@@ -208,6 +208,9 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {/* Container enclosing the login components */}
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8">
+
           {!selectedRole ? (
             /* ── Step 1: role selection ── */
             <>
@@ -327,6 +330,9 @@ export default function LoginPage() {
               ← Back to ticket submission
             </Link>
           </div>
+
+          </div>
+          {/* End container */}
 
         </div>
       </div>
