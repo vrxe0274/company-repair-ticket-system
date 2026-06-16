@@ -16,7 +16,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircle, Copy, ExternalLink, ChevronRight, ChevronLeft,
-  User, Cpu, AlertCircle, CalendarClock, Send,
+  User, Cpu, AlertCircle, CalendarClock, Send, ScrollText,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { sendGlobalPush } from '../lib/push'
@@ -43,6 +43,7 @@ const STEPS = [
   { id: 2, label: 'Your Unit',   icon: Cpu },
   { id: 3, label: 'Issue',       icon: AlertCircle },
   { id: 4, label: 'Appointment', icon: CalendarClock },
+  { id: 5, label: 'Terms',       icon: ScrollText },
 ]
 
 const STEP_REQUIRED = {
@@ -50,6 +51,7 @@ const STEP_REQUIRED = {
   2: ['unit_brand', 'unit_model', 'unit_type'],
   3: ['issue_description'],
   4: ['mode_of_service'],
+  5: [],
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -102,9 +104,10 @@ export default function SubmitTicketPage() {
   const [form, setForm]             = useState(FORM_INITIAL)
   const [errors, setErrors]         = useState({})
   const [step, setStep]             = useState(1)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted]   = useState(null)
-  const [copied, setCopied]         = useState(false)
+  const [submitting, setSubmitting]       = useState(false)
+  const [submitted, setSubmitted]         = useState(null)
+  const [copied, setCopied]               = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -418,6 +421,86 @@ export default function SubmitTicketPage() {
               </div>
             )}
 
+            {/* Step 5 — Terms & Conditions */}
+            {step === 5 && (
+              <div className="space-y-4">
+                <StepHeading icon={ScrollText} title="Terms & Conditions" subtitle="Please read carefully before submitting your repair request" />
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden max-h-[420px] overflow-y-auto">
+
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">1. Repair Turnaround Time</p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-body text-gray-500 shrink-0">a.</span>
+                        <p className="text-sm font-body text-gray-700"><span className="font-semibold text-gray-900">Minor issue repairs</span> — estimated <span className="font-semibold">2–3 business days</span></p>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-body text-gray-500 shrink-0">b.</span>
+                        <p className="text-sm font-body text-gray-700"><span className="font-semibold text-gray-900">Major issue repairs</span> — estimated <span className="font-semibold">1–2 weeks</span></p>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-body text-gray-500 shrink-0">c.</span>
+                        <p className="text-sm font-body text-gray-600">Repair time may vary depending on the availability and shipping of parts.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">2. Inspection & Quotation</p>
+                    <p className="text-sm font-body text-gray-700 leading-relaxed">All units undergo a thorough inspection before any repair work begins. A repair quotation will be sent to you for approval — no work will proceed without your confirmation.</p>
+                  </div>
+
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">3. Payment</p>
+                    <p className="text-sm font-body text-gray-700 leading-relaxed">Full payment is required upon completion of the repair before the unit is released. If you choose to decline the quotation after inspection, a minimal inspection fee may apply.</p>
+                  </div>
+
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">4. Data & Content</p>
+                    <p className="text-sm font-body text-gray-700 leading-relaxed">We are not responsible for any data, accounts, or saved content on the device. We strongly recommend backing up your data before submitting your unit for repair.</p>
+                  </div>
+
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">5. Warranty on Repairs</p>
+                    <p className="text-sm font-body text-gray-700 leading-relaxed">Completed repairs carry a <span className="font-semibold text-gray-900">30-day warranty</span> covering the same issue that was repaired, though warranty coverage may vary depending on the type of repair performed. The warranty is void if the unit shows signs of physical damage, unauthorized tampering, or liquid exposure after it has been released to the client.</p>
+                  </div>
+
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">6. Unclaimed Units</p>
+                    <p className="text-sm font-body text-gray-700 leading-relaxed">Units not claimed within <span className="font-semibold text-gray-900">30 days</span> after repair completion will be subject to a storage fee. Units left unclaimed for more than <span className="font-semibold text-gray-900">90 days</span> may be forfeited without further notice.</p>
+                  </div>
+
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">7. Liability</p>
+                    <p className="text-sm font-body text-gray-700 leading-relaxed">We handle all units with the utmost care. However, we are not liable for pre-existing damage or faults unrelated to the reported issue that may become apparent during the repair process.</p>
+                  </div>
+
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer group pt-1">
+                  <div className="relative shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={termsAccepted}
+                      onChange={e => setTermsAccepted(e.target.checked)}
+                    />
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all
+                      ${termsAccepted
+                        ? 'bg-brand-600 border-brand-600'
+                        : 'bg-white border-gray-300 group-hover:border-brand-400'}`}
+                    >
+                      {termsAccepted && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                    </div>
+                  </div>
+                  <p className="text-sm font-body text-gray-700 leading-snug">
+                    I have read and agree to all the terms and conditions stated above.
+                  </p>
+                </label>
+              </div>
+            )}
+
             {/* Step 4 — Appointment + Summary */}
             {step === 4 && (
               <div className="space-y-4">
@@ -469,7 +552,7 @@ export default function SubmitTicketPage() {
                 Next <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
-              <button type="submit" disabled={submitting} className="btn-accent">
+              <button type="submit" disabled={submitting || !termsAccepted} className="btn-accent disabled:opacity-50 disabled:cursor-not-allowed">
                 {submitting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
