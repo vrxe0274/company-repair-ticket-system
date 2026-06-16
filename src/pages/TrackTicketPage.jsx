@@ -46,18 +46,24 @@ function TrackHeader() {
   )
 }
 
-/**
- * A labelled data row inside the Unit Details card.
- *
- * @param {string} label
- * @param {string} value
- * @param {string} [className] - Extra Tailwind classes for the wrapper.
- */
-function InfoRow({ label, value, className = '' }) {
+/** Styled labelled cell for unit/client details. */
+function InfoCell({ label, value, className = '' }) {
   return (
-    <div className={className}>
-      <p className="text-xs font-body text-gray-500 mb-0.5">{label}</p>
-      <p className="text-base font-sans font-semibold text-gray-800">{value}</p>
+    <div className={`bg-gray-50 rounded-lg px-3 py-2.5 ${className}`}>
+      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm font-sans font-semibold text-gray-800">{value || '—'}</p>
+    </div>
+  )
+}
+
+/** Icon + label section header used throughout the tracker. */
+function SectionHeader({ icon: Icon, label, iconBg = 'bg-brand-50', iconColor = 'text-brand-600' }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-4">
+      <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
+        <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+      </div>
+      <p className="text-xs font-sans font-bold text-gray-700 uppercase tracking-[0.1em]">{label}</p>
     </div>
   )
 }
@@ -199,46 +205,50 @@ export default function TrackTicketPage() {
             </div>
           </div>
 
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-200">
 
             {/* Payment confirmed banner */}
             {isPaid && ticket.paid_at && (
-              <div className="p-4 flex items-center justify-between gap-3">
+              <div className="bg-emerald-50 border-b border-emerald-100 px-5 py-4 flex items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  </div>
                   <div>
-                    <p className="text-sm font-sans font-semibold text-emerald-800">Payment Confirmed</p>
-                    <p className="text-sm font-body text-emerald-600 mt-0.5">
+                    <p className="text-sm font-sans font-bold text-emerald-800">Payment Confirmed</p>
+                    <p className="text-xs font-body text-emerald-600 mt-0.5">
                       Paid on {format(new Date(ticket.paid_at), 'MMMM d, yyyy · h:mm a')}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => downloadReceiptPDF(ticket)}
-                  className="inline-flex items-center gap-1.5 text-sm font-sans font-semibold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0 min-h-[36px]"
+                  className="inline-flex items-center gap-1.5 text-xs font-sans font-semibold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0"
                 >
-                  <Receipt className="w-3.5 h-3.5" /> Download Receipt
+                  <Receipt className="w-3.5 h-3.5" /> Receipt
                 </button>
               </div>
             )}
 
             {/* Denied banner */}
             {isDenied && (
-              <div className="p-4 flex items-start gap-3">
-                <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div className="bg-red-50 border-b border-red-100 px-5 py-4 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                </div>
                 <div>
-                  <p className="text-sm font-sans font-semibold text-red-800">Ticket Denied</p>
-                  <p className="text-sm font-body text-red-600 mt-0.5">
+                  <p className="text-sm font-sans font-bold text-red-800">Ticket Denied</p>
+                  <p className="text-xs font-body text-red-600 mt-0.5">
                     This ticket was not approved. Please contact us for more information.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Progress tracker (hidden for denied tickets) */}
+            {/* Progress tracker */}
             {!isDenied && (
               <div className="p-5">
-                <p className="section-title mb-4">Repair Progress</p>
+                <SectionHeader icon={CheckCircle} label="Repair Progress" iconBg="bg-brand-50" iconColor="text-brand-600" />
                 <div className="relative">
                   <div className="absolute left-3.5 top-4 bottom-4 w-0.5 bg-gray-100" />
                   <div className="space-y-1">
@@ -249,11 +259,11 @@ export default function TrackTicketPage() {
                       return (
                         <div
                           key={statusStep}
-                          className={`relative flex items-start gap-4 py-3 px-2 rounded-lg
+                          className={`relative flex items-start gap-4 py-3 px-2 rounded-lg transition-colors
                             ${isCurrent ? 'bg-brand-50' : isPaidStep ? 'bg-emerald-50' : ''}`}
                         >
                           <div className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all mt-0.5
-                            ${isCompleted || isPaidStep ? 'bg-green-500'
+                            ${isCompleted || isPaidStep ? 'bg-emerald-500'
                               : isCurrent ? 'bg-brand-600 ring-4 ring-brand-100'
                               : 'bg-gray-100'}`}
                           >
@@ -264,35 +274,40 @@ export default function TrackTicketPage() {
                                 : <div className="w-2 h-2 bg-gray-300 rounded-full" />
                             }
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-sans font-semibold
-                              ${(isCompleted || isPaidStep) ? 'text-gray-400 line-through'
-                                : isCurrent ? 'text-brand-700'
-                                : 'text-gray-400'}`}
-                            >
-                              {statusStep}
-                            </p>
-                            {(isCompleted || isPaidStep) && STATUS_DESCRIPTIONS[statusStep] && (
-                              <p className={`text-sm font-body mt-0.5 leading-relaxed
-                                ${isCurrent ? 'text-brand-600' : 'text-gray-500'}`}
+                          <div className="flex-1 min-w-0 pt-0.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className={`text-sm font-sans font-semibold
+                                ${(isCompleted || isPaidStep) ? 'text-gray-400 line-through'
+                                  : isCurrent ? 'text-brand-700'
+                                  : 'text-gray-400'}`}
                               >
+                                {statusStep}
+                              </p>
+                              {(isCompleted || isPaidStep) && (
+                                <span className="text-[10px] font-sans font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                  ✓ Done
+                                </span>
+                              )}
+                              {isCurrent && (
+                                <span className="text-[10px] font-sans font-bold text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                  In Progress
+                                </span>
+                              )}
+                            </div>
+                            {(isCompleted || isPaidStep) && STATUS_DESCRIPTIONS[statusStep] && (
+                              <p className="text-xs font-body text-gray-400 mt-0.5 leading-relaxed">
                                 {STATUS_DESCRIPTIONS[statusStep]}
                               </p>
                             )}
                             {isCurrent && ticket.updated_at && (
-                              <p className="text-sm font-body text-gray-500 mt-1">
+                              <p className="text-xs font-body text-brand-500 mt-0.5">
                                 Updated {format(new Date(ticket.updated_at), 'MMM d, h:mm a')}
                               </p>
                             )}
                             {isPaidStep && ticket.paid_at && (
-                              <p className="text-sm font-body text-emerald-600 mt-0.5">
+                              <p className="text-xs font-body text-emerald-500 mt-0.5">
                                 {format(new Date(ticket.paid_at), 'MMM d, h:mm a')}
                               </p>
-                            )}
-                            {(isCompleted || isPaidStep) && (
-                              <span className="text-xs font-sans font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-block mt-1">
-                                ✓ Completed
-                              </span>
                             )}
                           </div>
                         </div>
@@ -305,34 +320,30 @@ export default function TrackTicketPage() {
 
             {/* Unit details */}
             <div className="p-5">
-              <p className="section-title flex items-center gap-2">
-                <Package className="w-3.5 h-3.5" /> Unit Details
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <InfoRow label="Brand"           value={ticket.unit_brand} />
-                <InfoRow label="Model"           value={ticket.unit_model} />
-                <InfoRow label="Type"            value={ticket.unit_type} />
-                <InfoRow label="Mode of Service" value={ticket.mode_of_service} />
+              <SectionHeader icon={Package} label="Unit Details" iconBg="bg-gray-100" iconColor="text-gray-500" />
+              <div className="grid grid-cols-2 gap-2">
+                <InfoCell label="Brand"           value={ticket.unit_brand} />
+                <InfoCell label="Model"           value={ticket.unit_model} />
+                <InfoCell label="Type"            value={ticket.unit_type} />
+                <InfoCell label="Mode of Service" value={ticket.mode_of_service} />
                 {ticket.accessories_included && (
-                  <InfoRow label="Accessories" value={ticket.accessories_included} className="col-span-2" />
+                  <InfoCell label="Accessories" value={ticket.accessories_included} className="col-span-2" />
                 )}
               </div>
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs font-sans font-semibold text-gray-500 mb-1">Issue Description</p>
-                <p className="text-base font-body text-gray-700 leading-relaxed">{ticket.issue_description}</p>
+                <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-2">Issue Description</p>
+                <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg px-3 py-2.5">{ticket.issue_description}</p>
               </div>
             </div>
 
-            {/* Repair photos (shown after approval) */}
+            {/* Repair photos */}
             {isApproved && ticket.repair_photos?.length > 0 && (
               <div className="p-5">
-                <p className="section-title flex items-center gap-2">
-                  <ImageIcon className="w-3.5 h-3.5" /> Documentation
-                </p>
+                <SectionHeader icon={ImageIcon} label="Documentation" iconBg="bg-slate-100" iconColor="text-slate-500" />
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {ticket.repair_photos.map((url, i) => (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                       className="aspect-square rounded-lg overflow-hidden bg-gray-100 block">
+                       className="aspect-square rounded-xl overflow-hidden bg-gray-100 block hover:opacity-90 transition-opacity">
                       <img src={url} alt={`Repair photo ${i + 1}`} className="w-full h-full object-cover" />
                     </a>
                   ))}
@@ -340,96 +351,92 @@ export default function TrackTicketPage() {
               </div>
             )}
 
-            {/* Repair notes (shown after approval) */}
+            {/* Technician notes */}
             {isApproved && (ticket.diagnosis_notes || ticket.repair_notes) && (
               <div className="p-5">
-                <p className="section-title flex items-center gap-2">
-                  <FileText className="w-3.5 h-3.5" /> Technician Notes
-                </p>
-                {ticket.diagnosis_notes && (
-                  <div className="mb-3">
-                    <p className="text-xs font-sans font-semibold text-gray-500 mb-1">Diagnosis</p>
-                    <p className="text-base font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3">
-                      {ticket.diagnosis_notes}
-                    </p>
-                  </div>
-                )}
-                {ticket.repair_notes && (
-                  <div>
-                    <p className="text-xs font-sans font-semibold text-gray-500 mb-1">Repair</p>
-                    <p className="text-base font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3">
-                      {ticket.repair_notes}
-                    </p>
-                  </div>
-                )}
+                <SectionHeader icon={FileText} label="Technician Notes" iconBg="bg-indigo-50" iconColor="text-indigo-500" />
+                <div className="space-y-3">
+                  {ticket.diagnosis_notes && (
+                    <div>
+                      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Diagnosis</p>
+                      <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg px-3 py-2.5">
+                        {ticket.diagnosis_notes}
+                      </p>
+                    </div>
+                  )}
+                  {ticket.repair_notes && (
+                    <div>
+                      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Repair</p>
+                      <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg px-3 py-2.5">
+                        {ticket.repair_notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Pricing (shown after approval) */}
+            {/* Pricing */}
             {isApproved && (ticket.labor_items?.length > 0 || ticket.parts_items?.length > 0 || ticket.quotation_amount || ticket.final_price) && (
               <div className="p-5">
-                <p className="section-title flex items-center gap-2">
-                  <DollarSign className="w-3.5 h-3.5" /> Pricing
-                </p>
+                <SectionHeader icon={DollarSign} label="Pricing" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
 
+                {/* Labor items */}
                 {ticket.labor_items?.filter(i => i.description || i.amount).length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs font-sans font-semibold text-gray-500 mb-2">Labor</p>
-                    <div className="space-y-1">
-                      {ticket.labor_items.filter(i => i.description || i.amount).map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm">
+                  <div className="mb-4">
+                    <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-2">Labor</p>
+                    <div className="rounded-lg border border-gray-100 overflow-hidden">
+                      {ticket.labor_items.filter(i => i.description || i.amount).map((item, i, arr) => (
+                        <div key={i} className={`flex justify-between items-center px-3 py-2.5 text-sm ${i < arr.length - 1 ? 'border-b border-gray-50' : ''}`}>
                           <span className="font-body text-gray-700">{item.description || '—'}</span>
-                          <span className="font-mono text-gray-800">{formatPeso(item.amount)}</span>
+                          <span className="font-mono font-semibold text-gray-900 shrink-0 ml-4">{formatPeso(item.amount)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
+                {/* Parts items */}
                 {ticket.parts_items?.filter(i => i.description || i.amount).length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs font-sans font-semibold text-gray-500 mb-2">Parts</p>
-                    <div className="space-y-1">
-                      {ticket.parts_items.filter(i => i.description || i.amount).map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm">
+                  <div className="mb-4">
+                    <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-2">Parts</p>
+                    <div className="rounded-lg border border-gray-100 overflow-hidden">
+                      {ticket.parts_items.filter(i => i.description || i.amount).map((item, i, arr) => (
+                        <div key={i} className={`flex justify-between items-center px-3 py-2.5 text-sm ${i < arr.length - 1 ? 'border-b border-gray-50' : ''}`}>
                           <span className="font-body text-gray-700">{item.description || '—'}</span>
-                          <span className="font-mono text-gray-800">{formatPeso(item.amount)}</span>
+                          <span className="font-mono font-semibold text-gray-900 shrink-0 ml-4">{formatPeso(item.amount)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {ticket.discount_amount > 0 && (
-                  <div className="flex items-center justify-between text-sm py-1.5 border-b border-gray-100">
-                    <span className="font-body text-green-600 font-semibold">Discount</span>
-                    <span className="font-mono text-green-600">− {formatPeso(ticket.discount_amount)}</span>
-                  </div>
-                )}
-
-                {ticket.quotation_amount && (
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200 mt-1">
-                    <span className="text-sm font-sans font-semibold text-gray-700">Quotation Total</span>
-                    <span className="font-sans font-semibold text-gray-900">{formatPeso(ticket.quotation_amount)}</span>
-                  </div>
-                )}
-
-                {ticket.final_price && (
-                  <div className="flex items-center justify-between py-2">
-                    <span className="text-sm font-sans font-bold text-gray-700">Final Price</span>
-                    <span className="text-xl font-display tracking-wider text-brand-600">
-                      {formatPeso(ticket.final_price)}
-                    </span>
-                  </div>
-                )}
-
-                {ticket.paid_at && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-sm font-body text-emerald-600 font-semibold">
+                {/* Totals summary */}
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  {ticket.discount_amount > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-body text-emerald-700 font-semibold">Discount</span>
+                      <span className="font-mono text-emerald-700">− {formatPeso(ticket.discount_amount)}</span>
+                    </div>
+                  )}
+                  {ticket.quotation_amount && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-body text-gray-600">Quotation Total</span>
+                      <span className="font-mono font-semibold text-gray-800">{formatPeso(ticket.quotation_amount)}</span>
+                    </div>
+                  )}
+                  {ticket.final_price && (
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200 mt-1">
+                      <span className="text-sm font-sans font-bold text-gray-800">Amount Due</span>
+                      <span className="text-2xl font-display tracking-wider text-brand-600">{formatPeso(ticket.final_price)}</span>
+                    </div>
+                  )}
+                  {ticket.paid_at && (
+                    <p className="text-xs font-body text-emerald-600 font-semibold pt-1">
                       ✓ Paid on {format(new Date(ticket.paid_at), 'MMMM d, yyyy · h:mm a')}
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 

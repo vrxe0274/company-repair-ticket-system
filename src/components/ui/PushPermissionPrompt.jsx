@@ -76,7 +76,7 @@ export default function PushPermissionPrompt() {
   if (!isPushSupported()) {
     if (!(isIos() && !isStandalone())) return null
     return (
-      <div className="flex items-start gap-3 px-4 py-3 mb-5 rounded-xl border border-gray-200 bg-white text-sm font-body text-gray-600">
+      <div className="flex items-start gap-3 px-4 py-3 mb-8 rounded-xl border border-gray-200 bg-white text-sm font-body text-gray-600">
         <Share className="w-4 h-4 mt-0.5 shrink-0 text-brand-600" />
         <p className="flex-1">
           To get push notifications on iPhone/iPad, add this app to your Home
@@ -93,7 +93,7 @@ export default function PushPermissionPrompt() {
   // ── Permission previously denied: we can't re-prompt, only guide ─────────
   if (permission === 'denied') {
     return (
-      <div className="flex items-start gap-3 px-4 py-3 mb-5 rounded-xl border border-gray-200 bg-white text-sm font-body text-gray-600">
+      <div className="flex items-start gap-3 px-4 py-3 mb-8 rounded-xl border border-gray-200 bg-white text-sm font-body text-gray-600">
         <BellOff className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
         <p className="flex-1">
           Notifications are blocked for this site. To receive global alerts,
@@ -108,7 +108,7 @@ export default function PushPermissionPrompt() {
 
   // ── Default state: offer to enable ────────────────────────────────────────
   return (
-    <div className="flex flex-wrap items-center gap-3 px-4 py-3 mb-5 rounded-xl border border-brand-200 bg-brand-50">
+    <div className="flex flex-wrap items-center gap-3 px-4 py-3 mb-8 rounded-xl border border-brand-200 bg-brand-50">
       <Bell className="w-4 h-4 shrink-0 text-brand-600" />
       <p className="flex-1 min-w-[200px] text-sm font-body text-gray-700">
         Enable push notifications to get ticket alerts on this device — even

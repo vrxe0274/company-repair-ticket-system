@@ -572,82 +572,6 @@ function OverviewTab({
     <div className="flex flex-col flex-1 gap-3 min-h-0">
       <ProgressCard status={ticket.status} guidance={statusGuidance} />
 
-      {/* Action buttons — desktop only; mobile uses fixed bottom bar */}
-      {showActions && (
-        <div className="w-full hidden md:block">
-          {!undoConfirm ? (
-            <div className="flex items-center justify-center gap-4 flex-wrap">
-              {nextStatuses.map(status => {
-                const isDeny = status === 'Denied'
-                return (
-                  <button
-                    key={status}
-                    onClick={() => updateStatus(status)}
-                    disabled={statusUpdating}
-                    aria-label={`Transition to ${status}`}
-                    className={`group flex items-center gap-5 px-6 py-3 rounded-xl text-white
-                      transition-colors duration-150 disabled:opacity-60 disabled:pointer-events-none
-                      ${isDeny
-                        ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                        : 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700'
-                      }`}
-                  >
-                    {statusUpdating ? (
-                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
-                    ) : (
-                      <>
-                        <div className="text-left">
-                          <p className="text-[10px] font-mono uppercase tracking-widest text-white/60 leading-none mb-1">
-                            {isDeny ? 'Action' : 'Next Step'}
-                          </p>
-                          <p className="text-base font-sans font-bold leading-none">{status}</p>
-                        </div>
-                        <ArrowRight className="w-5 h-5 shrink-0 opacity-70 transition-transform duration-200 group-hover:translate-x-1 group-hover:opacity-100" />
-                      </>
-                    )}
-                  </button>
-                )
-              })}
-              {canUndo && (
-                <button
-                  onClick={() => setUndoConfirm(true)}
-                  disabled={statusUpdating}
-                  aria-label={`Undo — revert to ${ticket.previous_status}`}
-                  className="btn-secondary text-sm justify-center"
-                >
-                  <Undo2 className="w-4 h-4" /> Undo
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              <span className="text-sm font-body text-gray-600">
-                Revert to <span className="font-semibold">{ticket.previous_status}</span>?
-              </span>
-              <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm">
-                {statusUpdating
-                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : 'Yes, Revert'
-                }
-              </button>
-              <button onClick={() => setUndoConfirm(false)} disabled={statusUpdating} className="btn-secondary text-sm">
-                Cancel
-              </button>
-            </div>
-          )}
-          {transitionErrors.length > 0 && (
-            <div className="flex flex-col items-center gap-1 mt-3">
-              {transitionErrors.map((msg, i) => (
-                <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                  {msg}
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 lg:grid-rows-[auto_1fr]">
         <div className="card p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-3">
@@ -872,7 +796,7 @@ function QuotationTab({
               </div>
 
               {/* Parts items */}
-              <div>
+              <div className="border-t border-gray-100 pt-5">
                 <label className="label mb-2">Parts Items</label>
                 <div className="space-y-2">
                   {canEdit ? (
@@ -1088,7 +1012,7 @@ export default function TicketDetailPage() {
 
   return (
     // Extra mobile bottom padding keeps content clear of the fixed action bar
-    <div className={`flex flex-col flex-1 gap-3 animate-fade-in min-h-0 ${showActions ? 'pb-32 md:pb-0' : 'pb-0'}`}>
+    <div className={`flex flex-col flex-1 gap-3 animate-fade-in min-h-0 ${showActions ? 'pb-32' : 'pb-0'}`}>
 
       {/* ── Hero — bleeds to edges of the main padding ── */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-800 px-5 lg:px-7 pt-7 lg:pt-12 pb-0">
@@ -1219,12 +1143,12 @@ export default function TicketDetailPage() {
           transition button(s) fill ~90% of the row, undo the remaining ~10%.
           Stays below the sidebar drawer (z-50) and its overlay (z-40). */}
       {showActions && activeTab === 'overview' && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {transitionErrors.length > 0 && (
-            <div className="flex flex-col gap-1 mb-2">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 mb-3 flex flex-col gap-1">
               {transitionErrors.map((msg, i) => (
-                <p key={i} className="flex items-start gap-1 text-xs font-body text-red-600">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <p key={i} className="flex items-start gap-2 text-xs font-body text-red-700">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px text-red-500" />
                   {msg}
                 </p>
               ))}
@@ -1247,34 +1171,29 @@ export default function TicketDetailPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-stretch gap-2">
-              {nextStatuses.length > 0 && (
-                <div className="flex flex-[9] gap-2">
-                  {nextStatuses.map(status => (
-                    <button
-                      key={status}
-                      onClick={() => updateStatus(status)}
-                      disabled={statusUpdating}
-                      aria-label={`Transition to ${status}`}
-                      className={`btn-primary text-sm justify-center flex-1 min-w-0 px-2 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-400'}`}
-                    >
-                      {statusUpdating
-                        ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        : `→ ${status}`
-                      }
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center justify-center gap-3">
+              {nextStatuses.map(status => (
+                <button
+                  key={status}
+                  onClick={() => updateStatus(status)}
+                  disabled={statusUpdating}
+                  aria-label={`Transition to ${status}`}
+                  className={`btn-primary text-sm px-6 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-400'}`}
+                >
+                  {statusUpdating
+                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : `→ ${status}`
+                  }
+                </button>
+              ))}
               {canUndo && (
                 <button
                   onClick={() => setUndoConfirm(true)}
                   disabled={statusUpdating}
                   aria-label={`Undo — revert to ${ticket.previous_status}`}
-                  className={`btn-secondary text-sm justify-center px-0 ${nextStatuses.length > 0 ? 'flex-1 min-w-[44px]' : 'w-full'}`}
+                  className="btn-secondary text-sm px-5"
                 >
-                  <Undo2 className="w-3.5 h-3.5" />
-                  {nextStatuses.length === 0 && <span>Undo</span>}
+                  <Undo2 className="w-3.5 h-3.5" /> Undo
                 </button>
               )}
             </div>
