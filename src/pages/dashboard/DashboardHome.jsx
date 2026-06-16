@@ -29,6 +29,15 @@ import StatusBadge from '../../components/ui/StatusBadge.jsx'
  * (or 'total' for the aggregate count). Used to drive both the card grid and
  * the status breakdown bar below it — a single source of truth for the UI.
  */
+const STATUS_BAR_COLORS = {
+  'Pending':            '#facc15',
+  'Inspection & Quote': '#c084fc',
+  'Repair in Progress': '#818cf8',
+  'Done':               '#60a5fa',
+  'Paid':               '#10b981',
+  'Denied':             '#ef4444',
+}
+
 const STAT_CONFIGS = [
   { label: 'Total',       key: 'total',             color: 'text-gray-900',    bg: 'bg-white',        border: 'border-gray-200',   icon: Ticket },
   { label: 'Pending',     key: 'Pending',            color: 'text-yellow-700',  bg: 'bg-yellow-50',    border: 'border-yellow-100', icon: Clock },
@@ -70,40 +79,78 @@ export default function DashboardHome() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display text-4xl tracking-widest text-gray-900">OVERVIEW</h1>
-          <p className="text-sm font-body text-gray-500 mt-0.5">
-            {format(new Date(), 'EEEE, MMMM d, yyyy')}
-          </p>
+      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
+        <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
+        <div className="px-5 lg:px-7 py-5 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />Dashboard</p>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">OVERVIEW</h1>
+            <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+          </div>
         </div>
       </div>
 
       {/* Stat cards — each links to the ticket list filtered by status */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {STAT_CONFIGS.map(({ label, key, color, bg, border, icon: Icon }) => (
           <Link
             key={key}
             to={key === 'total' ? 'tickets' : `tickets?status=${encodeURIComponent(key)}`}
-            className={`rounded-xl border p-2 sm:p-4 hover:shadow-md transition-all duration-150 ${bg} ${border}`}
+            className={`rounded-xl border p-3 sm:p-5 hover:shadow-md transition-all duration-150 ${bg} ${border}`}
           >
-            <Icon className={`w-4 h-4 sm:w-5 sm:h-5 mb-1 sm:mb-2 ${color}`} />
-            <p className={`text-lg sm:text-2xl font-display tracking-wider ${color}`}>
+            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-2 sm:mb-3 ${color}`} />
+            <p className={`text-2xl sm:text-3xl font-display tracking-wider leading-none ${color}`}>
               {loading ? '–' : countByStatus(key)}
             </p>
-            <p className={`text-[10px] sm:text-xs font-sans font-semibold tracking-wide mt-0.5 ${color} opacity-80`}>
+            <p className={`text-[10px] sm:text-xs font-sans font-semibold tracking-wide mt-1.5 ${color} opacity-80`}>
               {label}
             </p>
           </Link>
         ))}
       </div>
 
+      {/* Status breakdown — stacked proportional bar */}
+      {!loading && tickets.length > 0 && (
+        <div className="card p-5 sm:p-6">
+          <p className="section-title flex items-center gap-2">
+            <BarChart2 className="w-3.5 h-3.5" /> Status Breakdown
+          </p>
+          <div className="flex h-3 rounded-full overflow-hidden">
+            {[...STATUS_ORDER, STATUS_DENIED].map(status => {
+              const count = countByStatus(status)
+              if (count === 0) return null
+              const pct = (count / tickets.length) * 100
+              return (
+                <div
+                  key={status}
+                  className="h-full transition-all duration-700"
+                  style={{ width: `${pct}%`, backgroundColor: STATUS_BAR_COLORS[status] }}
+                />
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4">
+            {[...STATUS_ORDER, STATUS_DENIED].map(status => {
+              const count = countByStatus(status)
+              if (count === 0) return null
+              return (
+                <div key={status} className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: STATUS_BAR_COLORS[status] }} />
+                  <span className="text-xs font-body text-gray-600">{status}</span>
+                  <span className="text-xs font-mono text-gray-400">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Tasks + Recent Activities — side by side */}
       {!loading && tickets.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
 
           {/* Tasks — tickets the current role has a pending action on */}
           <div className="card overflow-hidden">
@@ -117,19 +164,19 @@ export default function DashboardHome() {
                 )}
               </p>
               <Link to="tasks" className="text-xs font-sans font-semibold text-brand-600 hover:underline">
-                View all tasks
+                View all
               </Link>
             </div>
 
             {tasks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
                 <CheckCircle className="w-8 h-8 text-green-300" />
                 <p className="text-base font-body text-gray-500">
                   All caught up — nothing needs your action right now.
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                 {tasks.map(t => (
                   <Link
                     key={t.id}
@@ -172,11 +219,11 @@ export default function DashboardHome() {
             </div>
 
             {notifLoading ? (
-              <div className="flex items-center justify-center py-10">
+              <div className="flex items-center justify-center py-12">
                 <div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
                 <Bell className="w-8 h-8 text-gray-200" />
                 <p className="text-base font-body text-gray-500">No recent activity</p>
               </div>
@@ -215,38 +262,6 @@ export default function DashboardHome() {
             )}
           </div>
 
-        </div>
-      )}
-
-      {/* Status breakdown bar chart */}
-      {!loading && tickets.length > 0 && (
-        <div className="card p-5 max-w-2xl mx-auto">
-          <p className="section-title flex items-center gap-2">
-            <BarChart2 className="w-3.5 h-3.5" /> Status Breakdown
-          </p>
-          <div className="space-y-2.5">
-            {[...STATUS_ORDER, STATUS_DENIED].map(status => {
-              const count = countByStatus(status)
-              const pct   = Math.round((count / tickets.length) * 100)
-              return (
-                <div key={status} className="flex items-center gap-3">
-                  <span className="text-sm font-body text-gray-600 w-36 shrink-0">{status}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-2 rounded-full transition-all duration-700"
-                      style={{
-                        width: `${pct}%`,
-                        background: status === STATUS_DENIED
-                          ? '#ef4444'
-                          : 'linear-gradient(to right, #7317e8, #d4007f)',
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-mono text-gray-400 w-8 text-right shrink-0">{count}</span>
-                </div>
-              )
-            })}
-          </div>
         </div>
       )}
 

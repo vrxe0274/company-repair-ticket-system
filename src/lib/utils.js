@@ -142,7 +142,7 @@ export const STATUS_COLORS = {
  */
 export const TASK_ACTIONS = {
   Admin: {
-    'Pending':            'Review request — approve or deny',
+    'Pending':            'Review request',
     'Inspection & Quote': 'Add quotation',
     'Done':               'Collect payment — mark as Paid',
   },

@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Trash2, X, Shield, Wrench, Bell, ClipboardList,
+  Shield, Wrench, Bell, ClipboardList,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -51,9 +51,6 @@ const NAV = [
  * Avoids the badge becoming too wide for the sidebar nav item.
  */
 const NOTIFICATION_BADGE_MAX = 99
-
-/** How long (ms) to show the "Database flushed" success banner. */
-const FLUSH_SUCCESS_BANNER_MS = 2500
 
 // ── Page component ─────────────────────────────────────────────────────────────
 
@@ -87,13 +84,6 @@ export default function DashboardLayout() {
     return () => { supabase.removeChannel(channel) }
   }, [role, getAllowedTransitions])
 
-  // Flush DB state — only relevant for Admin role
-  const [showFlush,  setShowFlush]  = useState(false)
-  const [flushInput, setFlushInput] = useState('')
-  const [flushError, setFlushError] = useState('')
-  const [flushing,   setFlushing]   = useState(false)
-  const [flushDone,  setFlushDone]  = useState(false)
-
   /**
    * Clear auth and role state, then redirect to login.
    * logout() clears the shared session record AND removes this device's
@@ -118,48 +108,6 @@ export default function DashboardLayout() {
     exact
       ? location.pathname === path
       : location.pathname.startsWith('/' + path)
-
-  /**
-   * Flush all tickets and repair photos from the database.
-   *
-   * Requires the VITE_ADMIN_PASSWORD to be entered — separate from the login
-   * password — to make accidental destructive actions harder.
-   *
-   * Storage is cleared first so that orphaned photo objects don't accumulate
-   * in Supabase Storage if the tickets delete succeeds but photos don't.
-   *
-   * // SECURITY: VITE_ADMIN_PASSWORD is exposed to the browser bundle. This
-   * // is acceptable for a single-tenant staff app but should be replaced with
-   * // a server-side endpoint with proper auth for any multi-user deployment.
-   */
-  async function handleFlush() {
-    const adminPw = import.meta.env.VITE_ADMIN_PASSWORD
-    if (!adminPw || flushInput !== adminPw) {
-      setFlushError('Incorrect admin password.')
-      return
-    }
-    setFlushing(true)
-    try {
-      // Delete storage objects first to avoid orphans
-      const { data: storageList } = await supabase.storage.from('repair-photos').list()
-      if (storageList?.length) {
-        await supabase.storage.from('repair-photos').remove(storageList.map(f => f.name))
-      }
-      // The neq filter is a Supabase workaround: DELETE with no WHERE clause is blocked by RLS,
-      // so we filter by a UUID that can never exist to effectively delete all rows.
-      await supabase.from('tickets').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-
-      setFlushDone(true)
-      setShowFlush(false)
-      setFlushInput('')
-      setFlushError('')
-      setTimeout(() => setFlushDone(false), FLUSH_SUCCESS_BANNER_MS)
-    } catch (err) {
-      setFlushError('Failed: ' + err.message)
-    } finally {
-      setFlushing(false)
-    }
-  }
 
   // ── Derived role display values ──────────────────────────────────────────
 
@@ -234,62 +182,6 @@ export default function DashboardLayout() {
           </a>
         </div>
       </nav>
-
-      {/* Flush Database — admin only */}
-      {isAdmin && (
-        <div className="p-3 border-t border-dark-700">
-          {flushDone && (
-            <div className="px-3 py-2 mb-2 rounded-lg bg-green-900/40 text-green-400 text-xs font-sans font-semibold">
-              ✓ Database flushed
-            </div>
-          )}
-
-          {!showFlush ? (
-            <button
-              onClick={() => setShowFlush(true)}
-              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-all"
-            >
-              <Trash2 className="w-4 h-4 shrink-0" />
-              Flush Database
-            </button>
-          ) : (
-            /* Inline confirmation form — password required to proceed */
-            <div className="bg-red-950/40 border border-red-900/50 rounded-xl p-3 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-sans font-semibold text-red-400 uppercase tracking-wider">
-                  Confirm Flush
-                </span>
-                <button
-                  onClick={() => { setShowFlush(false); setFlushInput(''); setFlushError('') }}
-                  className="text-gray-500 hover:text-gray-300"
-                  aria-label="Cancel flush"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <input
-                type="password"
-                value={flushInput}
-                onChange={e => { setFlushInput(e.target.value); setFlushError('') }}
-                className="w-full bg-dark-800 border border-dark-600 text-white text-xs rounded-lg px-3 py-2 placeholder-gray-600 focus:outline-none focus:border-red-700"
-                placeholder="Admin password"
-                autoFocus
-              />
-              {flushError && <p className="text-xs text-red-400">{flushError}</p>}
-              <button
-                onClick={handleFlush}
-                disabled={flushing || !flushInput}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-xs font-sans font-semibold tracking-wide transition-colors disabled:opacity-50"
-              >
-                {flushing
-                  ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Trash2 className="w-3 h-3" /> Delete All Tickets</>
-                }
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Sign out */}
       <div className="p-3 border-t border-dark-700">

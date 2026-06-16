@@ -59,13 +59,19 @@ export default function NotificationsPage() {
     <div className="space-y-6 animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display text-4xl tracking-widest text-gray-900">NOTIFICATIONS</h1>
-          <p className="text-sm font-body text-gray-500 mt-0.5">
-            {role} account · {unseenCount > 0 ? `${unseenCount} unread` : 'All caught up'}
+      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
+        <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
+        <div className="px-5 lg:px-7 py-5">
+          <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />Inbox</p>
+          <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">NOTIFICATIONS</h1>
+          <p className="text-sm font-body text-gray-400 mt-2">
+            {role} · {unseenCount > 0 ? `${unseenCount} unread` : 'All caught up'}
           </p>
         </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center justify-end gap-2">
         <button
           onClick={markAllSeen}
           disabled={unseenCount === 0}
@@ -97,16 +103,8 @@ export default function NotificationsPage() {
                 className={`w-full text-left flex items-start gap-3 px-5 py-4 transition-colors
                   ${n.seen ? 'hover:bg-gray-50' : 'bg-brand-50/60 hover:bg-brand-50'}`}
               >
-                {/* Status indicator — colored by ticket status so stacked
-                    notifications are distinguishable at a glance. Gray when
-                    the notification has no status (info / legacy rows).
-                    Unseen rows keep the solid dot; seen rows fade it. */}
-                <div className="shrink-0 mt-1.5" title={n.status || undefined}>
-                  <span
-                    className={`block w-2.5 h-2.5 rounded-full
-                      ${STATUS_COLORS[n.status]?.dot || 'bg-gray-300'}
-                      ${n.seen ? 'opacity-40' : ''}`}
-                  />
+                <div className="shrink-0 mt-1.5">
+                  <span className={`block w-2.5 h-2.5 rounded-full ${n.seen ? 'bg-gray-300' : 'bg-brand-500'}`} />
                 </div>
 
                 <div className="flex-1 min-w-0">

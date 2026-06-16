@@ -14,8 +14,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, User } from 'lucide-react'
+import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, User, Trash2, X } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
+import { useRole }         from '../../hooks/useRole.jsx'
+import { supabase }        from '../../lib/supabase'
 import { STATUS_ORDER, STATUS_DENIED, STATUS_COLORS } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
@@ -40,11 +42,41 @@ const MOBILE_QUERY = '(max-width: 767px)'
 // ── Page component ─────────────────────────────────────────────────────────────
 
 /** TicketListPage — master list with status filter pills and full-text search. */
+const FLUSH_SUCCESS_MS = 2500
+
 export default function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { isAdmin } = useRole()
   // Live data — realtime keeps the list in sync without a refresh.
   const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
   const [search, setSearch] = useState('')
+
+  // Flush DB state — admin only
+  const [showFlush,  setShowFlush]  = useState(false)
+  const [flushInput, setFlushInput] = useState('')
+  const [flushError, setFlushError] = useState('')
+  const [flushing,   setFlushing]   = useState(false)
+  const [flushDone,  setFlushDone]  = useState(false)
+
+  async function handleFlush() {
+    const adminPw = import.meta.env.VITE_ADMIN_PASSWORD
+    if (!adminPw || flushInput !== adminPw) { setFlushError('Incorrect admin password.'); return }
+    setFlushing(true)
+    try {
+      const { data: storageList } = await supabase.storage.from('repair-photos').list()
+      if (storageList?.length) await supabase.storage.from('repair-photos').remove(storageList.map(f => f.name))
+      await supabase.from('tickets').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      setFlushDone(true)
+      setShowFlush(false)
+      setFlushInput('')
+      setFlushError('')
+      setTimeout(() => setFlushDone(false), FLUSH_SUCCESS_MS)
+    } catch (err) {
+      setFlushError('Failed: ' + err.message)
+    } finally {
+      setFlushing(false)
+    }
+  }
   // Status filter panel — collapsed by default, toggled by the filter button.
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filterRef = useRef(null)
@@ -88,27 +120,39 @@ export default function TicketListPage() {
     <div className="space-y-5 animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-display text-4xl tracking-widest text-gray-900">ALL TICKETS</h1>
-          <p className="text-sm font-body text-gray-500 mt-0.5">
+      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
+        <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
+        <div className="px-5 lg:px-7 py-5">
+          <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />Repair Management</p>
+          <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">ALL TICKETS</h1>
+          <p className="text-sm font-body text-gray-400 mt-2">
             {filtered.length} ticket{filtered.length !== 1 ? 's' : ''} shown
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={fetchTickets} className="btn-secondary text-sm">
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={fetchTickets} className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors" aria-label="Refresh">
+          <RefreshCw className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => exportTicketsToXLSX(tickets).catch(console.error)}
+          disabled={!tickets.length}
+          className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 disabled:opacity-40"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Export XLSX</span>
+        </button>
+        {isAdmin && (
           <button
-            onClick={() => exportTicketsToXLSX(tickets).catch(console.error)}
-            disabled={!tickets.length}
-            className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 disabled:opacity-40"
+            onClick={() => setShowFlush(true)}
+            className="btn-secondary text-sm border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export XLSX</span>
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Flush Database</span>
           </button>
-        </div>
+        )}
       </div>
 
       {/* Search + filter controls */}
@@ -189,9 +233,9 @@ export default function TicketListPage() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filtered.map(t => (
-                    <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map((t, i) => (
+                    <tr key={t.id} className={`transition-colors hover:bg-brand-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-[#f5f6f7]'}`}>
                       <td className="px-5 py-3.5">
                         <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                           {t.ticket_id}
@@ -233,12 +277,12 @@ export default function TicketListPage() {
             </div>
 
             {/* Mobile card list */}
-            <div className="md:hidden divide-y divide-gray-50">
-              {filtered.map(t => (
+            <div className="md:hidden divide-y divide-gray-100">
+              {filtered.map((t, i) => (
                 <Link
                   key={t.id}
                   to={`/tickets/${t.id}`}
-                  className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors"
+                  className={`flex items-center gap-4 px-4 py-4 transition-colors hover:bg-brand-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-[#f5f6f7]'}`}
                 >
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                     <User className="w-5 h-5 text-gray-500" />
@@ -258,6 +302,69 @@ export default function TicketListPage() {
           </>
         )}
       </div>
+
+      {/* Flush DB success banner */}
+      {flushDone && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed successfully
+        </div>
+      )}
+
+      {/* Flush DB confirmation modal */}
+      {showFlush && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Flush Database</h2>
+              </div>
+              <button
+                onClick={() => { setShowFlush(false); setFlushInput(''); setFlushError('') }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm font-body text-gray-600 leading-relaxed">
+              This will permanently delete <span className="font-semibold text-gray-900">all tickets and repair photos</span>. This action cannot be undone.
+            </p>
+            <div className="space-y-2">
+              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Admin password</label>
+              <input
+                type="password"
+                value={flushInput}
+                onChange={e => { setFlushInput(e.target.value); setFlushError('') }}
+                className="input-field"
+                placeholder="Enter admin password to confirm"
+                autoFocus
+              />
+              {flushError && <p className="text-xs text-red-500 font-sans">{flushError}</p>}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setShowFlush(false); setFlushInput(''); setFlushError('') }}
+                className="btn-secondary flex-1 justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFlush}
+                disabled={flushing || !flushInput}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
+              >
+                {flushing
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Trash2 className="w-3.5 h-3.5" /> Delete All Tickets</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
