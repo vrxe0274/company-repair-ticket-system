@@ -14,7 +14,6 @@ import { ClipboardList, CheckCircle, RefreshCw, ChevronRight, Shield, Wrench } f
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
 import { TASK_ACTIONS, STATUS_COLORS } from '../../lib/utils'
-import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
 /** TasksPage — the /tasks route of the staff dashboard. */
 export default function TasksPage() {
@@ -99,8 +98,7 @@ export default function TasksPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <StatusBadge status={t.status} size="sm" />
-                      <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
+                      <span className="font-mono text-[10px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">{t.ticket_id}</span>
                     </div>
                     <p className="font-sans font-semibold text-sm text-gray-900 truncate">
                       {t.client_name}

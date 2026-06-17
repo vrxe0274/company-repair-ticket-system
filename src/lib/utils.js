@@ -144,7 +144,7 @@ export const TASK_ACTIONS = {
   Admin: {
     'Pending':            'Review request',
     'Inspection & Quote': 'Add quotation',
-    'Done':               'Collect payment — mark as Paid',
+    'Done':               'Collect payment',
   },
   Technician: {
     'Inspection & Quote': 'Inspect unit',
