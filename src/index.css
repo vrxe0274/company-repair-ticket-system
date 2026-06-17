@@ -24,11 +24,14 @@
 
   /*
    * Light-mode default surface: white background, near-black text.
-   * font-body = Inter (defined in tailwind.config.js).
+   * font-body = Outfit (defined in tailwind.config.js).
    * antialiased improves sub-pixel rendering on high-DPI screens.
    */
   /* 16px base, relaxed line-height — prevents text-sm cascade from shrinking below target */
   body { @apply bg-white text-base text-gray-900 font-body leading-normal antialiased; }
+
+  /* Outfit renders slightly heavier than Inter at the same weight — compensate. */
+  h1, h2, h3, h4, h5, h6 { font-weight: inherit; }
 
   /*
    * Mobile: vertical scrolling only — disables pinch-to-zoom and horizontal
@@ -65,27 +68,33 @@
   .btn-primary {
     @apply inline-flex items-center gap-2
            bg-brand-600 hover:bg-brand-700 active:bg-brand-800
-           text-white text-sm font-sans font-semibold
-           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-150
+           text-white text-sm font-sans font-semibold tracking-wide
+           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-200
            focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 4px 20px rgba(115, 23, 232, 0.35);
   }
 
   /** Secondary accent button — magenta/pink, for high-visibility CTAs. */
   .btn-accent {
     @apply inline-flex items-center gap-2
            bg-accent-600 hover:bg-accent-700 active:bg-accent-800
-           text-white text-sm font-sans font-semibold
-           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-150
+           text-white text-sm font-sans font-semibold tracking-wide
+           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-200
            focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-accent:hover:not(:disabled) {
+    box-shadow: 0 4px 20px rgba(212, 0, 127, 0.35);
   }
 
   /** Neutral/ghost button — white surface with gray border. */
   .btn-secondary {
     @apply inline-flex items-center gap-2
            bg-white hover:bg-gray-50 active:bg-gray-100
-           text-gray-700 text-sm font-sans font-semibold
+           text-gray-700 text-sm font-sans font-semibold tracking-wide
            px-5 py-3 rounded-lg min-h-[44px] border border-gray-300
            transition-all duration-150
            focus:outline-none focus:ring-2 focus:ring-gray-300
@@ -99,9 +108,22 @@
   .btn-danger {
     @apply inline-flex items-center gap-2
            bg-red-600 hover:bg-red-700 active:bg-red-800
-           text-white text-sm font-sans font-semibold
-           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-150
+           text-white text-sm font-sans font-semibold tracking-wide
+           px-5 py-3 rounded-lg min-h-[44px] transition-all duration-200
            focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2;
+  }
+  .btn-danger:hover {
+    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+  }
+
+  /** Dark-surface input — for dark backgrounds (login dark panel, etc.). */
+  .input-dark {
+    @apply w-full rounded-lg border border-dark-600 bg-dark-700
+           px-4 py-3 font-body text-base text-gray-100
+           placeholder-gray-600 leading-normal
+           focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20
+           transition-colors duration-150
+           disabled:bg-dark-800 disabled:text-gray-500;
   }
 
   /* ---------------------------------------------------------------------------
@@ -128,7 +150,8 @@
 
   /** Light-surface card — used throughout the public-facing pages. */
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply bg-white rounded-xl border border-gray-200/90 shadow-sm;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   }
 
   /** Dark-surface card — used inside the staff dashboard sidebar panels. */
@@ -237,8 +260,8 @@
  * --------------------------------------------------------------------------- */
 ::-webkit-scrollbar         { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track   { background: transparent; }
-::-webkit-scrollbar-thumb   { background: #444; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #666; }
+::-webkit-scrollbar-thumb   { background: #32323d; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(115, 23, 232, 0.55); }
 
 /* ---------------------------------------------------------------------------
  * FILE INPUT BUTTON
@@ -275,3 +298,43 @@ input[type="file"]::file-selector-button {
     0 0 20px rgba(240, 5, 154, 0.5),
     0 0 40px rgba(240, 5, 154, 0.2);
 }
+
+/* ---------------------------------------------------------------------------
+ * DASHBOARD BACKGROUND TEXTURE
+ *
+ * Dot-grid overlay using CSS radial-gradient — creates a subtle purple dot
+ * pattern on the gray-50 dashboard main area, tying it visually to the brand.
+ * --------------------------------------------------------------------------- */
+.dash-bg {
+  background-color: #f9fafb;
+  background-image: radial-gradient(circle, rgba(115, 23, 232, 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* ---------------------------------------------------------------------------
+ * LOGIN DARK PANEL DECORATION
+ *
+ * Used on the right login panel for ambient glow effects that mirror the
+ * left decorative panel. These are pointer-events-none overlay elements.
+ * --------------------------------------------------------------------------- */
+.login-glow-panel {
+  background: radial-gradient(ellipse at 85% 20%, rgba(115, 23, 232, 0.18) 0%, transparent 55%),
+              radial-gradient(ellipse at 15% 80%, rgba(212, 0, 127, 0.14) 0%, transparent 50%);
+}
+
+/* ---------------------------------------------------------------------------
+ * STAGGERED ENTRANCE ANIMATIONS
+ *
+ * Apply animate-stagger-{1-6} to sibling elements for a cascading reveal.
+ * Each step adds 60ms of delay on the base slideUp animation.
+ * --------------------------------------------------------------------------- */
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-stagger-1 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s both; }
+.animate-stagger-2 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.10s both; }
+.animate-stagger-3 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s both; }
+.animate-stagger-4 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.20s both; }
+.animate-stagger-5 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.25s both; }
+.animate-stagger-6 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.30s both; }

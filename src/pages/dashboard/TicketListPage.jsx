@@ -12,9 +12,9 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, User, Trash2, X } from 'lucide-react'
+import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, Trash2, X, MoreHorizontal } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole }         from '../../hooks/useRole.jsx'
 import { supabase }        from '../../lib/supabase'
@@ -46,6 +46,7 @@ const FLUSH_SUCCESS_MS = 2500
 
 export default function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { isAdmin } = useRole()
   // Live data — realtime keeps the list in sync without a refresh.
   const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
@@ -80,6 +81,10 @@ export default function TicketListPage() {
   // Status filter panel — collapsed by default, toggled by the filter button.
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filterRef = useRef(null)
+
+  // Actions kebab menu
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
   // Placeholder text can't be styled responsively with CSS, so track the
   // mobile breakpoint in JS to swap in a shorter placeholder on small screens.
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches)
@@ -101,6 +106,17 @@ export default function TicketListPage() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [filtersOpen])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuOpen])
 
   // Derive active status filter from URL; defaults to 'All' when absent.
   const activeStatus = searchParams.get('status') || 'All'
@@ -131,28 +147,50 @@ export default function TicketListPage() {
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={fetchTickets} className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors" aria-label="Refresh">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => exportTicketsToXLSX(tickets).catch(console.error)}
-          disabled={!tickets.length}
-          className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 disabled:opacity-40"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Export XLSX</span>
-        </button>
-        {isAdmin && (
+      {/* Actions kebab menu */}
+      <div className="flex justify-end" ref={menuRef}>
+        <div className="relative">
           <button
-            onClick={() => setShowFlush(true)}
-            className="btn-secondary text-sm border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-expanded={menuOpen}
+            className="inline-flex items-center justify-center w-[44px] h-[44px] rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-gray-200"
+            aria-label="More actions"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Flush Database</span>
+            <MoreHorizontal className="w-4 h-4" />
           </button>
-        )}
+
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1.5 animate-fade-in">
+              <button
+                onClick={() => { fetchTickets(); setMenuOpen(false) }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                Refresh
+              </button>
+              <button
+                onClick={() => { exportTicketsToXLSX(tickets).catch(console.error); setMenuOpen(false) }}
+                disabled={!tickets.length}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                Export XLSX
+              </button>
+              {isAdmin && (
+                <>
+                  <div className="my-1 h-px bg-gray-100 mx-3" />
+                  <button
+                    onClick={() => { setShowFlush(true); setMenuOpen(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    Flush Database
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search + filter controls */}
@@ -223,52 +261,64 @@ export default function TicketListPage() {
           <>
             {/* Desktop table (hidden on small screens) */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-300 text-left bg-gray-200">
+                  <tr className="border-b border-gray-200 bg-gray-50/80">
                     {['Ticket ID', 'Client', 'Unit', 'Status', 'Date', ''].map(h => (
-                      <th key={h} className="px-5 py-3 text-xs font-sans font-semibold text-gray-500 uppercase tracking-wider">
+                      <th key={h} className="px-5 py-3.5 text-left text-[11px] font-sans font-semibold text-gray-400 uppercase tracking-[0.08em] whitespace-nowrap">
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map((t, i) => (
-                    <tr key={t.id} className={`transition-colors hover:bg-brand-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-[#f5f6f7]'}`}>
-                      <td className="px-5 py-3.5">
-                        <span className="font-mono text-xs text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded">
+                  {filtered.map(t => (
+                    <tr
+                      key={t.id}
+                      onClick={() => navigate(`/tickets/${t.id}`)}
+                      className="bg-white hover:bg-brand-50/25 transition-colors cursor-pointer group"
+                    >
+                      {/* Ticket ID */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="font-mono text-xs font-semibold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md">
                           {t.ticket_id}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
+
+                      {/* Client — letter avatar + name/email */}
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                            <User className="w-4 h-4 text-gray-500" />
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center shrink-0 text-sm font-bold text-brand-700 select-none">
+                            {t.client_name?.charAt(0)?.toUpperCase() || '?'}
                           </div>
-                          <div>
-                            <p className="font-sans font-semibold text-gray-900">{t.client_name}</p>
-                            <p className="text-sm font-body text-gray-500">{t.email}</p>
+                          <div className="min-w-0">
+                            <p className="font-sans font-semibold text-sm text-gray-900 truncate">{t.client_name}</p>
+                            <p className="text-xs font-body text-gray-400 truncate">{t.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <p className="font-body text-gray-700">{t.unit_brand} {t.unit_model}</p>
-                        <p className="text-sm font-body text-gray-500">{t.unit_type}</p>
+
+                      {/* Unit — brand + model, type pill */}
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-sans font-medium text-gray-800">{t.unit_brand} {t.unit_model}</p>
+                        <span className="inline-block text-[11px] font-sans font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mt-0.5 leading-tight">
+                          {t.unit_type}
+                        </span>
                       </td>
-                      <td className="px-5 py-3.5">
+
+                      {/* Status */}
+                      <td className="px-5 py-4">
                         <StatusBadge status={t.status} />
                       </td>
-                      <td className="px-5 py-3.5 text-sm font-body text-gray-500">
-                        {format(new Date(t.created_at), 'MMM d, yyyy')}
+
+                      {/* Date */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <p className="text-sm font-body text-gray-500">{format(new Date(t.created_at), 'MMM d, yyyy')}</p>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <Link
-                          to={`/tickets/${t.id}`}
-                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline font-sans font-semibold"
-                        >
-                          View <ChevronRight className="w-3 h-3" />
-                        </Link>
+
+                      {/* Row arrow */}
+                      <td className="px-4 py-4 w-8">
+                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 transition-colors" />
                       </td>
                     </tr>
                   ))}
@@ -278,24 +328,24 @@ export default function TicketListPage() {
 
             {/* Mobile card list */}
             <div className="md:hidden divide-y divide-gray-100">
-              {filtered.map((t, i) => (
+              {filtered.map(t => (
                 <Link
                   key={t.id}
                   to={`/tickets/${t.id}`}
-                  className={`flex items-center gap-4 px-4 py-4 transition-colors hover:bg-brand-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-[#f5f6f7]'}`}
+                  className="group flex items-center gap-3 px-4 py-4 hover:bg-brand-50/20 transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                    <User className="w-5 h-5 text-gray-500" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center shrink-0 text-sm font-bold text-brand-700 select-none">
+                    {t.client_name?.charAt(0)?.toUpperCase() || '?'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="font-mono text-xs text-gray-400 shrink-0">{t.ticket_id}</span>
+                      <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                       <StatusBadge status={t.status} size="sm" />
                     </div>
-                    <p className="font-sans font-semibold text-base text-gray-900 truncate">{t.client_name}</p>
-                    <p className="text-sm font-body text-gray-500 truncate">{t.unit_brand} {t.unit_model}</p>
+                    <p className="font-sans font-semibold text-sm text-gray-900 truncate">{t.client_name}</p>
+                    <p className="text-xs font-body text-gray-400 truncate">{t.unit_brand} {t.unit_model}</p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 shrink-0 transition-colors" />
                 </Link>
               ))}
             </div>

@@ -227,7 +227,7 @@ export default function SubmitTicketPage() {
         <PublicHeader />
         <main className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-md w-full animate-slide-up text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-accent-600 mb-6 shadow-lg">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-accent-600 mb-6" style={{ boxShadow: '0 8px 32px rgba(115,23,232,0.4), 0 4px 16px rgba(212,0,127,0.3)' }}>
               <CheckCircle className="w-10 h-10 text-white" />
             </div>
             <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-2">SUBMITTED!</h1>
@@ -269,16 +269,28 @@ export default function SubmitTicketPage() {
 
       {/* Hero banner */}
       <div className="relative bg-dark-900 overflow-hidden">
+        {/* Main radial glow — stronger than before */}
         <div
-          className="absolute inset-0 opacity-40"
+          className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse at 20% 60%, #7317e8 0%, transparent 50%),' +
-              'radial-gradient(ellipse at 80% 40%, #d4007f 0%, transparent 50%)',
+              'radial-gradient(ellipse at 15% 70%, rgba(115,23,232,0.65) 0%, transparent 50%),' +
+              'radial-gradient(ellipse at 88% 25%, rgba(212,0,127,0.55) 0%, transparent 50%),' +
+              'radial-gradient(ellipse at 50% 110%, rgba(115,23,232,0.25) 0%, transparent 55%)',
           }}
         />
-        <div className="relative z-10 max-w-2xl mx-auto px-6 py-10">
-          <p className="font-mono text-xs tracking-widest text-brand-300 uppercase mb-2 opacity-80">VR Repair Request</p>
+        {/* Subtle grid overlay — tech grid texture on the hero */}
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px),' +
+              'linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
+            backgroundSize: '36px 36px',
+          }}
+        />
+        <div className="relative z-10 max-w-2xl mx-auto px-6 py-12">
+          <p className="font-mono text-xs tracking-widest text-brand-300 uppercase mb-2">VR Repair Request</p>
           <h1 className="font-display text-5xl tracking-widest text-white mb-2">
             SUBMIT A <span className="text-accent-400">TICKET</span>
           </h1>

@@ -95,40 +95,51 @@ export default function NotificationsPage() {
             <p className="text-base font-body text-gray-500">No notifications yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-100">
             {notifications.map(n => (
               <button
                 key={n.id}
                 onClick={() => openNotification(n)}
-                className={`w-full text-left flex items-start gap-3 px-5 py-4 transition-colors
-                  ${n.seen ? 'hover:bg-gray-50' : 'bg-brand-50/60 hover:bg-brand-50'}`}
+                className={`w-full text-left flex items-start gap-4 px-5 py-4 transition-all
+                  border-l-[3px] group
+                  ${n.seen
+                    ? 'hover:bg-gray-50 border-transparent'
+                    : 'bg-brand-50/30 hover:bg-brand-50/60 border-brand-400'
+                  }`}
               >
-                <div className="shrink-0 mt-1.5">
-                  <span className={`block w-2.5 h-2.5 rounded-full ${n.seen ? 'bg-gray-300' : 'bg-brand-500'}`} />
+                {/* Read/unread indicator dot */}
+                <div className="shrink-0 pt-1.5">
+                  <span className={`block w-2 h-2 rounded-full transition-colors
+                    ${n.seen ? 'bg-gray-200' : 'bg-brand-500'}`}
+                  />
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className={`text-base font-body leading-snug ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className={`text-sm leading-snug
+                    ${n.seen ? 'text-gray-600 font-normal' : 'text-gray-900 font-semibold'}`}>
                     {cleanMessage(n.message)}
                   </p>
-                  {/* Meta — timestamp (+ status) on one line, ticket ID below */}
-                  <p className="text-sm font-body text-gray-500 mt-0.5">
-                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+
+                  {/* Meta row: time · status · ticket ID chip */}
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span className="text-xs font-body text-gray-400">
+                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                    </span>
                     {n.status && (
-                      <span className={`ml-2 font-sans font-semibold ${STATUS_COLORS[n.status]?.text || 'text-gray-500'}`}>
+                      <span className={`text-xs font-sans font-semibold ${STATUS_COLORS[n.status]?.text || 'text-gray-500'}`}>
                         · {n.status}
                       </span>
                     )}
-                  </p>
-                  {/* The only place the raw ticket ID appears */}
-                  {n.ticket_human_id && (
-                    <p className="text-sm font-mono text-gray-400 mt-0.5">{n.ticket_human_id}</p>
-                  )}
+                    {n.ticket_human_id && (
+                      <span className="font-mono text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md leading-tight">
+                        {n.ticket_human_id}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Navigate indicator — only shown when the notification links to a ticket */}
                 {n.ticket_uuid && (
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-0.5" />
+                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-400 shrink-0 mt-0.5 transition-colors" />
                 )}
               </button>
             ))}

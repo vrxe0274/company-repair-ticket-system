@@ -39,12 +39,12 @@ const STATUS_BAR_COLORS = {
 }
 
 const STAT_CONFIGS = [
-  { label: 'Total',       key: 'total',             color: 'text-gray-900',    bg: 'bg-white',        border: 'border-gray-200',   icon: Ticket },
-  { label: 'Pending',     key: 'Pending',            color: 'text-yellow-700',  bg: 'bg-yellow-50',    border: 'border-yellow-100', icon: Clock },
-  { label: 'In Progress', key: 'Repair in Progress', color: 'text-brand-700',   bg: 'bg-brand-50',     border: 'border-brand-100',  icon: Wrench },
-  { label: 'Done',        key: 'Done',               color: 'text-blue-700',    bg: 'bg-blue-50',      border: 'border-blue-100',   icon: CheckCircle },
-  { label: 'Paid',        key: 'Paid',               color: 'text-emerald-700', bg: 'bg-emerald-50',   border: 'border-emerald-100',icon: DollarSign },
-  { label: 'Denied',      key: 'Denied',             color: 'text-red-700',     bg: 'bg-red-50',       border: 'border-red-100',    icon: AlertTriangle },
+  { label: 'Total',       key: 'total',             color: 'text-gray-700',    bg: 'bg-white',       border: 'border-gray-200',   accent: 'border-t-gray-400',    icon: Ticket },
+  { label: 'Pending',     key: 'Pending',            color: 'text-yellow-700',  bg: 'bg-yellow-50',   border: 'border-yellow-200', accent: 'border-t-yellow-400',  icon: Clock },
+  { label: 'In Progress', key: 'Repair in Progress', color: 'text-brand-700',   bg: 'bg-brand-50',    border: 'border-brand-200',  accent: 'border-t-brand-500',   icon: Wrench },
+  { label: 'Done',        key: 'Done',               color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200',   accent: 'border-t-blue-500',    icon: CheckCircle },
+  { label: 'Paid',        key: 'Paid',               color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200',accent: 'border-t-emerald-500', icon: DollarSign },
+  { label: 'Denied',      key: 'Denied',             color: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200',    accent: 'border-t-red-500',     icon: AlertTriangle },
 ]
 
 // ── Page component ─────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export default function DashboardHome() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
 
       {/* Header */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
@@ -95,11 +95,11 @@ export default function DashboardHome() {
 
       {/* Stat cards — each links to the ticket list filtered by status */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {STAT_CONFIGS.map(({ label, key, color, bg, border, icon: Icon }) => (
+        {STAT_CONFIGS.map(({ label, key, color, bg, border, accent, icon: Icon }) => (
           <Link
             key={key}
             to={key === 'total' ? 'tickets' : `tickets?status=${encodeURIComponent(key)}`}
-            className={`rounded-xl border p-3 sm:p-5 hover:shadow-md transition-all duration-150 ${bg} ${border}`}
+            className={`rounded-xl border border-t-2 p-3 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 ${bg} ${border} ${accent}`}
           >
             <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-2 sm:mb-3 ${color}`} />
             <p className={`text-2xl sm:text-3xl font-display tracking-wider leading-none ${color}`}>
@@ -176,30 +176,30 @@ export default function DashboardHome() {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                 {tasks.map(t => (
                   <Link
                     key={t.id}
                     to={`tickets/${t.id}`}
-                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                    className="group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/80 transition-all border-l-[3px] border-transparent hover:border-brand-400"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <StatusBadge status={t.status} size="sm" />
                         <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                       </div>
-                      <p className="font-sans font-semibold text-base text-gray-900 truncate">
+                      <p className="font-sans font-semibold text-sm text-gray-900 truncate">
                         {t.client_name}
                       </p>
-                      <p className="text-sm font-body text-brand-700 mt-0.5">
+                      <p className="text-xs font-body text-brand-600 font-medium mt-0.5">
                         {TASK_ACTIONS[role]?.[t.status] || 'Action required'}
                       </p>
                     </div>
                     <div className="text-right shrink-0 flex items-center gap-2">
-                      <p className="text-sm font-body text-gray-500">
+                      <p className="text-xs font-body text-gray-400">
                         {format(new Date(t.created_at), 'MMM d, yyyy')}
                       </p>
-                      <ChevronRight className="w-4 h-4 text-gray-300" />
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-400 transition-colors" />
                     </div>
                   </Link>
                 ))}
@@ -228,33 +228,30 @@ export default function DashboardHome() {
                 <p className="text-base font-body text-gray-500">No recent activity</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-100">
                 {notifications.slice(0, 5).map(n => (
                   <Link
                     key={n.id}
                     to={n.ticket_uuid ? `tickets/${n.ticket_uuid}` : 'notifications'}
-                    className={`flex items-start gap-3 px-5 py-3.5 transition-colors
-                      ${n.seen ? 'hover:bg-gray-50' : 'bg-brand-50/60 hover:bg-brand-50'}`}
+                    className={`group flex items-start gap-3 px-5 py-3.5 transition-all border-l-[3px]
+                      ${n.seen
+                        ? 'hover:bg-gray-50/80 border-transparent'
+                        : 'bg-brand-50/30 hover:bg-brand-50/60 border-brand-400'
+                      }`}
                   >
                     <div className="shrink-0 mt-2">
-                      <span
-                        className={`block w-2 h-2 rounded-full
-                          ${STATUS_COLORS[n.status]?.dot || 'bg-gray-300'}
-                          ${n.seen ? 'opacity-40' : ''}`}
-                      />
+                      <span className={`block w-2 h-2 rounded-full ${n.seen ? 'bg-gray-200' : 'bg-brand-500'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-body leading-snug truncate ${n.seen ? 'text-gray-600' : 'text-gray-900 font-semibold'}`}>
                         {n.message?.replace(/(?:VRXE-\d{8}-[A-Z0-9]{4}|VR-\d{4}-\d{3})/g, '').trim()}
                       </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-xs font-body text-gray-400">
-                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-                        </p>
-                      </div>
+                      <p className="text-xs font-body text-gray-400 mt-0.5">
+                        {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                      </p>
                     </div>
                     {n.ticket_uuid && (
-                      <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-1" />
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-400 shrink-0 mt-1 transition-colors" />
                     )}
                   </Link>
                 ))}

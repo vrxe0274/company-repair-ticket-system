@@ -31,7 +31,7 @@ const LOGIN_DELAY_MS = 400
 
 /**
  * Per-role visual config for the RoleButton component.
- * Keyed by the role's colour family to keep the ternary logic out of JSX.
+ * Dark-panel variants — borders glow with brand/accent on hover.
  */
 const ROLE_BUTTON_STYLES = {
   brand: {
@@ -39,12 +39,14 @@ const ROLE_BUTTON_STYLES = {
     bg:     'hover:bg-brand-50',
     icon:   'bg-brand-100 text-brand-700',
     text:   'text-brand-700',
+    desc:   'text-gray-600',
   },
   accent: {
     border: 'border-accent-200 hover:border-accent-500 active:border-accent-600',
     bg:     'hover:bg-accent-50',
     icon:   'bg-accent-100 text-accent-700',
     text:   'text-accent-700',
+    desc:   'text-gray-600',
   },
 }
 
@@ -81,14 +83,14 @@ function RoleButton({ icon: Icon, label, description, color, onClick }) {
       type="button"
       onClick={onClick}
       className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2
-                  transition-all duration-150 ${s.border} ${s.bg}`}
+                  transition-all duration-200 ${s.border} ${s.bg}`}
     >
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${s.icon}`}>
         <Icon className="w-6 h-6" />
       </div>
       <div>
         <p className={`font-sans font-bold text-base tracking-wide ${s.text}`}>{label}</p>
-        <p className="text-sm font-body text-gray-600 mt-0.5">{description}</p>
+        <p className={`text-sm font-body mt-0.5 ${s.desc}`}>{description}</p>
       </div>
     </button>
   )

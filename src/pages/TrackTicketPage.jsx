@@ -49,8 +49,8 @@ function TrackHeader() {
 /** Styled labelled cell for unit/client details. */
 function InfoCell({ label, value, className = '' }) {
   return (
-    <div className={`bg-gray-50 rounded-lg px-3 py-2.5 ${className}`}>
-      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+    <div className={`bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5 ${className}`}>
+      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-[0.08em] mb-0.5">{label}</p>
       <p className="text-sm font-sans font-semibold text-gray-800">{value || '—'}</p>
     </div>
   )
@@ -174,11 +174,13 @@ export default function TrackTicketPage() {
         {/* Unified card: hero + all sections */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-5">
 
-          {/* Hero header */}
-          <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-800 px-4 pt-7 pb-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0 mt-0.5">
-                <User className="w-6 h-6 text-white/60" />
+          {/* Hero header — brand-aligned dark palette */}
+          <div className="bg-dark-900 relative overflow-hidden px-4 pt-7 pb-6">
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 10% 70%, rgba(115,23,232,0.25) 0%, transparent 55%), radial-gradient(ellipse at 90% 20%, rgba(212,0,127,0.15) 0%, transparent 50%)' }} />
+            <div className="relative flex items-start gap-4">
+              {/* Client initial avatar */}
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-600/50 to-accent-600/40 border border-white/20 flex items-center justify-center shrink-0 mt-0.5 text-white font-bold text-lg select-none">
+                {ticket.client_name?.charAt(0)?.toUpperCase() || '?'}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

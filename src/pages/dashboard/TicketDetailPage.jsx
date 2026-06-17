@@ -144,10 +144,10 @@ function TabButton({ active, onClick, icon: Icon, label, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-sans font-semibold rounded-t-lg transition-all whitespace-nowrap
+      className={`flex items-center gap-2 px-4 py-3 text-sm font-sans font-semibold transition-all whitespace-nowrap border-b-2 rounded-t-lg
         ${active
-          ? 'text-gray-900 bg-gray-50 border-b-2 border-brand-600'
-          : 'text-gray-400 border-b-2 border-transparent hover:text-gray-200 hover:bg-white/10'
+          ? 'text-white border-brand-500'
+          : 'text-gray-400 border-transparent hover:text-gray-200 hover:bg-white/5'
         }`}
     >
       <Icon className="w-3.5 h-3.5" />
@@ -1015,7 +1015,9 @@ export default function TicketDetailPage() {
     <div className={`flex flex-col flex-1 gap-3 animate-fade-in min-h-0 ${showActions ? 'pb-32' : 'pb-0'}`}>
 
       {/* ── Hero — bleeds to edges of the main padding ── */}
-      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-800 px-5 lg:px-7 pt-7 lg:pt-12 pb-0">
+      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-dark-900 relative overflow-hidden px-5 lg:px-7 pt-7 lg:pt-10 pb-0">
+        {/* Brand ambient glows — ties hero to sidebar palette */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 8% 60%, rgba(115,23,232,0.22) 0%, transparent 55%), radial-gradient(ellipse at 92% 15%, rgba(212,0,127,0.13) 0%, transparent 50%)' }} />
         {/* Back + actions */}
         <div className="flex items-center justify-between gap-3 mb-5">
           <Link to="/tickets" className="inline-flex items-center gap-2 text-sm font-body text-gray-400 hover:text-white transition-colors shrink-0">
@@ -1038,9 +1040,9 @@ export default function TicketDetailPage() {
         {/* Ticket header */}
         <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
           <div className="flex items-start gap-4">
-            {/* Profile avatar placeholder */}
-            <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0 mt-0.5">
-              <User className="w-6 h-6 text-white/60" />
+            {/* Client initial avatar */}
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-600/50 to-accent-600/40 border border-white/20 flex items-center justify-center shrink-0 mt-0.5 text-white font-bold text-lg select-none">
+              {ticket.client_name?.charAt(0)?.toUpperCase() || '?'}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

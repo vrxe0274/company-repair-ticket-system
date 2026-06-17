@@ -7,8 +7,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans:    ['Inter', 'sans-serif'],
-        body:    ['Inter', 'sans-serif'],
+        sans:    ['Outfit', 'sans-serif'],
+        body:    ['Outfit', 'sans-serif'],
         mono:    ['JetBrains Mono', 'monospace'],
         display: ['Bebas Neue', 'sans-serif'],
       },
@@ -44,6 +44,7 @@ export default {
         dark: {
           900: '#0d0d0f',
           800: '#141418',
+          750: '#191920',
           700: '#1c1c23',
           600: '#26262f',
           500: '#32323d',

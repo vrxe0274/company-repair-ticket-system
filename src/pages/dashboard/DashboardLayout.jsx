@@ -122,7 +122,9 @@ export default function DashboardLayout() {
     <div className="flex flex-col h-full bg-dark-900">
 
       {/* Logo + subtitle */}
-      <div className="px-5 pt-6 pb-4 border-b border-dark-700">
+      <div className="px-5 pt-6 pb-4 border-b border-dark-700/80 relative">
+        {/* Thin brand gradient rule below logo — visual continuity with brand colors */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-brand-600/50 via-accent-600/30 to-transparent" />
         <Logo size="md" />
         <span className="block text-xs font-mono text-gray-500 mt-2 tracking-[0.2em] uppercase">
           Staff Dashboard
@@ -146,10 +148,10 @@ export default function DashboardLayout() {
             key={to}
             to={to}
             onClick={() => setSidebarOpen(false)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide transition-all duration-150
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide transition-all duration-200
               ${isActive(to, exact)
-                ? 'bg-brand-600/20 text-brand-300 border border-brand-600/30'
-                : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                ? 'bg-gradient-to-r from-brand-600/25 to-brand-600/5 text-brand-200 border border-brand-500/30 shadow-sm'
+                : 'text-gray-400 hover:bg-white/5 hover:text-gray-200 border border-transparent'
               }`}
           >
             <Icon className="w-4 h-4 shrink-0" />
@@ -232,7 +234,7 @@ export default function DashboardLayout() {
           <Logo size="xs" />
         </header>
 
-        <main className="flex-1 flex flex-col p-5 lg:p-7 bg-gray-50 min-h-0">
+        <main className="flex-1 flex flex-col p-5 lg:p-7 dash-bg min-h-0">
           {/* Push-notification enable banner (renders nothing once granted/snoozed) */}
           <PushPermissionPrompt />
           {/* Child routes (DashboardHome, TicketListPage, etc.) render here */}

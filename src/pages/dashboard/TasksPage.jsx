@@ -45,13 +45,6 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={fetchTickets} className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors" aria-label="Refresh">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      </div>
-
       {/* Two-column layout on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
 
@@ -66,44 +59,63 @@ export default function TasksPage() {
                 </span>
               )}
             </p>
+            <button
+              onClick={fetchTickets}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              aria-label="Refresh"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-10">
+            <div className="flex items-center justify-center py-12">
               <span className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-              <CheckCircle className="w-8 h-8 text-green-300" />
-              <p className="text-base font-body text-gray-500">
-                All caught up — nothing needs your action right now.
-              </p>
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-sans font-semibold text-gray-700">All caught up</p>
+                <p className="text-sm font-body text-gray-400 mt-0.5">Nothing needs your action right now.</p>
+              </div>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
-              {tasks.map(t => (
+            <div className="divide-y divide-gray-100">
+              {tasks.map((t, index) => (
                 <Link
                   key={t.id}
                   to={`/tickets/${t.id}`}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                  className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/80 transition-all border-l-[3px] border-transparent hover:border-brand-400"
                 >
+                  {/* Position number */}
+                  <div className="flex-none w-7 h-7 rounded-lg bg-gray-100 group-hover:bg-brand-100 flex items-center justify-center shrink-0 transition-colors">
+                    <span className="text-xs font-mono font-bold text-gray-400 group-hover:text-brand-600 leading-none transition-colors">
+                      {index + 1}
+                    </span>
+                  </div>
+
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <StatusBadge status={t.status} size="sm" />
+                      <span className="font-mono text-xs text-gray-400">{t.ticket_id}</span>
                     </div>
-                    <p className="font-sans font-semibold text-base text-gray-900 truncate">
+                    <p className="font-sans font-semibold text-sm text-gray-900 truncate">
                       {t.client_name}
                       <span className="hidden sm:inline font-normal text-gray-500"> · {t.unit_brand} {t.unit_model}</span>
                     </p>
-                    <p className="text-sm font-body text-brand-700 mt-0.5">
+                    <p className="text-xs font-body text-brand-600 font-medium mt-0.5">
                       {TASK_ACTIONS[role]?.[t.status] || 'Action required'}
                     </p>
                   </div>
-                  <div className="text-right shrink-0 flex items-center gap-2">
-                    <p className="text-sm font-body text-gray-500">
+
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    <p className="text-xs font-body text-gray-400 whitespace-nowrap">
                       {formatDistanceToNow(new Date(t.created_at), { addSuffix: true })}
                     </p>
-                    <ChevronRight className="w-4 h-4 text-gray-300" />
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-400 transition-colors" />
                   </div>
                 </Link>
               ))}
