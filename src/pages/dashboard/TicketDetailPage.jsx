@@ -322,7 +322,7 @@ function useTicket(id) {
     setLaborItems(
       data.labor_items?.length
         ? data.labor_items.map(it => ({ ...it, id: it.id ?? crypto.randomUUID() }))
-        : [emptyItem()]
+        : [{ id: crypto.randomUUID(), description: 'Diagnosis', amount: 800 }]
     )
     setPartsItems(
       data.parts_items?.length
@@ -842,7 +842,7 @@ function QuotationTab({
                         item={item}
                         onChange={onUpdateLaborItem}
                         onRemove={onRemoveLaborItem}
-                        canRemove={laborItems.length > 1}
+                        canRemove={true}
                       />
                     ))
                   ) : (

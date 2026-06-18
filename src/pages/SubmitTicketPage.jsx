@@ -181,6 +181,8 @@ export default function SubmitTicketPage() {
         ticket_id:            ticketId,
         tracking_token:       trackingToken,
         status:               'Pending',
+        labor_items:          [{ description: 'Diagnosis', amount: 800 }],
+        quotation_amount:     800,
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
