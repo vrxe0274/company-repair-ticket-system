@@ -161,7 +161,8 @@ export function Step5Terms({ termsAccepted, setTermsAccepted }) {
 
         <div className="px-5 py-4 border-b border-gray-100">
           <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">2. Inspection & Quotation</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">All units undergo a thorough inspection before any repair work begins. A repair quotation will be sent to you for approval — no work will proceed without your confirmation.</p>
+          <p className="text-sm font-body text-gray-700 leading-relaxed mb-2">All units undergo a thorough inspection before any repair work begins. A repair quotation will be sent to you for approval — no work will proceed without your confirmation.</p>
+          <p className="text-sm font-body text-gray-700 leading-relaxed">All services start with a flat rate of <span className="font-semibold text-gray-900">₱800 for diagnosis only</span>. Additional fees may be charged depending on the diagnosis findings, required parts, and labor involved in the repair.</p>
         </div>
 
         <div className="px-5 py-4 border-b border-gray-100">
