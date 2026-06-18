@@ -222,35 +222,37 @@ export function SuccessScreen({ submitted, copied, copyUrl, setSubmitted }) {
     <div className="min-h-screen bg-white flex flex-col">
       <PublicHeader />
       <main className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-md w-full animate-slide-up text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-accent-600 mb-6" style={{ boxShadow: '0 8px 32px rgba(115,23,232,0.4), 0 4px 16px rgba(212,0,127,0.3)' }}>
-            <CheckCircle className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-2">SUBMITTED!</h1>
-          <p className="text-gray-500 font-body text-base mb-8">
-            Your repair request has been received. We'll review it shortly.
-          </p>
+        <div className="max-w-md w-full animate-slide-up">
+          <div className="card p-8 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-accent-600 mb-6" style={{ boxShadow: '0 8px 32px rgba(115,23,232,0.4), 0 4px 16px rgba(212,0,127,0.3)' }}>
+              <CheckCircle className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="font-display text-4xl tracking-widest text-gray-900 mb-2">SUBMITTED!</h1>
+            <p className="text-gray-500 font-body text-base mb-8">
+              Your repair request has been received. We'll review it shortly.
+            </p>
 
-          <div className="card p-6 mb-5 text-left">
-            <p className="text-xs font-sans font-semibold tracking-widest text-gray-400 uppercase mb-1">Ticket ID</p>
-            <p className="font-mono text-2xl font-bold text-gray-900 tracking-wider mb-5">{submitted.ticket_id}</p>
-            <p className="text-xs font-sans font-semibold text-gray-500 mb-2">Your tracking link:</p>
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <span className="flex-1 text-xs font-mono text-gray-600 truncate">{trackingUrl}</span>
-              <button onClick={copyUrl} className="shrink-0 text-gray-400 hover:text-brand-600 transition-colors" aria-label="Copy tracking URL">
-                <Copy className="w-4 h-4" />
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-5 text-left">
+              <p className="text-xs font-sans font-semibold tracking-widest text-gray-400 uppercase mb-1">Ticket ID</p>
+              <p className="font-mono text-2xl font-bold text-gray-900 tracking-wider mb-5">{submitted.ticket_id}</p>
+              <p className="text-xs font-sans font-semibold text-gray-500 mb-2">Your tracking link:</p>
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-3">
+                <span className="flex-1 text-xs font-mono text-gray-600 truncate">{trackingUrl}</span>
+                <button onClick={copyUrl} className="shrink-0 text-gray-400 hover:text-brand-600 transition-colors" aria-label="Copy tracking URL">
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+              {copied && <p className="text-xs text-green-600 mt-1.5 font-semibold">✓ Copied!</p>}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="btn-primary justify-center py-3">
+                <ExternalLink className="w-4 h-4" /> Track My Repair
+              </a>
+              <button onClick={() => setSubmitted(null)} className="btn-secondary justify-center">
+                Submit Another Ticket
               </button>
             </div>
-            {copied && <p className="text-xs text-green-600 mt-1.5 font-semibold">✓ Copied!</p>}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="btn-primary justify-center py-3">
-              <ExternalLink className="w-4 h-4" /> Track My Repair
-            </a>
-            <button onClick={() => setSubmitted(null)} className="btn-secondary justify-center">
-              Submit Another Ticket
-            </button>
           </div>
         </div>
       </main>
