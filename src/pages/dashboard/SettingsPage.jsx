@@ -53,10 +53,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="flex flex-col flex-1 animate-fade-in">
 
       {/* Header */}
-      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
+      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200">
         <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
         <div className="px-5 lg:px-7 py-5">
           <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5">
@@ -66,7 +66,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto w-full space-y-5">
+      {/* Settings container */}
+      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col gap-5 bg-gray-50 border border-gray-200 p-5 -mb-5 lg:-mb-7">
 
         {/* Appearance — available to all staff */}
         <div className="card p-5">
