@@ -131,7 +131,7 @@ export default function NotificationsPage() {
                       </span>
                     )}
                     {n.ticket_human_id && (
-                      <span className="font-mono text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md leading-tight">
+                      <span className="hidden sm:inline font-mono text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md leading-tight">
                         {n.ticket_human_id}
                       </span>
                     )}

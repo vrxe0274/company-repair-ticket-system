@@ -25,6 +25,7 @@ import {
   Clock, Search,
 } from 'lucide-react'
 import { supabase }                                    from '../../lib/supabase'
+import { adminDeleteTicket }                            from '../../lib/adminDelete'
 import { getTrackingUrl, STATUS_ORDER, formatClientUnitLabel } from '../../lib/utils'
 import { createNotification, buildStatusNotification } from '../../lib/notifications'
 import { sendGlobalPush } from '../../lib/push'
@@ -69,6 +70,7 @@ const TICKET_COLUMNS = [
   'preferred_date', 'preferred_time', 'accessories_included', 'issue_description',
   'diagnosis_notes', 'repair_notes', 'repair_photos',
   'labor_items', 'parts_items', 'discount_amount', 'quotation_amount', 'final_price',
+  'payment_proof_url',
 ].join(', ')
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -248,14 +250,16 @@ function ProgressCard({ status, guidance, className = '' }) {
 
 // ── useTicket hook ────────────────────────────────────────────────────────────
 function useTicket(id) {
-  const navigate     = useNavigate()
-  const fileInputRef = useRef(null)
+  const navigate      = useNavigate()
+  const fileInputRef  = useRef(null)
+  const proofInputRef = useRef(null)
   const { role, getAllowedTransitions, isAdmin, isTechnician } = useRole()
 
   const [ticket,         setTicket]         = useState(null)
   const [loading,        setLoading]        = useState(true)
   const [saving,         setSaving]         = useState(false)
   const [uploading,      setUploading]      = useState(false)
+  const [uploadingProof, setUploadingProof] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [notes,          setNotes]          = useState({ diagnosis_notes: '', repair_notes: '' })
   const [laborItems,     setLaborItems]     = useState([emptyItem()])
@@ -353,12 +357,16 @@ function useTicket(id) {
       if (errs.length) { setTransitionErrors(errs); return }
     }
 
-    // Gate 3: final price must be saved before marking paid
+    // Gate 3: final price + payment proof must be saved before marking paid
     if (newStatus === 'Paid' && ticket.status === 'Done') {
+      const errs = []
       if (ticket.final_price === null || ticket.final_price === undefined) {
-        setTransitionErrors(['A saved final price is required before marking as paid. Fill in the final price in the Quotation & Payment tab and save.'])
-        return
+        errs.push('A saved final price is required before marking as paid. Fill in the final price in the Quotation & Payment tab and save.')
       }
+      if (!ticket.payment_proof_url) {
+        errs.push('A payment-proof screenshot is required before marking as paid. Upload it in the Quotation & Payment tab.')
+      }
+      if (errs.length) { setTransitionErrors(errs); return }
     }
 
     setStatusUpdating(true)
@@ -449,6 +457,12 @@ function useTicket(id) {
    */
   async function saveNotesAndPricing(scope) {
     if (ticket?.status === 'Paid') return  // locked once paid
+    // Gate: a payment-proof screenshot must be uploaded before the final
+    // payment can be saved (UI also disables the button — this is the safety net).
+    if (scope === 'payment' && isAdmin && !ticket?.payment_proof_url) {
+      alert('Upload a payment-proof screenshot before saving the final payment.')
+      return
+    }
     setSaving(true)
     const cleanLabor = laborItems
       .filter(it => it.description.trim() || String(it.amount).trim() !== '')
@@ -538,15 +552,66 @@ function useTicket(id) {
     setTicket(data)
   }
 
-  async function deleteTicket() {
-    if (!isAdmin) return
-    const { error } = await supabase.from('tickets').delete().eq('id', id)
-    if (error) { alert(`Delete failed: ${error.message}`); return }
-    navigate('/tickets')
+  /**
+   * Upload the payment-proof screenshot (Admin). Single image, stored in the
+   * repair-photos bucket under a payment-proof/ path, then its URL is saved to
+   * payment_proof_url. Required before the final payment can be saved.
+   */
+  async function uploadPaymentProof(e) {
+    if (ticket?.status === 'Paid') return  // locked once paid
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { alert('Only image files are allowed.'); return }
+    if (file.size > MAX_PHOTO_BYTES)     { alert('Max file size is 10 MB.'); return }
+    setUploadingProof(true)
+    try {
+      const ext  = file.name.split('.').pop()
+      const path = `${ticket.ticket_id}/payment-proof/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('repair-photos').upload(path, file, { cacheControl: '3600', upsert: false })
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('repair-photos').getPublicUrl(path)
+      const { data, error } = await supabase
+        .from('tickets').update({ payment_proof_url: urlData.publicUrl }).eq('id', id).select(TICKET_COLUMNS).single()
+      if (error) throw new Error(error.message)
+      setTicket(data)
+    } catch (err) {
+      alert('Upload failed: ' + err.message)
+    } finally {
+      setUploadingProof(false)
+      if (proofInputRef.current) proofInputRef.current.value = ''
+    }
+  }
+
+  /** Remove the payment-proof screenshot (Admin). */
+  async function deletePaymentProof() {
+    if (ticket?.status === 'Paid') return  // locked once paid
+    const { data, error } = await supabase
+      .from('tickets').update({ payment_proof_url: null }).eq('id', id).select(TICKET_COLUMNS).single()
+    if (error) { alert(`Failed to remove proof: ${error.message}`); return }
+    setTicket(data)
+  }
+
+  /**
+   * Delete this ticket via the admin-delete Edge Function (the anon client can
+   * no longer delete — see lib/adminDelete.js). Requires the destructive
+   * password, validated server-side. Returns an error message on failure, or
+   * null on success (after which the page navigates away).
+   */
+  async function deleteTicket(password) {
+    if (!isAdmin) return 'Not authorized.'
+    try {
+      await adminDeleteTicket(id, password)
+      navigate('/tickets')
+      return null
+    } catch (err) {
+      return err.message
+    }
   }
 
   return {
     ticket, loading, saving, uploading, statusUpdating, fileInputRef,
+    uploadingProof, proofInputRef,
     notes, setNotes,
     laborItems, setLaborItems,
     partsItems, setPartsItems,
@@ -557,6 +622,7 @@ function useTicket(id) {
     isAdmin, isTechnician, getAllowedTransitions,
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
+    uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem,
   }
 }
@@ -748,6 +814,7 @@ function QuotationTab({
   finalPrice, setFinalPrice,
   saving, saveMsg,
   laborTotal, partsTotal, discountValue, quotationLive,
+  paymentProofUrl, uploadingProof, proofInputRef, onUploadProof, onDeleteProof,
   onSaveQuotation, onSaveFinalPayment,
   onUpdateLaborItem, onAddLaborItem, onRemoveLaborItem,
   onUpdatePartsItem, onAddPartsItem, onRemovePartsItem,
@@ -899,14 +966,57 @@ function QuotationTab({
               )}
               {canEdit && (
                 <div className="flex flex-col gap-2 mt-auto">
-                  <button onClick={onSaveFinalPayment} disabled={saving}
-                    className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 w-full justify-center">
+                  {/* Payment proof — required before the final payment can be saved */}
+                  <div className="border-t border-gray-100 pt-3">
+                    <p className="label mb-2 flex items-center gap-1.5">
+                      Payment Proof <span className="text-red-500">*</span>
+                    </p>
+                    <input
+                      ref={proofInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      id="payment-proof-upload"
+                      onChange={onUploadProof}
+                    />
+                    {paymentProofUrl ? (
+                      <div className="flex items-center gap-3">
+                        <a href={paymentProofUrl} target="_blank" rel="noopener noreferrer"
+                           className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 shrink-0 block hover:opacity-90">
+                          <img src={paymentProofUrl} alt="Payment proof" className="w-full h-full object-cover" />
+                        </a>
+                        <div className="flex flex-col gap-1">
+                          <label htmlFor="payment-proof-upload" className="text-xs font-sans font-semibold text-brand-600 hover:text-brand-700 cursor-pointer">
+                            Replace
+                          </label>
+                          <button onClick={onDeleteProof} className="text-xs font-sans font-semibold text-red-500 hover:text-red-600 text-left">
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label htmlFor="payment-proof-upload"
+                        className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 text-sm font-sans font-semibold text-gray-500 hover:border-brand-400 hover:text-brand-600 cursor-pointer transition-colors">
+                        {uploadingProof
+                          ? <span className="w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                          : <Upload className="w-3.5 h-3.5" />
+                        }
+                        {uploadingProof ? 'Uploading…' : 'Upload screenshot'}
+                      </label>
+                    )}
+                  </div>
+
+                  <button onClick={onSaveFinalPayment} disabled={saving || uploadingProof || !paymentProofUrl}
+                    className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       : <Save className="w-3.5 h-3.5" />
                     }
                     Save Final Payment
                   </button>
+                  {!paymentProofUrl && (
+                    <p className="text-xs font-body text-gray-400 text-center">Upload payment proof to enable saving.</p>
+                  )}
                   {saveMsg === 'Final payment saved!' && (
                     <span className="text-sm font-sans font-semibold text-green-600 flex items-center justify-center gap-1">
                       <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
@@ -928,6 +1038,21 @@ function QuotationTab({
 }
 
 function SettingsTab({ isAdmin, deleteConfirm, setDeleteConfirm, onDelete }) {
+  const [pw, setPw]     = useState('')
+  const [err, setErr]   = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function confirmDelete() {
+    if (!pw) { setErr('Enter the admin password.'); return }
+    setBusy(true); setErr('')
+    const error = await onDelete(pw) // navigates away on success
+    if (error) { setErr(error); setBusy(false) }
+  }
+
+  function cancelDelete() {
+    setDeleteConfirm(false); setPw(''); setErr('')
+  }
+
   return (
     <div className="space-y-5">
       {isAdmin ? (
@@ -943,10 +1068,24 @@ function SettingsTab({ isAdmin, deleteConfirm, setDeleteConfirm, onDelete }) {
               <Trash2 className="w-3.5 h-3.5" /> Delete This Ticket
             </button>
           ) : (
-            <div className="flex items-center gap-3 flex-wrap">
-              <p className="text-sm font-body text-red-700">Are you sure? This cannot be undone.</p>
-              <button onClick={onDelete} className="btn-danger text-sm">Yes, Delete</button>
-              <button onClick={() => setDeleteConfirm(false)} className="btn-secondary text-sm">Cancel</button>
+            <div className="space-y-3 max-w-xs">
+              <p className="text-sm font-body text-red-700">Enter the admin password to permanently delete this ticket.</p>
+              <input
+                type="password"
+                value={pw}
+                onChange={e => { setPw(e.target.value); setErr('') }}
+                onKeyDown={e => { if (e.key === 'Enter' && pw && !busy) confirmDelete() }}
+                className="input-field"
+                placeholder="Admin password"
+                autoFocus
+              />
+              {err && <p className="text-xs text-red-500 font-sans">{err}</p>}
+              <div className="flex items-center gap-3">
+                <button onClick={confirmDelete} disabled={busy || !pw} className="btn-danger text-sm disabled:opacity-50">
+                  {busy ? 'Deleting…' : 'Yes, Delete'}
+                </button>
+                <button onClick={cancelDelete} className="btn-secondary text-sm">Cancel</button>
+              </div>
             </div>
           )}
         </div>
@@ -969,6 +1108,7 @@ export default function TicketDetailPage() {
 
   const {
     ticket, loading, saving, uploading, statusUpdating, fileInputRef,
+    uploadingProof, proofInputRef,
     notes, setNotes,
     laborItems, setLaborItems,
     partsItems, setPartsItems,
@@ -979,6 +1119,7 @@ export default function TicketDetailPage() {
     isAdmin, isTechnician, getAllowedTransitions,
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
+    uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem,
   } = useTicket(id)
 
@@ -1122,6 +1263,9 @@ export default function TicketDetailPage() {
           saving={saving}             saveMsg={saveMsg}
           laborTotal={laborTotal}     partsTotal={partsTotal}
           discountValue={discountValue} quotationLive={quotationLive}
+          paymentProofUrl={ticket.payment_proof_url}
+          uploadingProof={uploadingProof}  proofInputRef={proofInputRef}
+          onUploadProof={uploadPaymentProof}  onDeleteProof={deletePaymentProof}
           onSaveQuotation={() => saveNotesAndPricing('quotation')}
           onSaveFinalPayment={() => saveNotesAndPricing('payment')}
           onUpdateLaborItem={(itemId, f, v) => updateItem(setLaborItems, itemId, f, v)}

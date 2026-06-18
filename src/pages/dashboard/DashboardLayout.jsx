@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Shield, Wrench, Bell, ClipboardList,
+  Shield, Wrench, Bell, ClipboardList, Settings,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -44,6 +44,7 @@ const NAV = [
   { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
+  { to: 'settings',      label: 'Settings',      icon: Settings },
 ]
 
 /**
@@ -201,7 +202,7 @@ export default function DashboardLayout() {
   // ── Layout render ────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-900 flex">
 
       {/* Mobile backdrop — closes sidebar when tapped */}
       {sidebarOpen && (

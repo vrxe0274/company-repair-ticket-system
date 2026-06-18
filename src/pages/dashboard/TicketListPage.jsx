@@ -14,10 +14,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, Trash2, X, MoreHorizontal } from 'lucide-react'
+import { Search, Download, RefreshCw, ChevronRight, ChevronDown, Filter, MoreHorizontal } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
-import { useRole }         from '../../hooks/useRole.jsx'
-import { supabase }        from '../../lib/supabase'
 import { STATUS_ORDER, STATUS_DENIED, STATUS_COLORS } from '../../lib/utils'
 import { exportTicketsToXLSX } from '../../lib/export'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
@@ -42,42 +40,13 @@ const MOBILE_QUERY = '(max-width: 767px)'
 // ── Page component ─────────────────────────────────────────────────────────────
 
 /** TicketListPage — master list with status filter pills and full-text search. */
-const FLUSH_SUCCESS_MS = 2500
-
 export default function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { isAdmin } = useRole()
   // Live data — realtime keeps the list in sync without a refresh.
   const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
   const [search, setSearch] = useState('')
 
-  // Flush DB state — admin only
-  const [showFlush,  setShowFlush]  = useState(false)
-  const [flushInput, setFlushInput] = useState('')
-  const [flushError, setFlushError] = useState('')
-  const [flushing,   setFlushing]   = useState(false)
-  const [flushDone,  setFlushDone]  = useState(false)
-
-  async function handleFlush() {
-    const adminPw = import.meta.env.VITE_ADMIN_PASSWORD
-    if (!adminPw || flushInput !== adminPw) { setFlushError('Incorrect admin password.'); return }
-    setFlushing(true)
-    try {
-      const { data: storageList } = await supabase.storage.from('repair-photos').list()
-      if (storageList?.length) await supabase.storage.from('repair-photos').remove(storageList.map(f => f.name))
-      await supabase.from('tickets').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      setFlushDone(true)
-      setShowFlush(false)
-      setFlushInput('')
-      setFlushError('')
-      setTimeout(() => setFlushDone(false), FLUSH_SUCCESS_MS)
-    } catch (err) {
-      setFlushError('Failed: ' + err.message)
-    } finally {
-      setFlushing(false)
-    }
-  }
   // Status filter panel — collapsed by default, toggled by the filter button.
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filterRef = useRef(null)
@@ -176,18 +145,6 @@ export default function TicketListPage() {
                 <Download className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 Export XLSX
               </button>
-              {isAdmin && (
-                <>
-                  <div className="my-1 h-px bg-gray-100 mx-3" />
-                  <button
-                    onClick={() => { setShowFlush(true); setMenuOpen(false) }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                    Flush Database
-                  </button>
-                </>
-              )}
             </div>
           )}
         </div>
@@ -353,68 +310,6 @@ export default function TicketListPage() {
         )}
       </div>
 
-      {/* Flush DB success banner */}
-      {flushDone && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed successfully
-        </div>
-      )}
-
-      {/* Flush DB confirmation modal */}
-      {showFlush && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </div>
-                <h2 className="font-sans font-bold text-gray-900">Flush Database</h2>
-              </div>
-              <button
-                onClick={() => { setShowFlush(false); setFlushInput(''); setFlushError('') }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Cancel"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-sm font-body text-gray-600 leading-relaxed">
-              This will permanently delete <span className="font-semibold text-gray-900">all tickets and repair photos</span>. This action cannot be undone.
-            </p>
-            <div className="space-y-2">
-              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Admin password</label>
-              <input
-                type="password"
-                value={flushInput}
-                onChange={e => { setFlushInput(e.target.value); setFlushError('') }}
-                className="input-field"
-                placeholder="Enter admin password to confirm"
-                autoFocus
-              />
-              {flushError && <p className="text-xs text-red-500 font-sans">{flushError}</p>}
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => { setShowFlush(false); setFlushInput(''); setFlushError('') }}
-                className="btn-secondary flex-1 justify-center"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleFlush}
-                disabled={flushing || !flushInput}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
-              >
-                {flushing
-                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Trash2 className="w-3.5 h-3.5" /> Delete All Tickets</>
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

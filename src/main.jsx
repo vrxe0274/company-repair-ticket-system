@@ -24,6 +24,8 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 
 import App                    from './App.jsx'
+import ErrorBoundary          from './components/ui/ErrorBoundary.jsx'
+import { ThemeProvider }      from './hooks/useTheme.jsx'
 import { AuthProvider }       from './hooks/useAuth.jsx'
 import { RoleProvider }       from './hooks/useRole.jsx'
 import { NotificationsProvider } from './hooks/useNotifications.jsx'
@@ -53,14 +55,19 @@ ReactDOM.createRoot(rootElement).render(
      * if needed in the future without restructuring this tree.
      */}
     <BrowserRouter>
-      {/* Auth → Role → Notifications — see file-level comment for ordering rationale. */}
-      <AuthProvider>
-        <RoleProvider>
-          <NotificationsProvider>
-            <App />
-          </NotificationsProvider>
-        </RoleProvider>
-      </AuthProvider>
+      {/* ErrorBoundary catches render-time crashes; ThemeProvider sets light/dark. */}
+      <ErrorBoundary>
+        <ThemeProvider>
+          {/* Auth → Role → Notifications — see file-level comment for ordering rationale. */}
+          <AuthProvider>
+            <RoleProvider>
+              <NotificationsProvider>
+                <App />
+              </NotificationsProvider>
+            </RoleProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   </React.StrictMode>
 )

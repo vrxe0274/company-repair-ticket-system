@@ -338,3 +338,60 @@ input[type="file"]::file-selector-button {
 .animate-stagger-4 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.20s both; }
 .animate-stagger-5 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.25s both; }
 .animate-stagger-6 { animation: slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1) 0.30s both; }
+
+/* =============================================================================
+ * DARK MODE
+ *
+ * Opt-in via a `dark` class on <html> (see hooks/useTheme.jsx). SCOPED to the
+ * staff dashboard's main content area (.dash-bg) so the public-facing pages
+ * (submit, track, login) always stay light. The sidebar is already dark in
+ * both themes.
+ *
+ * Implemented as overrides of the neutral Tailwind utilities + design-system
+ * component classes the dashboard pages already use, rather than per-element
+ * `dark:` variants — coverage is centralized and easy to tune in one place.
+ * Colored utilities (brand / accent / status tints) are intentionally left
+ * untouched so badges and accents keep their meaning.
+ * ============================================================================= */
+
+/* Main surface + dot-grid texture */
+.dark .dash-bg {
+  background-color: #0d0d0f;
+  background-image: radial-gradient(circle, rgba(115, 23, 232, 0.10) 1px, transparent 1px);
+  color: #e5e7eb;
+}
+
+/* Surfaces */
+.dark .dash-bg .bg-white          { background-color: #16161b !important; }
+.dark .dash-bg .bg-gray-50,
+.dark .dash-bg .bg-gray-50\/80,
+.dark .dash-bg .bg-gray-50\/50    { background-color: #1c1c23 !important; }
+.dark .dash-bg .bg-gray-100       { background-color: #26262f !important; }
+
+/* Borders + dividers */
+.dark .dash-bg .border-gray-100,
+.dark .dash-bg .border-gray-200,
+.dark .dash-bg .border-gray-300   { border-color: #2a2a33 !important; }
+.dark .dash-bg .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.dark .dash-bg .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: #2a2a33 !important; }
+
+/* Text (neutrals only) */
+.dark .dash-bg .text-gray-900 { color: #f3f4f6 !important; }
+.dark .dash-bg .text-gray-800 { color: #e5e7eb !important; }
+.dark .dash-bg .text-gray-700 { color: #d1d5db !important; }
+.dark .dash-bg .text-gray-600 { color: #b8bdc7 !important; }
+.dark .dash-bg .text-gray-500 { color: #9aa0ab !important; }
+.dark .dash-bg .text-gray-400 { color: #7b8190 !important; }
+
+/* Hover states used in dashboard menus / table rows */
+.dark .dash-bg .hover\:bg-gray-50:hover  { background-color: #20202a !important; }
+.dark .dash-bg .hover\:bg-gray-100:hover { background-color: #2a2a33 !important; }
+
+/* Design-system component classes */
+.dark .dash-bg .card        { background-color: #16161b !important; border-color: #2a2a33 !important; }
+.dark .dash-bg .input-field { background-color: #16161b; border-color: #32323d; color: #f3f4f6; }
+.dark .dash-bg .input-field::placeholder { color: #6b7280; }
+.dark .dash-bg .btn-secondary       { background-color: #1c1c23; border-color: #32323d; color: #d1d5db; }
+.dark .dash-bg .btn-secondary:hover { background-color: #26262f; }
+.dark .dash-bg .page-title    { color: #f3f4f6; }
+.dark .dash-bg .section-title { color: #9aa0ab; }

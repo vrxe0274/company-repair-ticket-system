@@ -20,6 +20,8 @@
     <meta name="apple-mobile-web-app-title" content="Repair Ticket System" />
   </head>
   <body>
+    <!-- Apply saved theme before paint to avoid a flash of light (see hooks/useTheme.jsx). -->
+    <script>try{if(localStorage.getItem('vrxe_theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
