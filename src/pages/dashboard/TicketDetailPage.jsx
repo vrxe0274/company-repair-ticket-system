@@ -1306,7 +1306,7 @@ export default function TicketDetailPage() {
               <span className="text-sm font-body text-gray-600">
                 Revert to <span className="font-semibold">{ticket.previous_status}</span>?
               </span>
-              <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm flex-1 justify-center">
+              <button onClick={undoStatus} disabled={statusUpdating} className="btn-primary text-sm px-5">
                 {statusUpdating
                   ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : 'Yes, Revert'
