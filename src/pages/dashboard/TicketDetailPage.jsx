@@ -25,11 +25,11 @@ import {
 import { getTrackingUrl }        from '../../lib/utils'
 import { downloadTicketPDF }     from '../../lib/pdf'
 import StatusBadge               from '../../components/ui/StatusBadge.jsx'
-import { useTicket }             from './ticketDetail/useTicket'
-import { TabButton }             from './ticketDetail/components'
-import { OverviewTab, TechTab, QuotationTab, SettingsTab } from './ticketDetail/tabs'
-import { sumItems }              from './ticketDetail/helpers'
-import { STATUS_GUIDANCE }       from './ticketDetail/constants'
+import { useTicket }             from './ticket-detail/useTicket'
+import { TabButton }             from './ticket-detail/components'
+import { OverviewTab, TechTab, QuotationTab, SettingsTab } from './ticket-detail/tabs'
+import { sumItems }              from './ticket-detail/helpers'
+import { STATUS_GUIDANCE }       from './ticket-detail/constants'
 
 export default function TicketDetailPage() {
   const { id } = useParams()
@@ -49,7 +49,7 @@ export default function TicketDetailPage() {
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
-    updateItem, addItem, removeItem,
+    updateItem, addItem, removeItem, toggleDiagnosis,
   } = useTicket(id)
 
   if (loading) {
@@ -197,6 +197,7 @@ export default function TicketDetailPage() {
           onUploadProof={uploadPaymentProof}  onDeleteProof={deletePaymentProof}
           onSaveQuotation={() => saveNotesAndPricing('quotation')}
           onSaveFinalPayment={() => saveNotesAndPricing('payment')}
+          onToggleDiagnosis={toggleDiagnosis}
           onUpdateLaborItem={(itemId, f, v) => updateItem(setLaborItems, itemId, f, v)}
           onAddLaborItem={() => addItem(setLaborItems)}
           onRemoveLaborItem={itemId => removeItem(setLaborItems, itemId)}

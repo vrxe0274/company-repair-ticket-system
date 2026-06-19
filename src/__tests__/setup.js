@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import '@testing-library/jest-dom'
 
 // jsdom does not implement window.matchMedia — stub it so session.js's
 // isStandalone() doesn't throw during tests. Returns matches: false by default.

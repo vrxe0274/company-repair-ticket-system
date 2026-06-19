@@ -15,22 +15,29 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-
-/** Polling fallback interval — same cadence as useNotifications. */
-const POLL_INTERVAL_MS = 60_000
+import { DASHBOARD_POLL_INTERVAL_MS } from '../lib/constants'
 
 export function useLiveTickets() {
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   /** Fetch all tickets, newest first (same query the pages used before). */
   const fetchTickets = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('tickets')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (!error) setTickets(data || [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setTickets(data || [])
+      setError(null)
+    } catch (err) {
+      console.error('useLiveTickets: fetch failed', err)
+      setError(err)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -64,7 +71,7 @@ export function useLiveTickets() {
       )
       .subscribe()
 
-    const interval = setInterval(fetchTickets, POLL_INTERVAL_MS)
+    const interval = setInterval(fetchTickets, DASHBOARD_POLL_INTERVAL_MS)
 
     return () => {
       supabase.removeChannel(channel)
@@ -72,5 +79,5 @@ export function useLiveTickets() {
     }
   }, [fetchTickets])
 
-  return { tickets, loading, refetch: fetchTickets }
+  return { tickets, loading, error, refetch: fetchTickets }
 }

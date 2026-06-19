@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { DIAGNOSIS_FEE } from './constants'
 
 const TERMS_KEY = 'terms'
 
@@ -9,7 +10,7 @@ export const DEFAULT_TERMS = [
   },
   {
     title: '2. Inspection & Quotation',
-    content: 'All units undergo a thorough inspection before any repair work begins. A repair quotation will be sent to you for approval — no work will proceed without your confirmation.\n\nAll services start with a flat rate of ₱800 for diagnosis only. Additional fees may be charged depending on the diagnosis findings, required parts, and labor involved in the repair.',
+    content: `All units undergo a thorough inspection before any repair work begins. A repair quotation will be sent to you for approval — no work will proceed without your confirmation.\n\nAll services start with a flat rate of ₱${DIAGNOSIS_FEE} for diagnosis only. Additional fees may be charged depending on the diagnosis findings, required parts, and labor involved in the repair.`,
   },
   {
     title: '3. Payment',

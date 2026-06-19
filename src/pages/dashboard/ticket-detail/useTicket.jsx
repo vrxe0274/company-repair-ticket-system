@@ -10,6 +10,7 @@ import { sendGlobalPush }    from '../../../lib/push'
 import { downloadTicketPDF } from '../../../lib/pdf'
 import { generateReceiptNumber } from '../../../lib/receipt'
 import { useRole }           from '../../../hooks/useRole.jsx'
+import { DIAGNOSIS_FEE }    from '../../../lib/constants'
 import {
   TICKET_COLUMNS, SAVE_MSG_DURATION_MS, PDF_DOWNLOAD_DELAY_MS, MAX_PHOTO_BYTES,
 } from './constants'
@@ -88,7 +89,7 @@ export function useTicket(id) {
     setLaborItems(
       data.labor_items?.length
         ? data.labor_items.map(it => ({ ...it, id: it.id ?? crypto.randomUUID() }))
-        : [{ id: crypto.randomUUID(), description: 'Diagnosis', amount: 800 }]
+        : []
     )
     setPartsItems(
       data.parts_items?.length
@@ -109,7 +110,7 @@ export function useTicket(id) {
         errs.push('A saved diagnosis is required before starting repairs. The technician must fill in Diagnosis Notes in the Technical Details tab and save.')
       }
       if (ticket.quotation_amount === null || ticket.quotation_amount === undefined) {
-        errs.push('A saved quotation is required before starting repairs. The admin must fill in labor/parts items in the Quotation & Payment tab and save.')
+        errs.push('A saved quotation is required before starting repairs. In the Quotation & Payment tab, check "Include Diagnosis Fee" (or add items) and save.')
       }
       if (errs.length) { setTransitionErrors(errs); return }
     }
@@ -276,6 +277,14 @@ export function useTicket(id) {
   function addItem(setter)            { setter(prev => [...prev, emptyItem()]) }
   function removeItem(setter, itemId) { setter(prev => prev.filter(it => it.id !== itemId)) }
 
+  function toggleDiagnosis() {
+    setLaborItems(prev => {
+      const hasDiagnosis = prev.some(it => it.description === 'Diagnosis')
+      if (hasDiagnosis) return prev.filter(it => it.description !== 'Diagnosis')
+      return [{ id: crypto.randomUUID(), description: 'Diagnosis', amount: DIAGNOSIS_FEE }, ...prev]
+    })
+  }
+
   async function uploadPhotos(e) {
     if (ticket?.status === 'Paid') return  // locked once paid
     const files = Array.from(e.target.files)
@@ -389,6 +398,6 @@ export function useTicket(id) {
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
-    updateItem, addItem, removeItem,
+    updateItem, addItem, removeItem, toggleDiagnosis,
   }
 }

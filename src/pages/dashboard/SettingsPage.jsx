@@ -24,11 +24,12 @@ export default function SettingsPage() {
   const { isDark, toggleTheme } = useTheme()
 
   // Flush DB state (admin only)
-  const [showFlush, setShowFlush]   = useState(false)
-  const [flushInput, setFlushInput] = useState('')
-  const [flushError, setFlushError] = useState('')
-  const [flushing, setFlushing]     = useState(false)
-  const [flushDone, setFlushDone]   = useState(false)
+  const [showFlush,    setShowFlush]    = useState(false)
+  const [flushConfirm, setFlushConfirm] = useState('')  // must type "DELETE"
+  const [flushInput,   setFlushInput]   = useState('')  // admin password
+  const [flushError,   setFlushError]   = useState('')
+  const [flushing,     setFlushing]     = useState(false)
+  const [flushDone,    setFlushDone]    = useState(false)
 
   // Terms editor state (admin only)
   const [showTerms, setShowTerms]     = useState(false)
@@ -74,6 +75,7 @@ export default function SettingsPage() {
   }
 
   async function handleFlush() {
+    if (flushConfirm !== 'DELETE') { setFlushError('Type DELETE to confirm.'); return }
     if (!flushInput) { setFlushError('Enter the admin password.'); return }
     setFlushing(true)
     setFlushError('')
@@ -92,6 +94,7 @@ export default function SettingsPage() {
 
   function closeFlush() {
     setShowFlush(false)
+    setFlushConfirm('')
     setFlushInput('')
     setFlushError('')
   }
@@ -283,24 +286,40 @@ export default function SettingsPage() {
             <p className="text-sm font-body text-gray-600 leading-relaxed">
               This will permanently delete <span className="font-semibold text-gray-900">all tickets and repair photos</span>. This action cannot be undone.
             </p>
-            <div className="space-y-2">
-              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Admin password</label>
-              <input
-                type="password"
-                value={flushInput}
-                onChange={e => { setFlushInput(e.target.value); setFlushError('') }}
-                onKeyDown={e => { if (e.key === 'Enter' && flushInput && !flushing) handleFlush() }}
-                className="input-field"
-                placeholder="Enter admin password to confirm"
-                autoFocus
-              />
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
+                  Type <span className="text-red-600 font-mono">DELETE</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={flushConfirm}
+                  onChange={e => { setFlushConfirm(e.target.value); setFlushError('') }}
+                  className="input-field font-mono"
+                  placeholder="DELETE"
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Admin password</label>
+                <input
+                  type="password"
+                  value={flushInput}
+                  onChange={e => { setFlushInput(e.target.value); setFlushError('') }}
+                  onKeyDown={e => { if (e.key === 'Enter' && flushConfirm === 'DELETE' && flushInput && !flushing) handleFlush() }}
+                  className="input-field"
+                  placeholder="Enter admin password to confirm"
+                />
+              </div>
               {flushError && <p className="text-xs text-red-500 font-sans">{flushError}</p>}
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={closeFlush} className="btn-secondary flex-1 justify-center">Cancel</button>
               <button
                 onClick={handleFlush}
-                disabled={flushing || !flushInput}
+                disabled={flushing || flushConfirm !== 'DELETE' || !flushInput}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
               >
                 {flushing

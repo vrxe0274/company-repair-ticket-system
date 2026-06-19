@@ -4,7 +4,7 @@ import {
   peso,
   sumItems,
   computeQuotation,
-} from '../../pages/dashboard/ticketDetail/helpers'
+} from '../../pages/dashboard/ticket-detail/helpers'
 
 // ─── emptyItem ────────────────────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ import {
   Image as ImageIcon, FileText, DollarSign, Package, Receipt, User,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { TRACK_POLL_INTERVAL_MS } from '../lib/constants'
 import { STATUS_ORDER, STATUS_DENIED, STATUS_DESCRIPTIONS } from '../lib/utils'
 import { downloadReceiptPDF } from '../lib/receipt'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
@@ -25,8 +26,6 @@ import Logo from '../components/ui/Logo.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-/** Polling interval (ms) to re-fetch the ticket for live status updates. */
-const POLL_INTERVAL_MS = 30_000
 
 /** Currency formatter for Philippine Peso amounts. */
 const formatPeso = n =>
@@ -118,7 +117,7 @@ export default function TrackTicketPage() {
       )
       .subscribe()
 
-    const interval = setInterval(fetchTicket, POLL_INTERVAL_MS)
+    const interval = setInterval(fetchTicket, TRACK_POLL_INTERVAL_MS)
     return () => { supabase.removeChannel(channel); clearInterval(interval) }
   }, [token, fetchTicket])
 

@@ -21,14 +21,15 @@ import {
   generateTicketId, generateTrackingToken, getTrackingUrl,
   formatUnitLabel, formatClientUnitLabel,
 } from '../lib/utils'
-import { PublicHeader } from './submitTicket/components'
+import { PublicHeader } from './submit-ticket/components'
 import {
-  COPY_FEEDBACK_MS, FORM_INITIAL, STEPS, STEP_REQUIRED, EMAIL_REGEX,
-} from './submitTicket/constants'
+  COPY_FEEDBACK_MS, FORM_INITIAL, STEPS,
+} from './submit-ticket/constants'
+import { validateStep } from './submit-ticket/validation'
 import {
   Step1ClientInfo, Step2UnitInfo, Step3Issue,
   Step4Appointment, Step5Terms, SuccessScreen,
-} from './submitTicket/steps'
+} from './submit-ticket/steps'
 
 export default function SubmitTicketPage() {
   const [form, setForm]             = useState(FORM_INITIAL)
@@ -58,27 +59,8 @@ export default function SubmitTicketPage() {
     }
   }
 
-  function validateStep(s) {
-    const required = STEP_REQUIRED[s] || []
-    const errs = {}
-    required.forEach(field => {
-      const val = field === 'unit_brand'
-        ? (form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand)
-        : field === 'unit_type'
-          ? (form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type)
-          : field === 'mode_of_service'
-            ? (form.mode_of_service === 'Courier' ? form.mode_courier : form.mode_of_service === 'Others' ? form.mode_custom : form.mode_of_service)
-            : form[field]
-      if (!val || !String(val).trim()) errs[field] = 'Required'
-    })
-    if (s === 1 && form.email && !EMAIL_REGEX.test(form.email)) {
-      errs.email = 'Invalid email'
-    }
-    return errs
-  }
-
   function next() {
-    const errs = validateStep(step)
+    const errs = validateStep(form, step)
     if (Object.keys(errs).length) { setErrors(errs); return }
     setErrors({})
     setStep(s => Math.min(s + 1, STEPS.length))
@@ -91,7 +73,7 @@ export default function SubmitTicketPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const errs = validateStep(4)
+    const errs = validateStep(form, 4)
     if (Object.keys(errs).length) { setErrors(errs); return }
     setSubmitting(true)
     try {
@@ -103,7 +85,7 @@ export default function SubmitTicketPage() {
       const payload = {
         client_name:          form.client_name,
         contact_number:       form.contact_number,
-        email:                form.email,
+        email:                form.email.trim(),
         address:              form.address,
         platform:             form.platform,
         unit_brand:           resolvedBrand,
@@ -117,8 +99,8 @@ export default function SubmitTicketPage() {
         ticket_id:            ticketId,
         tracking_token:       trackingToken,
         status:               'Pending',
-        labor_items:          [{ description: 'Diagnosis', amount: 800 }],
-        quotation_amount:     800,
+        labor_items:          [],
+        quotation_amount:     null,
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error

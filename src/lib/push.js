@@ -18,6 +18,7 @@
  */
 
 import { supabase } from './supabase'
+import { softFail } from './errors'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -94,12 +95,12 @@ export async function subscribeToPush(role = null) {
       { onConflict: 'endpoint' },
     )
     if (error) {
-      console.error('subscribeToPush: failed to store subscription:', error.message)
+      softFail('subscribeToPush', error)
       return { ok: false, reason: 'store-failed' }
     }
     return { ok: true }
   } catch (err) {
-    console.error('subscribeToPush exception:', err)
+    softFail('subscribeToPush', err)
     return { ok: false, reason: 'exception' }
   }
 }
@@ -118,7 +119,7 @@ export async function unsubscribeFromPush() {
     await supabase.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint)
     await subscription.unsubscribe()
   } catch (err) {
-    console.error('unsubscribeFromPush failed:', err)
+    softFail('unsubscribeFromPush', err)
   }
 }
 
@@ -138,12 +139,12 @@ export async function sendGlobalPush({ title, body, url = null }) {
       body: { title, body, url },
     })
     if (error) {
-      console.error('sendGlobalPush failed:', error.message)
+      softFail('sendGlobalPush', error)
       return { ok: false }
     }
     return { ok: true, ...data }
   } catch (err) {
-    console.error('sendGlobalPush exception:', err)
+    softFail('sendGlobalPush', err)
     return { ok: false }
   }
 }

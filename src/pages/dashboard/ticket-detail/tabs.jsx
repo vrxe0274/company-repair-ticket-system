@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine } from './components'
 import { peso } from './helpers'
+import { DIAGNOSIS_FEE } from '../../../lib/constants'
 
 export function OverviewTab({
   ticket, statusGuidance,
@@ -197,7 +198,9 @@ export function QuotationTab({
   onSaveQuotation, onSaveFinalPayment,
   onUpdateLaborItem, onAddLaborItem, onRemoveLaborItem,
   onUpdatePartsItem, onAddPartsItem, onRemovePartsItem,
+  onToggleDiagnosis,
 }) {
+  const diagnosisIncluded = laborItems.some(it => it.description === 'Diagnosis')
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {canSeePricing ? (
@@ -210,6 +213,35 @@ export function QuotationTab({
             </p>
 
             <div className="flex-1 overflow-y-auto min-h-0 space-y-5 pr-1">
+
+              {/* Diagnosis fee toggle — admin sets this before starting repairs */}
+              <div className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${diagnosisIncluded ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-200'}`}>
+                {canEdit ? (
+                  <label className="flex items-start gap-3 cursor-pointer select-none w-full">
+                    <input
+                      type="checkbox"
+                      checked={diagnosisIncluded}
+                      onChange={onToggleDiagnosis}
+                      className="mt-0.5 w-4 h-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    />
+                    <div>
+                      <p className="text-sm font-sans font-semibold text-gray-800">Include Diagnosis Fee</p>
+                      <p className="text-xs font-body text-gray-500">{peso(DIAGNOSIS_FEE)} flat-rate inspection charge — required to unlock Repair in Progress</p>
+                    </div>
+                  </label>
+                ) : (
+                  <div className="flex items-start gap-3 w-full">
+                    <span className={`mt-0.5 w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center ${diagnosisIncluded ? 'bg-brand-600 border-brand-600' : 'border-gray-300'}`}>
+                      {diagnosisIncluded && <CheckCircle className="w-3 h-3 text-white" />}
+                    </span>
+                    <div>
+                      <p className="text-sm font-sans font-semibold text-gray-800">Diagnosis Fee</p>
+                      <p className="text-xs font-body text-gray-500">{diagnosisIncluded ? `${peso(DIAGNOSIS_FEE)} — included` : 'Not included'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Labor items */}
               <div>
                 <label className="label mb-2">Labor Items</label>

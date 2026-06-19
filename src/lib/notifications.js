@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { softFail } from './errors'
 
 // Role constants (kept local so this module has no circular import with hooks)
 export const NOTIFY_ROLES = { ADMIN: 'Admin', TECHNICIAN: 'Technician' }
@@ -26,9 +27,9 @@ export async function createNotification({
       ticket_human_id: ticketHumanId,
       seen:            false,
     }])
-    if (error) console.error('createNotification failed:', error.message)
+    if (error) softFail('createNotification', error)
   } catch (err) {
-    console.error('createNotification exception:', err)
+    softFail('createNotification', err)
   }
 }
 
