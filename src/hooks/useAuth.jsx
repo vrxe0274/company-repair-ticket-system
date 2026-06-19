@@ -2,8 +2,9 @@
  * @file useAuth.jsx
  * @description Authentication context.
  *
- * Auth model (unchanged): client-side password check against VITE_* env vars —
- * there are no user accounts or Supabase Auth tokens.
+ * Auth model: password verification is done SERVER-SIDE via the verify-login
+ * Edge Function. Passwords are stored as Supabase secrets and never shipped
+ * to the browser bundle. There are no user accounts or Supabase Auth tokens.
  *
  * Persistence (Feature: stay signed in for PWA):
  *   - Session record lives in lib/session.js (localStorage when persistent,
@@ -23,6 +24,7 @@ import {
   consumeSessionExpiredFlag,
 } from '../lib/session'
 import { unsubscribeFromPush } from '../lib/push'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
@@ -44,32 +46,27 @@ export function AuthProvider({ children }) {
   }, [])
 
   /**
-   * loginWithRole — checks password against the env var for the given role.
-   * Admin      → VITE_DASHBOARD_PASSWORD
-   * Technician → VITE_TECH_PASSWORD
+   * loginWithRole — verifies password server-side via the verify-login Edge
+   * Function. Passwords never leave the server; the browser bundle contains
+   * no credentials.
    *
    * @param {string} password
    * @param {'Admin'|'Technician'} role
-   * @param {{rememberMe?: boolean}} opts - rememberMe persists the session for
-   *   30 days (sliding). Always treated as true when installed as a PWA.
+   * @param {{rememberMe?: boolean}} opts
+   * @returns {Promise<boolean>} true on success, false on wrong password.
+   * @throws {Error} if the Edge Function is unreachable or misconfigured.
    */
-  function loginWithRole(password, role, { rememberMe = false } = {}) {
-    const adminPw = import.meta.env.VITE_DASHBOARD_PASSWORD
-    const techPw  = import.meta.env.VITE_TECH_PASSWORD
+  async function loginWithRole(password, role, { rememberMe = false } = {}) {
+    const { data, error } = await supabase.functions.invoke('verify-login', {
+      body: { role, password },
+    })
 
-    const expected = role === 'Admin' ? adminPw : techPw
+    if (error) throw new Error('Connection error. Check your network and try again.')
+    if (!data?.ok) return false
 
-    if (!expected) {
-      console.warn(`Password env var not set for role: ${role}`)
-      return false
-    }
-
-    if (password === expected) {
-      saveSession(role, { persistent: rememberMe })
-      setAuthenticated(true)
-      return true
-    }
-    return false
+    saveSession(role, { persistent: rememberMe })
+    setAuthenticated(true)
+    return true
   }
 
   /**

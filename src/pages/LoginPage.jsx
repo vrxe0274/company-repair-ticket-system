@@ -24,11 +24,6 @@ import Logo from '../components/ui/Logo.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-/** Artificial delay (ms) before processing login — slows brute-force
- *  guessing and gives the spinner time to register visually. (The check
- *  itself is a plain string compare in the client; see useAuth.jsx.) */
-const LOGIN_DELAY_MS = 400
-
 /**
  * Per-role visual config for the RoleButton component.
  * Dark-panel variants — borders glow with brand/accent on hover.
@@ -136,8 +131,8 @@ export default function LoginPage() {
     setError('')
   }
 
-  /** Attempt login for the selected role (after LOGIN_DELAY_MS). */
-  function handleLogin(e) {
+  /** Attempt login for the selected role. Password is verified server-side. */
+  async function handleLogin(e) {
     e?.preventDefault()
     if (!password) {
       setError('Please enter your password.')
@@ -146,8 +141,8 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    setTimeout(() => {
-      const ok = loginWithRole(password, selectedRole, { rememberMe: standalone || rememberMe })
+    try {
+      const ok = await loginWithRole(password, selectedRole, { rememberMe: standalone || rememberMe })
       if (ok) {
         setRole(selectedRole)
         navigate('/', { replace: true })
@@ -155,8 +150,11 @@ export default function LoginPage() {
         setError(`Incorrect password for ${selectedRole}.`)
         setPassword('')
       }
+    } catch (err) {
+      setError(err.message || 'Connection error. Try again.')
+    } finally {
       setLoading(false)
-    }, LOGIN_DELAY_MS)
+    }
   }
 
   const roleCfg  = selectedRole ? ROLE_CONFIG[selectedRole] : null
