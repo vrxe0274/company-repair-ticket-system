@@ -10,10 +10,11 @@
  */
 
 import { useState } from 'react'
-import { Sun, Moon, Trash2, X, ShieldAlert, Lock } from 'lucide-react'
+import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
+import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '../../lib/terms'
 
 /** How long the "flushed" success toast stays up. */
 const FLUSH_SUCCESS_MS = 4000
@@ -28,6 +29,49 @@ export default function SettingsPage() {
   const [flushError, setFlushError] = useState('')
   const [flushing, setFlushing]     = useState(false)
   const [flushDone, setFlushDone]   = useState(false)
+
+  // Terms editor state (admin only)
+  const [showTerms, setShowTerms]     = useState(false)
+  const [termsDraft, setTermsDraft]   = useState([])
+  const [termsCustom, setTermsCustom] = useState(false)
+  const [termsSaved, setTermsSaved]   = useState(false)
+  const [termsLoading, setTermsLoading] = useState(false)
+  const [termsSaving, setTermsSaving]   = useState(false)
+
+  async function openTermsEditor() {
+    setTermsLoading(true)
+    setShowTerms(true)
+    const [sections, custom] = await Promise.all([getTerms(), hasCustomTerms()])
+    setTermsDraft(sections.map(s => ({ ...s })))
+    setTermsCustom(custom)
+    setTermsLoading(false)
+  }
+
+  function handleTermsChange(idx, value) {
+    setTermsDraft(prev => prev.map((s, i) => i === idx ? { ...s, content: value } : s))
+  }
+
+  async function handleTermsSave() {
+    setTermsSaving(true)
+    await saveTerms(termsDraft)
+    setTermsSaving(false)
+    setTermsCustom(true)
+    setShowTerms(false)
+    setTermsSaved(true)
+    setTimeout(() => setTermsSaved(false), 3000)
+  }
+
+  async function handleTermsReset() {
+    setTermsLoading(true)
+    await resetTerms()
+    setTermsCustom(false)
+    setTermsDraft(DEFAULT_TERMS.map(s => ({ ...s })))
+    setTermsLoading(false)
+  }
+
+  function closeTermsEditor() {
+    setShowTerms(false)
+  }
 
   async function handleFlush() {
     if (!flushInput) { setFlushError('Enter the admin password.'); return }
@@ -104,6 +148,22 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Terms & Conditions editor — admin only */}
+        {isAdmin && (
+          <div className="card p-5">
+            <p className="section-title flex items-center gap-2 mb-3">
+              <FileText className="w-3.5 h-3.5" /> Terms &amp; Conditions
+            </p>
+            <p className="text-sm font-body text-gray-500 mb-4">
+              Edit the terms and conditions displayed on the Submit Ticket page.
+              {termsCustom && <span className="ml-1 text-brand-600 font-semibold">Custom terms are active.</span>}
+            </p>
+            <button onClick={openTermsEditor} className="btn-primary text-sm">
+              <FileText className="w-3.5 h-3.5" /> Edit Terms
+            </button>
+          </div>
+        )}
+
         {/* Danger zone — admin only */}
         {isAdmin ? (
           <div className="card border border-red-100 p-5">
@@ -128,10 +188,80 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* Terms saved toast */}
+      {termsSaved && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> Terms &amp; Conditions updated
+        </div>
+      )}
+
       {/* Flush success toast */}
       {flushDone && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed successfully
+        </div>
+      )}
+
+      {/* Terms editor modal */}
+      {showTerms && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-2xl flex flex-col" style={{ maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-brand-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Edit Terms &amp; Conditions</h2>
+              </div>
+              <button onClick={closeTermsEditor} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-6 space-y-5">
+              {termsLoading
+                ? <div className="flex items-center justify-center py-12">
+                    <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                : termsDraft.map((section, idx) => (
+                    <div key={section.title}>
+                      <label className="block text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-1.5">
+                        {section.title}
+                      </label>
+                      <textarea
+                        value={section.content}
+                        onChange={e => handleTermsChange(idx, e.target.value)}
+                        rows={3}
+                        className="input-field resize-y text-sm font-body leading-relaxed w-full"
+                      />
+                    </div>
+                  ))
+              }
+            </div>
+
+            <div className="flex items-center justify-between gap-2 p-6 border-t border-gray-100 shrink-0">
+              <button
+                onClick={handleTermsReset}
+                disabled={termsLoading || termsSaving || !termsCustom}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-sans font-semibold text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset to Default
+              </button>
+              <div className="flex gap-2">
+                <button onClick={closeTermsEditor} disabled={termsSaving} className="btn-secondary text-sm">Cancel</button>
+                <button
+                  onClick={handleTermsSave}
+                  disabled={termsLoading || termsSaving}
+                  className="btn-primary text-sm"
+                >
+                  {termsSaving
+                    ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : 'Save Terms'
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

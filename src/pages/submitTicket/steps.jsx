@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import {
   CheckCircle, Copy, ExternalLink, AlertCircle, ScrollText,
   User, Cpu, CalendarClock,
@@ -6,6 +7,7 @@ import {
   PLATFORMS, VR_BRANDS, VR_ISSUES, UNIT_TYPES, MODES_OF_SERVICE, getTrackingUrl,
 } from '../../lib/utils'
 import { PublicHeader, StepHeading, Field, SummaryRow } from './components'
+import { getTerms, DEFAULT_TERMS } from '../../lib/terms'
 
 export function Step1ClientInfo({ form, errors, handleChange }) {
   return (
@@ -135,61 +137,27 @@ export function Step4Appointment({ form, errors, handleChange }) {
 }
 
 export function Step5Terms({ termsAccepted, setTermsAccepted }) {
+  const [sections, setSections] = useState(DEFAULT_TERMS)
+
+  useEffect(() => {
+    getTerms().then(setSections)
+  }, [])
+
+  const lastIdx = sections.length - 1
+
   return (
     <div className="space-y-4">
       <StepHeading icon={ScrollText} title="Terms & Conditions" subtitle="Please read carefully before submitting your repair request" />
 
       <div className="border border-gray-200 rounded-xl overflow-hidden max-h-[420px] overflow-y-auto">
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">1. Repair Turnaround Time</p>
-          <div className="space-y-1.5">
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-body text-gray-500 shrink-0">a.</span>
-              <p className="text-sm font-body text-gray-700"><span className="font-semibold text-gray-900">Minor issue repairs</span> — estimated <span className="font-semibold">2–3 business days</span></p>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-body text-gray-500 shrink-0">b.</span>
-              <p className="text-sm font-body text-gray-700"><span className="font-semibold text-gray-900">Major issue repairs</span> — estimated <span className="font-semibold">1–2 weeks</span></p>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-body text-gray-500 shrink-0">c.</span>
-              <p className="text-sm font-body text-gray-600">Repair time may vary depending on the availability and shipping of parts.</p>
-            </div>
+        {sections.map((section, i) => (
+          <div key={section.title} className={`px-5 py-4${i < lastIdx ? ' border-b border-gray-100' : ''}`}>
+            <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">{section.title}</p>
+            {section.content.split('\n\n').map((para, pi) => (
+              <p key={pi} className={`text-sm font-body text-gray-700 leading-relaxed whitespace-pre-line${pi > 0 ? ' mt-2' : ''}`}>{para}</p>
+            ))}
           </div>
-        </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">2. Inspection & Quotation</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed mb-2">All units undergo a thorough inspection before any repair work begins. A repair quotation will be sent to you for approval — no work will proceed without your confirmation.</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">All services start with a flat rate of <span className="font-semibold text-gray-900">₱800 for diagnosis only</span>. Additional fees may be charged depending on the diagnosis findings, required parts, and labor involved in the repair.</p>
-        </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">3. Payment</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">Full payment is required upon completion of the repair before the unit is released. If you choose to decline the quotation after inspection, a minimal inspection fee may apply.</p>
-        </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">4. Data & Content</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">We are not responsible for any data, accounts, or saved content on the device. We strongly recommend backing up your data before submitting your unit for repair.</p>
-        </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">5. Warranty on Repairs</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">Completed repairs carry a <span className="font-semibold text-gray-900">30-day warranty</span> covering the same issue that was repaired, though warranty coverage may vary depending on the type of repair performed. The warranty is void if the unit shows signs of physical damage, unauthorized tampering, or liquid exposure after it has been released to the client.</p>
-        </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">6. Unclaimed Units</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">Units not claimed within <span className="font-semibold text-gray-900">30 days</span> after repair completion will be subject to a storage fee. Units left unclaimed for more than <span className="font-semibold text-gray-900">90 days</span> may be forfeited without further notice.</p>
-        </div>
-
-        <div className="px-5 py-4">
-          <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">7. Liability</p>
-          <p className="text-sm font-body text-gray-700 leading-relaxed">We handle all units with the utmost care. However, we are not liable for pre-existing damage or faults unrelated to the reported issue that may become apparent during the repair process.</p>
-        </div>
-
+        ))}
       </div>
 
       <label className="flex items-start gap-3 cursor-pointer group pt-1">
