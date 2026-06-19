@@ -64,7 +64,11 @@ export default function SubmitTicketPage() {
     required.forEach(field => {
       const val = field === 'unit_brand'
         ? (form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand)
-        : form[field]
+        : field === 'unit_type'
+          ? (form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type)
+          : field === 'mode_of_service'
+            ? (form.mode_of_service === 'Courier' ? form.mode_courier : form.mode_of_service === 'Others' ? form.mode_custom : form.mode_of_service)
+            : form[field]
       if (!val || !String(val).trim()) errs[field] = 'Required'
     })
     if (s === 1 && form.email && !EMAIL_REGEX.test(form.email)) {
@@ -94,6 +98,8 @@ export default function SubmitTicketPage() {
       const ticketId      = await generateTicketId(supabase)
       const trackingToken = generateTrackingToken()
       const resolvedBrand = form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand
+      const resolvedType  = form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type
+      const resolvedMode  = form.mode_of_service === 'Courier' ? `Courier - ${form.mode_courier}` : form.mode_of_service === 'Others' ? form.mode_custom : form.mode_of_service
       const payload = {
         client_name:          form.client_name,
         contact_number:       form.contact_number,
@@ -102,12 +108,12 @@ export default function SubmitTicketPage() {
         platform:             form.platform,
         unit_brand:           resolvedBrand,
         unit_model:           form.unit_model,
-        unit_type:            form.unit_type,
+        unit_type:            resolvedType,
         accessories_included: form.accessories_included || null,
         issue_description:    form.issue_description,
         preferred_date:       form.preferred_date  || null,
         preferred_time:       form.preferred_time  || null,
-        mode_of_service:      form.mode_of_service,
+        mode_of_service:      resolvedMode,
         ticket_id:            ticketId,
         tracking_token:       trackingToken,
         status:               'Pending',

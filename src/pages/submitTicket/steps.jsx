@@ -61,6 +61,11 @@ export function Step2UnitInfo({ form, errors, handleChange }) {
           {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </Field>
+      {form.unit_type === 'Others' && (
+        <Field label="Specify Unit Type *" error={errors.unit_type_custom}>
+          <input className="input-field" name="unit_type_custom" value={form.unit_type_custom} onChange={handleChange} placeholder="Describe the unit type" />
+        </Field>
+      )}
       <Field label="Accessories Included">
         <input className="input-field" name="accessories_included" value={form.accessories_included} onChange={handleChange} placeholder="e.g. charging cable, carry case (optional)" />
       </Field>
@@ -119,6 +124,16 @@ export function Step4Appointment({ form, errors, handleChange }) {
           {MODES_OF_SERVICE.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
       </Field>
+      {form.mode_of_service === 'Courier' && (
+        <Field label="Specify Courier *" error={errors.mode_courier}>
+          <input className="input-field" name="mode_courier" value={form.mode_courier} onChange={handleChange} placeholder="e.g. J&T, LBC, Grab" />
+        </Field>
+      )}
+      {form.mode_of_service === 'Others' && (
+        <Field label="Specify Mode of Service *" error={errors.mode_custom}>
+          <input className="input-field" name="mode_custom" value={form.mode_custom} onChange={handleChange} placeholder="Describe the mode of service" />
+        </Field>
+      )}
       <div className="bg-gray-50 rounded-xl p-4 space-y-2">
         <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">Summary</p>
         <SummaryRow label="Name"  value={form.client_name} />
@@ -126,7 +141,7 @@ export function Step4Appointment({ form, errors, handleChange }) {
           label="Unit"
           value={`${form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand} ${form.unit_model}`}
         />
-        <SummaryRow label="Type"  value={form.unit_type} />
+        <SummaryRow label="Type"  value={form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type} />
         <SummaryRow
           label="Issue"
           value={form.issue_description.slice(0, 80) + (form.issue_description.length > 80 ? '…' : '')}

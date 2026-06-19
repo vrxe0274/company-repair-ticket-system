@@ -4,9 +4,9 @@ export const COPY_FEEDBACK_MS = 2000
 
 export const FORM_INITIAL = {
   client_name: '', contact_number: '', email: '', address: '', platform: '',
-  unit_brand: '', unit_brand_custom: '', unit_model: '', unit_type: '',
+  unit_brand: '', unit_brand_custom: '', unit_model: '', unit_type: '', unit_type_custom: '',
   accessories_included: '', issue_description: '', issue_preset: '',
-  preferred_date: '', preferred_time: '', mode_of_service: '',
+  preferred_date: '', preferred_time: '', mode_of_service: '', mode_courier: '', mode_custom: '',
 }
 
 export const STEPS = [
