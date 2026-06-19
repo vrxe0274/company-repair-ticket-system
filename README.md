@@ -1,266 +1,292 @@
 # VRXE Repair Ticket System
 
-A full-featured repair ticket management system for **VRXE Repair Services**.
+![CI](https://github.com/vrxe0274/company-repair-ticket-system/actions/workflows/ci.yml/badge.svg)
 
-Built with **React + Tailwind CSS**, **Supabase**, **Resend**, and deployed on **Vercel**.
+A full-stack repair ticket management system built for **VRXE Repair Services**. Handles the full lifecycle of a repair job — from client submission through technician diagnosis, pricing, and payment — with a staff dashboard, real-time updates, and web push notifications.
+
+**Live demo:** *(add your Vercel URL here)*
 
 ---
 
 ## Features
 
-**Client Side**
-- Public ticket submission form
-- Auto-generated Ticket ID and tracking URL
-- Confirmation email sent to client with tracking link
-- Real-time public tracking page (no login required) showing status, progress, notes, photos, and pricing
+### Client-facing (no login required)
+- **Ticket submission** — 3-step wizard: terms & conditions acceptance, client/unit info, appointment scheduling
+- **Auto-generated Ticket ID** — sequential per month (`VR-2606-001`, `VR-2606-002`, …)
+- **Public tracking page** — clients track status, view diagnosis notes, repair photos, pricing breakdown, and download their receipt PDF — all via a private tracking link
+- **Payment proof upload** — clients can upload proof of payment directly from the tracking page
 
-**Company Dashboard**
-- Password-protected staff portal
-- Overview with ticket counts by status
-- Full ticket database with search and filter by status
-- Individual ticket detail page
-- Status workflow management: Pending → Approved/Denied → Under Diagnosis → Awaiting Approval → In Queue → Repair in Progress → Done → Paid
-- Add diagnosis notes, repair notes, upload repair photos
-- Add quotation and final price
-- Download individual ticket as PDF
-- Export all tickets to XLSX
-- Flush/reset database (admin password gated)
+### Staff dashboard
+- **Role-based access** — Admin and Technician roles with separate login passwords, each with different permissions and allowed status transitions
+- **Server-side auth** — passwords are stored as Supabase Edge Function secrets, never shipped to the browser bundle
+- **Persistent sessions** — "Remember me" keeps staff signed in for 30 days (sliding expiry); installed PWA auto-persists
+- **Dashboard overview** — stat cards per status, visual status breakdown bar, live recent activity feed
+- **Ticket list** — search, filter by status, sortable columns
+- **Ticket detail — multi-tab view:**
+  - *Overview* — client info, unit info, issue description, status management with undo
+  - *Tech Notes* — diagnosis and repair notes (role-gated), repair photo uploads
+  - *Pricing* — itemized labor and parts line items, discount, computed totals
+- **Status workflow** — enforced at both the UI and database level (PostgreSQL trigger); invalid transitions are rejected server-side
+- **Undo last status** — Admin can revert the most recent status change
+- **PDF generation** — downloadable quotation and receipt PDFs
+- **Excel export** — styled `.xlsx` report with date-range filename logic
+- **Tasks page** — technician task view
+- **Notifications page** — in-app notification feed with real-time updates
+- **Settings** — light/dark theme toggle, editable terms & conditions, admin-gated database flush
 
-**Emails (via Resend)**
-- *(Not included in this version — can be added later)*
+### PWA & Push
+- **Installable PWA** — works offline, installable on desktop and mobile via browser prompt
+- **Web Push notifications** — VAPID-based, broadcasts to all subscribed devices on new ticket submission and payment; iOS 16.4+ supported when installed to Home Screen
+- **Service worker** — Workbox-powered offline caching
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + Tailwind CSS |
-| Database | Supabase (PostgreSQL) |
-| File Storage | Supabase Storage |
+|---|---|
+| Frontend | React 18, Vite, Tailwind CSS, React Router v6 |
+| Database | Supabase (PostgreSQL + Row Level Security + Realtime) |
+| Backend logic | Supabase Edge Functions (Deno/TypeScript) |
+| File storage | Supabase Storage |
+| Push notifications | Web Push API (VAPID), Workbox service worker |
+| PWA | vite-plugin-pwa, Workbox |
+| PDF | jsPDF, jspdf-autotable |
+| Excel | ExcelJS |
+| Icons | Lucide React |
 | Hosting | Vercel |
-| PDF | jsPDF + jspdf-autotable |
-| Spreadsheet | SheetJS (xlsx) |
-| Auth | Environment variable password gate |
+| Tests | Vitest, Testing Library |
 
 ---
 
-## Setup Guide
+## Architecture Overview
 
-### Step 1 — Prerequisites
-
-Make sure you have these installed:
-- [Node.js](https://nodejs.org/) v18 or higher
-- [Git](https://git-scm.com/)
-- A code editor (VS Code recommended)
-
----
-
-### Step 2 — Clone / Download and Install
-
-```bash
-# If you downloaded the zip, extract it, then:
-cd vrxe-tickets
-
-# Install all dependencies
-npm install
 ```
+Browser (React PWA)
+  │
+  ├── Supabase JS client
+  │     ├── tickets table  (CRUD + RLS)
+  │     ├── notifications table  (realtime channel)
+  │     ├── push_subscriptions table
+  │     ├── app_settings table  (editable T&C)
+  │     └── Storage bucket  (repair-photos)
+  │
+  └── Supabase Edge Functions (Deno)
+        ├── verify-login   — server-side password check (secrets never reach browser)
+        ├── send-push      — VAPID push broadcaster (holds private key)
+        └── admin-delete   — password-gated destructive DB operation
 
----
-
-### Step 3 — Set up Supabase
-
-1. Go to [supabase.com](https://supabase.com) and create a free account
-2. Click **New Project** — give it a name like `vrxe-tickets`
-3. Choose a region close to you, set a strong database password, click **Create Project**
-4. Wait for the project to initialize (~1 minute)
-5. In the left sidebar, click **SQL Editor**
-6. Click **New query**, paste the entire contents of **`supabase-setup.sql`** from this project, and click **Run**
-7. You should see `Success. No rows returned` — that means it worked
-8. Repeat step 6 for the follow-up migrations (one-time runs, in this order):
-   `notifications-setup.sql` → `notifications-status-update.sql` →
-   `tickets-realtime-setup.sql` → `push-setup.sql` → `undo-status-setup.sql`
-9. Go to **Project Settings → API** and copy:
-   - **Project URL** (looks like `https://abcdefgh.supabase.co`)
-   - **anon public** key (long string starting with `eyJ...`)
-
----
-
-### Step 4 — Configure environment variables
-
-Copy the example file and fill in your values:
-
-```bash
-cp .env.example .env
+Service Worker (Workbox)
+  ├── Offline asset caching
+  └── Push event handler → showNotification()
 ```
-
-Open `.env` and fill in:
-
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...
-
-VITE_DASHBOARD_PASSWORD=choose-a-strong-password
-VITE_ADMIN_PASSWORD=choose-a-different-admin-password
-
-VITE_APP_URL=http://localhost:5173
-```
-
-> **Never commit your `.env` file to Git!** It's already in `.gitignore`.
-
----
-
-### Step 5 — Run locally
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-- **Submit ticket form:** `http://localhost:5173/`
-- **Track a ticket:** `http://localhost:5173/track/<token>`
-- **Dashboard login:** `http://localhost:5173/login`
-- **Dashboard:** `http://localhost:5173/dashboard`
-
----
-
-### Step 6 — Deploy to Vercel
-
-**Option A: Via GitHub (recommended)**
-
-1. Push this project to a GitHub repository:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/YOUR_USERNAME/vrxe-tickets.git
-   git push -u origin main
-   ```
-
-2. Go to [vercel.com](https://vercel.com) and sign up / log in
-3. Click **Add New Project → Import Git Repository**
-4. Select your `vrxe-tickets` repo
-5. Vercel will auto-detect it as a Vite project. Leave build settings as default.
-6. **Before deploying**, click **Environment Variables** and add each variable from your `.env` file:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_DASHBOARD_PASSWORD`
-   - `VITE_ADMIN_PASSWORD`
-   - `VITE_APP_URL` — set this to your actual Vercel URL (e.g. `https://vrxe-tickets.vercel.app`). You can update this after first deploy.
-7. Click **Deploy**
-
-**Option B: Via Vercel CLI**
-
-```bash
-npm install -g vercel
-vercel login
-vercel --prod
-# Follow prompts, add env vars when asked
-```
-
----
-
-### Step 7 — Update VITE_APP_URL
-
-After your first Vercel deployment, you'll have a URL like `https://vrxe-tickets.vercel.app`.
-
-1. Go to your Vercel project → **Settings → Environment Variables**
-2. Update `VITE_APP_URL` to your real Vercel URL
-3. Redeploy (Vercel → **Deployments → Redeploy**)
-
-This ensures the tracking links shown on screen after submission are correct.
-
----
-
-## Environment Variables Reference
-
-| Variable | Description |
-|----------|-------------|
-| `VITE_SUPABASE_URL` | Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public API key |
-| `VITE_DASHBOARD_PASSWORD` | Password to access the staff dashboard |
-| `VITE_ADMIN_PASSWORD` | Separate password required to flush/reset the database |
-| `VITE_APP_URL` | Full URL of your deployed app (no trailing slash) |
 
 ---
 
 ## Project Structure
 
 ```
-vrxe-tickets/
-├── public/
-│   └── vrxe-icon.svg           # Favicon
 ├── src/
-│   ├── components/
-│   │   └── ui/
-│   │       ├── Logo.jsx         # VRXE brand logo
-│   │       ├── ProtectedRoute.jsx
-│   │       └── StatusBadge.jsx  # Colored status pill
+│   ├── components/ui/
+│   │   ├── ErrorBoundary.jsx
+│   │   ├── Logo.jsx
+│   │   ├── ProtectedRoute.jsx
+│   │   ├── PushPermissionPrompt.jsx
+│   │   └── StatusBadge.jsx
 │   ├── hooks/
-│   │   └── useAuth.jsx          # Auth context + password gate
+│   │   ├── useAuth.jsx          # Auth context + session management
+│   │   ├── useLiveTickets.jsx   # Supabase Realtime subscription
+│   │   ├── useNotifications.jsx # In-app notification feed
+│   │   ├── useRole.jsx          # Role + allowed status transitions
+│   │   └── useTheme.jsx         # Dark/light theme
 │   ├── lib/
+│   │   ├── adminDelete.js       # Admin flush via Edge Function
 │   │   ├── export.js            # ExcelJS XLSX export
-│   │   ├── pdf.js               # jsPDF ticket PDF
+│   │   ├── notifications.js     # Notification helpers
+│   │   ├── pdf.js               # jsPDF quotation PDF
+│   │   ├── push.js              # VAPID subscribe/unsubscribe/send
+│   │   ├── receipt.js           # jsPDF receipt PDF
+│   │   ├── session.js           # localStorage/sessionStorage session
 │   │   ├── supabase.js          # Supabase client
-│   │   └── utils.js             # IDs, tokens, status constants
+│   │   ├── terms.js             # T&C read/write via app_settings
+│   │   └── utils.js             # Ticket ID, tracking token, status constants
 │   ├── pages/
 │   │   ├── dashboard/
-│   │   │   ├── DashboardHome.jsx     # Overview + stats
-│   │   │   ├── DashboardLayout.jsx   # Sidebar layout
-│   │   │   ├── TicketDetailPage.jsx  # Full ticket editor
-│   │   │   └── TicketListPage.jsx    # Filterable table
-│   │   ├── LoginPage.jsx        # Staff login
-│   │   ├── SubmitTicketPage.jsx # Public submission form
-│   │   └── TrackTicketPage.jsx  # Public tracker
-│   ├── App.jsx                  # Router
+│   │   │   ├── ticketDetail/    # Multi-tab ticket editor (tabs, hooks, helpers)
+│   │   │   ├── DashboardHome.jsx
+│   │   │   ├── DashboardLayout.jsx
+│   │   │   ├── NotificationsPage.jsx
+│   │   │   ├── SettingsPage.jsx
+│   │   │   ├── TasksPage.jsx
+│   │   │   ├── TicketDetailPage.jsx
+│   │   │   └── TicketListPage.jsx
+│   │   ├── submitTicket/        # Multi-step form (steps, components, constants)
+│   │   ├── LoginPage.jsx
+│   │   ├── SubmitTicketPage.jsx
+│   │   └── TrackTicketPage.jsx
+│   ├── __tests__/               # Vitest unit tests
+│   ├── App.jsx
 │   ├── index.css                # Tailwind + design tokens
-│   └── main.jsx                 # React entry
-├── supabase-setup.sql           # Run this in Supabase SQL Editor
-├── .env.example                 # Copy to .env and fill in values
-├── .gitignore
-├── package.json
-├── tailwind.config.js
-├── vercel.json                  # SPA routing for Vercel
+│   ├── main.jsx
+│   └── sw.js                    # Workbox service worker
+├── sql/                         # Supabase SQL setup scripts (run in order)
+├── supabase/functions/          # Edge Functions (TypeScript/Deno)
+├── public/                      # PWA icons
+├── env.example
+├── manifest.json
+├── vercel.json
 └── vite.config.js
 ```
 
 ---
 
-## Notes & Security
+## Setup
 
-- The dashboard is protected by a simple password stored in an environment variable. For a production app with multiple staff, consider upgrading to Supabase Auth.
-- The Supabase Row Level Security policies allow public reads and writes (authenticated via password in the app layer). This is intentional for simplicity — the tracking page needs public read, and the submission form needs public insert.
+### Prerequisites
+
+- Node.js v18+
+- A [Supabase](https://supabase.com) account (free tier is enough)
+- A [Vercel](https://vercel.com) account (for deployment)
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Set up Supabase
+
+1. Create a new Supabase project
+2. In **SQL Editor**, run the scripts inside `sql/` in this order:
+   ```
+   supabase-setup.sql
+   notifications-setup.sql
+   notifications-status-update.sql
+   tickets-realtime-setup.sql
+   push-setup.sql
+   undo-status-setup.sql
+   enforce-status-transitions.sql
+   lock-deletes-setup.sql
+   payment-proof-setup.sql
+   app-settings-setup.sql
+   ```
+3. Go to **Project Settings → API** and copy your Project URL and anon key
+
+### 3. Configure environment variables
+
+```bash
+cp env.example .env
+```
+
+Fill in `.env`:
+
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+
+VITE_DASHBOARD_PASSWORD=your-admin-password
+VITE_TECH_PASSWORD=your-technician-password
+
+VITE_APP_URL=http://localhost:5173
+
+VITE_VAPID_PUBLIC_KEY=B...your-vapid-public-key...
+```
+
+### 4. Deploy Edge Functions
+
+```bash
+supabase login
+supabase link --project-ref your-project-id
+
+supabase functions deploy verify-login --no-verify-jwt
+supabase functions deploy send-push --no-verify-jwt
+supabase functions deploy admin-delete --no-verify-jwt
+
+supabase secrets set DASHBOARD_PASSWORD=your-admin-password
+supabase secrets set TECH_PASSWORD=your-technician-password
+supabase secrets set ADMIN_DELETE_PASSWORD=your-flush-password
+supabase secrets set VAPID_PUBLIC_KEY=your-vapid-public-key
+supabase secrets set VAPID_PRIVATE_KEY=your-vapid-private-key
+supabase secrets set VAPID_SUBJECT=mailto:you@example.com
+```
+
+Generate VAPID keys if you don't have them:
+```bash
+npx web-push generate-vapid-keys
+```
+
+### 5. Run locally
+
+```bash
+npm run dev
+```
+
+| Route | Description |
+|---|---|
+| `/` | Client ticket submission form |
+| `/track/:token` | Public ticket tracker |
+| `/login` | Staff login |
+| `/dashboard` | Staff dashboard |
+
+### 6. Deploy to Vercel
+
+Push to GitHub, import the repo on Vercel, and add all `VITE_*` variables under **Settings → Environment Variables**. After the first deploy, update `VITE_APP_URL` to your real Vercel URL and redeploy.
+
+---
+
+## Environment Variables Reference
+
+| Variable | Where to set | Description |
+|---|---|---|
+| `VITE_SUPABASE_URL` | `.env` + Vercel | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | `.env` + Vercel | Supabase anon/public key |
+| `VITE_DASHBOARD_PASSWORD` | `.env` + Vercel | Admin login password |
+| `VITE_TECH_PASSWORD` | `.env` + Vercel | Technician login password |
+| `VITE_APP_URL` | `.env` + Vercel | Full app URL (no trailing slash) |
+| `VITE_VAPID_PUBLIC_KEY` | `.env` + Vercel | VAPID public key (safe for browser) |
+| `DASHBOARD_PASSWORD` | Supabase secret | Verified server-side by `verify-login` |
+| `TECH_PASSWORD` | Supabase secret | Verified server-side by `verify-login` |
+| `ADMIN_DELETE_PASSWORD` | Supabase secret | Required by `admin-delete` Edge Function |
+| `VAPID_PUBLIC_KEY` | Supabase secret | Used by `send-push` Edge Function |
+| `VAPID_PRIVATE_KEY` | Supabase secret | Never exposed to the browser |
+| `VAPID_SUBJECT` | Supabase secret | `mailto:` contact for push service |
+
+> The `VITE_DASHBOARD_PASSWORD` / `VITE_TECH_PASSWORD` in the browser bundle are used only to pre-fill the login UI hint — actual verification happens server-side in the Edge Function.
+
+---
+
+## Running Tests
+
+```bash
+npm run test        # watch mode
+npm run test:run    # single run
+npm run test:ui     # browser UI
+```
+
+---
+
+## Status Workflow
+
+```
+Pending ──────────────────────────────────► Denied
+   │
+   ▼
+Inspection & Quote
+   │
+   ▼
+Repair in Progress
+   │
+   ▼
+Done
+   │
+   ▼
+Paid
+```
+
+Transitions are enforced both in the UI (per-role rules in `useRole.jsx`) and at the database level via a PostgreSQL trigger (`enforce-status-transitions.sql`). Invalid transitions are rejected even if someone bypasses the frontend.
 
 ---
 
 ## License
 
 © VRXE Repair Services. All rights reserved.
-
-SUPABASE PASSWORD:
-CcRW1W8SKBaWhNOf
-
----
-
-## Push Notifications & Persistent Login (Setup)
-
-One-time setup for global Web Push:
-
-1. **Database** — run `push-setup.sql` in the Supabase SQL Editor (creates `push_subscriptions`).
-2. **VAPID keys** — already generated in `.env` (`VITE_VAPID_PUBLIC_KEY`). To rotate: `npx web-push generate-vapid-keys`.
-3. **Edge Function** — deploy the sender and set its secrets:
-   ```bash
-   supabase functions deploy send-push --no-verify-jwt
-   supabase secrets set VAPID_PUBLIC_KEY=<public key>
-   supabase secrets set VAPID_PRIVATE_KEY=<private key>   # never put this in a VITE_ var
-   supabase secrets set VAPID_SUBJECT=mailto:you@example.com
-   ```
-4. **Vercel** — add `VITE_VAPID_PUBLIC_KEY` to the project env vars and redeploy.
-
-How it works:
-
-- After login the dashboard shows a one-time "Enable notifications" banner. Granting it registers the device in `push_subscriptions` (re-prompt is snoozed 7 days if dismissed).
-- Global pushes go to **all** subscribed devices regardless of role: automatically on new ticket submission and when a ticket is marked Paid, and manually from the Admin panel on the Notifications page. Role-scoped in-app notifications are unchanged.
-- **iOS**: push requires iOS 16.4+ and the app installed via Share → Add to Home Screen. HTTPS is required everywhere (localhost is exempt for dev).
-- **Persistent login**: "Remember me" (browser) or installed-PWA mode keeps the session in localStorage with a 30-day sliding expiry; logout or expiry removes the session and the device push subscription.
