@@ -41,20 +41,22 @@ export function Step2UnitInfo({ form, errors, handleChange }) {
   return (
     <div className="space-y-4">
       <StepHeading icon={Cpu} title="Device Information" subtitle="Tell us about the VR unit you're bringing in" />
-      <Field label="Brand *" error={errors.unit_brand}>
-        <select className="input-field" name="unit_brand" value={form.unit_brand} onChange={handleChange}>
-          <option value="">Select brand</option>
-          {VR_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
-      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Brand *" error={errors.unit_brand}>
+          <select className="input-field" name="unit_brand" value={form.unit_brand} onChange={handleChange}>
+            <option value="">Select brand</option>
+            {VR_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </Field>
+        <Field label="Model *" error={errors.unit_model}>
+          <input className="input-field" name="unit_model" value={form.unit_model} onChange={handleChange} placeholder="e.g. Quest 3, PSVR2" />
+        </Field>
+      </div>
       {form.unit_brand === 'Others' && (
         <Field label="Specify Brand *" error={errors.unit_brand}>
           <input className="input-field" name="unit_brand_custom" value={form.unit_brand_custom} onChange={handleChange} placeholder="Brand name" />
         </Field>
       )}
-      <Field label="Model *" error={errors.unit_model}>
-        <input className="input-field" name="unit_model" value={form.unit_model} onChange={handleChange} placeholder="e.g. Quest 3, PSVR2" />
-      </Field>
       <Field label="Unit Type *" error={errors.unit_type}>
         <select className="input-field" name="unit_type" value={form.unit_type} onChange={handleChange}>
           <option value="">Select type</option>
