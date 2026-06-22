@@ -167,8 +167,8 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Danger zone — staff & admin (ticket-queue managers) */}
-        {isManager ? (
+        {/* Danger zone — admin only */}
+        {isAdmin && (
           <div className="card border border-red-100 p-5">
             <p className="section-title text-red-400 flex items-center gap-2 mb-3">
               <ShieldAlert className="w-3.5 h-3.5" /> Danger Zone
@@ -180,13 +180,6 @@ export default function SettingsPage() {
             <button onClick={() => setShowFlush(true)} className="btn-danger text-sm">
               <Trash2 className="w-3.5 h-3.5" /> Flush Database
             </button>
-          </div>
-        ) : (
-          <div className="card p-5">
-            <p className="section-title flex items-center gap-2 mb-3">
-              <Lock className="w-3.5 h-3.5" /> Danger Zone
-            </p>
-            <p className="text-sm font-body text-gray-500">Database actions are restricted to staff and admin.</p>
           </div>
         )}
       </div>
