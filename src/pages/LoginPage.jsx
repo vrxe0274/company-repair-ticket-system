@@ -43,6 +43,13 @@ const ROLE_BUTTON_STYLES = {
     text:   'text-accent-700',
     desc:   'text-gray-600',
   },
+  staff: {
+    border: 'border-emerald-200 hover:border-emerald-500 active:border-emerald-600',
+    bg:     'hover:bg-emerald-50',
+    icon:   'bg-emerald-100 text-emerald-700',
+    text:   'text-emerald-700',
+    desc:   'text-gray-600',
+  },
 }
 
 /** Role display config used by both steps. */
@@ -54,7 +61,7 @@ const ROLE_CONFIG = {
   },
   [ROLES.STAFF]: {
     icon:        Shield,
-    color:       'brand',
+    color:       'staff',
     description: 'Approve / deny tickets, manage queue, mark as paid',
   },
   [ROLES.TECHNICIAN]: {

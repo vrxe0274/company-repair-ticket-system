@@ -115,10 +115,12 @@ export default function DashboardLayout() {
   // role can be null during the brief window between mount and session read.
   // Admin & Staff share the brand palette (queue side); Technician uses accent.
   const RoleIcon  = role === 'Admin' ? ShieldCheck : role === 'Staff' ? Shield : Wrench
-  const roleColor = role === 'Technician' ? 'text-accent-400' : 'text-brand-400'
-  const roleBg    = role === 'Technician'
-    ? 'bg-accent-900/30 border-accent-700/40'
-    : 'bg-brand-900/30 border-brand-700/40'
+  const roleColor = role === 'Admin' ? 'text-brand-400' : role === 'Staff' ? 'text-emerald-400' : 'text-accent-400'
+  const roleBg    = role === 'Admin'
+    ? 'bg-brand-900/30 border-brand-700/40'
+    : role === 'Staff'
+      ? 'bg-emerald-900/30 border-emerald-700/40'
+      : 'bg-accent-900/30 border-accent-700/40'
 
   // ── Sidebar content (extracted so it can be shared by both desktop and mobile) ──
 
