@@ -107,10 +107,10 @@ export default function SubmitTicketPage() {
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
-      // In-app notification for Admin (the role that reviews Pending tickets) —
-      // fire-and-forget, fails softly like the push below.
+      // In-app notification for the Staff queue (the role that reviews Pending
+      // tickets; Admin reads this stream too) — fire-and-forget, fails softly.
       createNotification({
-        recipientRole: NOTIFY_ROLES.ADMIN,
+        recipientRole: NOTIFY_ROLES.STAFF,
         message:       `New ticket: ${formatClientUnitLabel(data)}`,
         type:          'new_ticket',
         status:        'Pending',

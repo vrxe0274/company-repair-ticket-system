@@ -17,8 +17,8 @@ A full-stack repair ticket management system built for **VRXE Repair Services**.
 - **Payment proof upload** — clients can upload proof of payment directly from the tracking page
 
 ### Staff dashboard
-- **Role-based access** — Admin and Technician roles with separate login passwords, each with different permissions and allowed status transitions
-- **Server-side auth** — passwords are stored as Supabase Edge Function secrets, never shipped to the browser bundle
+- **Role-based access** — three roles with one shared login password each: **Admin** (manages Terms, plus all Staff powers), **Staff** (ticket queue), and **Technician** (repairs). Pick a role on the login screen and enter its password. Each role has its own permissions and allowed status transitions
+- **Server-side auth** — passwords are stored as Supabase Edge Function secrets and verified by the verify-login Edge Function; they never ship to the browser bundle
 - **Persistent sessions** — "Remember me" keeps staff signed in for 30 days (sliding expiry); installed PWA auto-persists
 - **Dashboard overview** — stat cards per status, visual status breakdown bar, live recent activity feed
 - **Ticket list** — search, filter by status, sortable columns
@@ -27,12 +27,12 @@ A full-stack repair ticket management system built for **VRXE Repair Services**.
   - *Tech Notes* — diagnosis and repair notes (role-gated), repair photo uploads
   - *Pricing* — itemized labor and parts line items, discount, computed totals
 - **Status workflow** — enforced at both the UI and database level (PostgreSQL trigger); invalid transitions are rejected server-side
-- **Undo last status** — Admin can revert the most recent status change
+- **Undo last status** — Staff/Admin can revert the most recent status change
 - **PDF generation** — downloadable quotation and receipt PDFs
 - **Excel export** — styled `.xlsx` report with date-range filename logic
 - **Tasks page** — technician task view
 - **Notifications page** — in-app notification feed with real-time updates
-- **Settings** — light/dark theme toggle, editable terms & conditions, admin-gated database flush
+- **Settings** — light/dark theme toggle, Admin-only Terms & Conditions editor, and a Staff/Admin database flush
 
 ### PWA & Push
 - **Installable PWA** — works offline, installable on desktop and mobile via browser prompt
@@ -72,7 +72,7 @@ Browser (React PWA)
   │     └── Storage bucket  (repair-photos)
   │
   └── Supabase Edge Functions (Deno)
-        ├── verify-login   — server-side password check (secrets never reach browser)
+        ├── verify-login   — per-role password check (secrets never reach browser)
         ├── send-push      — VAPID push broadcaster (holds private key)
         └── admin-delete   — password-gated destructive DB operation
 
@@ -184,13 +184,12 @@ Fill in `.env`:
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 
-VITE_DASHBOARD_PASSWORD=your-admin-password
-VITE_TECH_PASSWORD=your-technician-password
-
 VITE_APP_URL=http://localhost:5173
 
 VITE_VAPID_PUBLIC_KEY=B...your-vapid-public-key...
 ```
+
+Login passwords are set as Supabase secrets (step 4), not `VITE_*` vars.
 
 ### 4. Deploy Edge Functions
 
@@ -202,8 +201,11 @@ supabase functions deploy verify-login --no-verify-jwt
 supabase functions deploy send-push --no-verify-jwt
 supabase functions deploy admin-delete --no-verify-jwt
 
-supabase secrets set DASHBOARD_PASSWORD=your-admin-password
+# One shared login password per role (verified server-side by verify-login):
+supabase secrets set ADMIN_PASSWORD=your-admin-password
+supabase secrets set STAFF_PASSWORD=your-staff-password
 supabase secrets set TECH_PASSWORD=your-technician-password
+
 supabase secrets set ADMIN_DELETE_PASSWORD=your-flush-password
 supabase secrets set VAPID_PUBLIC_KEY=your-vapid-public-key
 supabase secrets set VAPID_PRIVATE_KEY=your-vapid-private-key
@@ -240,18 +242,17 @@ Push to GitHub, import the repo on Vercel, and add all `VITE_*` variables under 
 |---|---|---|
 | `VITE_SUPABASE_URL` | `.env` + Vercel | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | `.env` + Vercel | Supabase anon/public key |
-| `VITE_DASHBOARD_PASSWORD` | `.env` + Vercel | Admin login password |
-| `VITE_TECH_PASSWORD` | `.env` + Vercel | Technician login password |
 | `VITE_APP_URL` | `.env` + Vercel | Full app URL (no trailing slash) |
 | `VITE_VAPID_PUBLIC_KEY` | `.env` + Vercel | VAPID public key (safe for browser) |
-| `DASHBOARD_PASSWORD` | Supabase secret | Verified server-side by `verify-login` |
-| `TECH_PASSWORD` | Supabase secret | Verified server-side by `verify-login` |
+| `ADMIN_PASSWORD` | Supabase secret | Admin role login password (verified by `verify-login`) |
+| `STAFF_PASSWORD` | Supabase secret | Staff role login password (verified by `verify-login`) |
+| `TECH_PASSWORD` | Supabase secret | Technician role login password (verified by `verify-login`) |
 | `ADMIN_DELETE_PASSWORD` | Supabase secret | Required by `admin-delete` Edge Function |
 | `VAPID_PUBLIC_KEY` | Supabase secret | Used by `send-push` Edge Function |
 | `VAPID_PRIVATE_KEY` | Supabase secret | Never exposed to the browser |
 | `VAPID_SUBJECT` | Supabase secret | `mailto:` contact for push service |
 
-> The `VITE_DASHBOARD_PASSWORD` / `VITE_TECH_PASSWORD` in the browser bundle are used only to pre-fill the login UI hint — actual verification happens server-side in the Edge Function.
+> Login passwords are Supabase secrets, never `VITE_*` vars — `verify-login` checks them server-side, so they never reach the browser bundle.
 
 ---
 

@@ -21,7 +21,7 @@ export function useTicket(id) {
   const navigate      = useNavigate()
   const fileInputRef  = useRef(null)
   const proofInputRef = useRef(null)
-  const { role, getAllowedTransitions, isAdmin, isTechnician } = useRole()
+  const { role, getAllowedTransitions, isManager, isTechnician } = useRole()
 
   const [ticket,         setTicket]         = useState(null)
   const [loading,        setLoading]        = useState(true)
@@ -207,7 +207,9 @@ export function useTicket(id) {
       alert(`Undo failed: ${error.message}`)
     } else {
       hydrate(data)
-      const other = role === 'Admin' ? 'Technician' : 'Admin'
+      // Notify the "other side": a technician's change pings the staff queue,
+      // a staff/admin change pings the technician.
+      const other = isTechnician ? 'Staff' : 'Technician'
       try {
         await createNotification({
           recipientRole: other,
@@ -235,7 +237,7 @@ export function useTicket(id) {
     if (ticket?.status === 'Paid') return  // locked once paid
     // Gate: a payment-proof screenshot must be uploaded before the final
     // payment can be saved (UI also disables the button — this is the safety net).
-    if (scope === 'payment' && isAdmin && !ticket?.payment_proof_url) {
+    if (scope === 'payment' && isManager && !ticket?.payment_proof_url) {
       alert('Upload a payment-proof screenshot before saving the final payment.')
       return
     }
@@ -258,7 +260,7 @@ export function useTicket(id) {
     let patch = {}
     if (scope === 'notes' && isTechnician) {
       patch = { diagnosis_notes: notes.diagnosis_notes || null, repair_notes: notes.repair_notes || null }
-    } else if (scope === 'quotation' && isAdmin) {
+    } else if (scope === 'quotation' && isManager) {
       patch = {
         labor_items:      cleanLabor,
         parts_items:      cleanParts,
@@ -269,7 +271,7 @@ export function useTicket(id) {
         // chooses their payment plan on the tracker page. Saving the quotation
         // must not clobber their selection.
       }
-    } else if (scope === 'payment' && isAdmin) {
+    } else if (scope === 'payment' && isManager) {
       patch = {
         final_price: finalPrice !== '' && finalPrice !== null ? Number(finalPrice) : null,
       }
@@ -394,7 +396,7 @@ export function useTicket(id) {
    * null on success (after which the page navigates away).
    */
   async function deleteTicket(password) {
-    if (!isAdmin) return 'Not authorized.'
+    if (!isManager) return 'Not authorized.'
     try {
       await adminDeleteTicket(id, password)
       navigate('/tickets')
@@ -417,7 +419,7 @@ export function useTicket(id) {
     partialLowPct, setPartialLowPct,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
-    isAdmin, isTechnician, getAllowedTransitions,
+    isManager, isTechnician, getAllowedTransitions,
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,

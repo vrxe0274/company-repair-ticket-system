@@ -146,6 +146,11 @@ export const TASK_ACTIONS = {
     'Inspection & Quote': 'Add quotation',
     'Done':               'Collect payment',
   },
+  Staff: {
+    'Pending':            'Review request',
+    'Inspection & Quote': 'Add quotation',
+    'Done':               'Collect payment',
+  },
   Technician: {
     'Inspection & Quote': 'Inspect unit',
     'Repair in Progress': 'Finish repair — add notes & photos, mark Done',

@@ -11,42 +11,54 @@ describe('ROLES', () => {
     expect(ROLES.ADMIN).toBe('Admin')
   })
 
+  it('defines Staff', () => {
+    expect(ROLES.STAFF).toBe('Staff')
+  })
+
   it('defines Technician', () => {
     expect(ROLES.TECHNICIAN).toBe('Technician')
   })
 })
 
-// ─── ROLE_TRANSITIONS — Admin ─────────────────────────────────────────────────
+// ─── ROLE_TRANSITIONS — Staff (the ticket-queue managers) ─────────────────────
 
-describe('ROLE_TRANSITIONS — Admin', () => {
-  const admin = ROLE_TRANSITIONS[ROLES.ADMIN]
+describe('ROLE_TRANSITIONS — Staff', () => {
+  const staff = ROLE_TRANSITIONS[ROLES.STAFF]
 
   it('can approve Pending → Inspection & Quote', () => {
-    expect(admin['Pending']).toContain('Inspection & Quote')
+    expect(staff['Pending']).toContain('Inspection & Quote')
   })
 
   it('can deny Pending → Denied', () => {
-    expect(admin['Pending']).toContain('Denied')
+    expect(staff['Pending']).toContain('Denied')
   })
 
   it('can advance Inspection & Quote → Repair in Progress', () => {
-    expect(admin['Inspection & Quote']).toContain('Repair in Progress')
+    expect(staff['Inspection & Quote']).toContain('Repair in Progress')
   })
 
   it('can mark Done → Paid', () => {
-    expect(admin['Done']).toContain('Paid')
+    expect(staff['Done']).toContain('Paid')
   })
 
-  it('has no transitions defined from Repair in Progress (not an Admin action)', () => {
-    expect(admin['Repair in Progress']).toBeUndefined()
+  it('has no transitions defined from Repair in Progress (not a Staff action)', () => {
+    expect(staff['Repair in Progress']).toBeUndefined()
   })
 
   it('has no transitions defined from Paid (terminal state)', () => {
-    expect(admin['Paid']).toBeUndefined()
+    expect(staff['Paid']).toBeUndefined()
   })
 
   it('has no transitions defined from Denied (terminal state)', () => {
-    expect(admin['Denied']).toBeUndefined()
+    expect(staff['Denied']).toBeUndefined()
+  })
+})
+
+// ─── Admin has no transition table of its own (inherits Staff at runtime) ─────
+
+describe('ROLE_TRANSITIONS — Admin', () => {
+  it('does not define its own table (Admin inherits Staff via getAllowedTransitions)', () => {
+    expect(ROLE_TRANSITIONS[ROLES.ADMIN]).toBeUndefined()
   })
 })
 
@@ -85,8 +97,8 @@ describe('ROLE_TRANSITIONS — Technician', () => {
 // ─── ROLE_TRANSITIONS — cross-role integrity ─────────────────────────────────
 
 describe('ROLE_TRANSITIONS — cross-role integrity', () => {
-  it('Admin cannot skip directly to Repair in Progress from Pending', () => {
-    const fromPending = ROLE_TRANSITIONS[ROLES.ADMIN]['Pending'] ?? []
+  it('Staff cannot skip directly to Repair in Progress from Pending', () => {
+    const fromPending = ROLE_TRANSITIONS[ROLES.STAFF]['Pending'] ?? []
     expect(fromPending).not.toContain('Repair in Progress')
   })
 

@@ -3,8 +3,9 @@
  * @description Authentication context.
  *
  * Auth model: password verification is done SERVER-SIDE via the verify-login
- * Edge Function. Passwords are stored as Supabase secrets and never shipped
- * to the browser bundle. There are no user accounts or Supabase Auth tokens.
+ * Edge Function. There is one shared password per role, stored as Supabase
+ * secrets and never shipped to the browser bundle. There are no user accounts
+ * or Supabase Auth tokens.
  *
  * Persistence (Feature: stay signed in for PWA):
  *   - Session record lives in lib/session.js (localStorage when persistent,
@@ -46,12 +47,12 @@ export function AuthProvider({ children }) {
   }, [])
 
   /**
-   * loginWithRole — verifies password server-side via the verify-login Edge
-   * Function. Passwords never leave the server; the browser bundle contains
-   * no credentials.
+   * loginWithRole — verifies the role's password server-side via the
+   * verify-login Edge Function. Passwords never leave the server; the browser
+   * bundle contains no credentials.
    *
    * @param {string} password
-   * @param {'Admin'|'Technician'} role
+   * @param {'Admin'|'Staff'|'Technician'} role
    * @param {{rememberMe?: boolean}} opts
    * @returns {Promise<boolean>} true on success, false on wrong password.
    * @throws {Error} if the Edge Function is unreachable or misconfigured.

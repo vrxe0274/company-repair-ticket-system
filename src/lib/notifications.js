@@ -1,8 +1,11 @@
 import { supabase } from './supabase'
 import { softFail } from './errors'
 
-// Role constants (kept local so this module has no circular import with hooks)
-export const NOTIFY_ROLES = { ADMIN: 'Admin', TECHNICIAN: 'Technician' }
+// Role constants (kept local so this module has no circular import with hooks).
+// Notifications are routed to the Staff queue or the Technician. The Admin acts
+// on the Staff queue, so Admin-actor changes are normalized to Staff and the
+// Admin reads the Staff notification stream (see useNotifications).
+export const NOTIFY_ROLES = { STAFF: 'Staff', TECHNICIAN: 'Technician' }
 
 /**
  * Insert a notification row.
@@ -40,7 +43,7 @@ export async function createNotification({
  * format, e.g. "Ready for pickup: Juan Dela Cruz's Meta Quest 3".
  *
  * @param {Object}  args
- * @param {string}  args.actorRole    Who made the change ('Admin' | 'Technician')
+ * @param {string}  args.actorRole    Who made the change ('Admin' | 'Staff' | 'Technician')
  * @param {string}  args.newStatus    The status it was moved to
  * @param {string}  args.ticketLabel  Human-readable label from formatClientUnitLabel(),
  *                                    e.g. "Juan Dela Cruz's Meta Quest 3"
@@ -48,11 +51,13 @@ export async function createNotification({
  */
 export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
   const label = ticketLabel || 'Unnamed Ticket'
-  const other = actorRole === NOTIFY_ROLES.ADMIN ? NOTIFY_ROLES.TECHNICIAN : NOTIFY_ROLES.ADMIN
+  // Admin operates the Staff queue — treat an Admin actor as Staff for routing.
+  const actor = actorRole === 'Admin' ? NOTIFY_ROLES.STAFF : actorRole
+  const other = actor === NOTIFY_ROLES.STAFF ? NOTIFY_ROLES.TECHNICIAN : NOTIFY_ROLES.STAFF
 
   switch (newStatus) {
     case 'Inspection & Quote':
-      // Admin approved a pending ticket — let the technician know.
+      // Staff approved a pending ticket — let the technician know.
       return {
         recipientRole: NOTIFY_ROLES.TECHNICIAN,
         message: `Approved: ${label}`,
@@ -68,9 +73,9 @@ export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
         message: `Repair started: ${label}`,
       }
     case 'Done':
-      // Technician finished — admin should review / mark paid.
+      // Technician finished — staff should review / mark paid.
       return {
-        recipientRole: NOTIFY_ROLES.ADMIN,
+        recipientRole: NOTIFY_ROLES.STAFF,
         message: `Ready for pickup: ${label}`,
       }
     case 'Paid':

@@ -10,7 +10,7 @@
 
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { ClipboardList, CheckCircle, RefreshCw, ChevronRight, Shield, Wrench } from 'lucide-react'
+import { ClipboardList, CheckCircle, RefreshCw, ChevronRight, Shield, ShieldCheck, Wrench } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
 import { TASK_ACTIONS, STATUS_COLORS } from '../../lib/utils'
@@ -125,10 +125,12 @@ export default function TasksPage() {
         {role && TASK_ACTIONS[role] && (
           <div className="hidden lg:block card p-5 w-full">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${role === 'Admin' ? 'bg-brand-50' : 'bg-accent-50'}`}>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${role === 'Technician' ? 'bg-accent-50' : 'bg-brand-50'}`}>
                 {role === 'Admin'
-                  ? <Shield className="w-3.5 h-3.5 text-brand-600" />
-                  : <Wrench className="w-3.5 h-3.5 text-accent-600" />
+                  ? <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
+                  : role === 'Staff'
+                    ? <Shield className="w-3.5 h-3.5 text-brand-600" />
+                    : <Wrench className="w-3.5 h-3.5 text-accent-600" />
                 }
               </div>
               <div>

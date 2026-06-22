@@ -47,7 +47,7 @@ export default function TicketDetailPage() {
     paymentOption, partialHighPct, partialLowPct,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
-    isAdmin, isTechnician, getAllowedTransitions,
+    isManager, isTechnician, getAllowedTransitions,
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
@@ -75,14 +75,14 @@ export default function TicketDetailPage() {
   const quotationLive   = Math.max(0, laborTotal + partsTotal - discountValue)
   const isApproved      = ticket.status !== 'Pending' && ticket.status !== 'Denied'
   const isPaid          = ticket.status === 'Paid'
-  const canSeeNotes     = isAdmin || isTechnician
-  const canSeePricing   = isAdmin || isApproved
+  const canSeeNotes     = isManager || isTechnician
+  const canSeePricing   = isManager || isApproved
   // Once paid the ticket is locked — all fields become read-only regardless of role.
   const canEditNotes    = isTechnician && !isPaid
-  const canEditPricing  = isAdmin && !isPaid
-  const canUndo         = (isAdmin || isTechnician) && !!ticket.previous_status && ticket.previous_status !== ticket.status
+  const canEditPricing  = isManager && !isPaid
+  const canUndo         = (isManager || isTechnician) && !!ticket.previous_status && ticket.previous_status !== ticket.status
   const showActions     = nextStatuses.length > 0 || canUndo
-  const statusGuidance  = isAdmin ? STATUS_GUIDANCE.Admin[ticket.status]
+  const statusGuidance  = isManager ? STATUS_GUIDANCE.Staff[ticket.status]
     : isTechnician ? STATUS_GUIDANCE.Technician[ticket.status]
     : null
 
@@ -190,7 +190,7 @@ export default function TicketDetailPage() {
 
       {activeTab === 'admin' && (
         <QuotationTab
-          isAdmin={isAdmin}           canSeePricing={canSeePricing}
+          canSeePricing={canSeePricing}
           canEdit={canEditPricing}
           laborItems={laborItems}     partsItems={partsItems}
           discount={discount}         setDiscount={setDiscount}
@@ -217,7 +217,7 @@ export default function TicketDetailPage() {
 
       {activeTab === 'settings' && (
         <SettingsTab
-          isAdmin={isAdmin}
+          isManager={isManager}
           deleteConfirm={deleteConfirm} setDeleteConfirm={setDeleteConfirm}
           onDelete={deleteTicket}
         />

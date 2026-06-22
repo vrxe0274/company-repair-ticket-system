@@ -20,7 +20,7 @@ import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '
 const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
-  const { isAdmin } = useRole()
+  const { isAdmin, isManager } = useRole()
   const { isDark, toggleTheme } = useTheme()
 
   // Flush DB state (admin only)
@@ -167,8 +167,8 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Danger zone — admin only */}
-        {isAdmin ? (
+        {/* Danger zone — staff & admin (ticket-queue managers) */}
+        {isManager ? (
           <div className="card border border-red-100 p-5">
             <p className="section-title text-red-400 flex items-center gap-2 mb-3">
               <ShieldAlert className="w-3.5 h-3.5" /> Danger Zone
@@ -186,7 +186,7 @@ export default function SettingsPage() {
             <p className="section-title flex items-center gap-2 mb-3">
               <Lock className="w-3.5 h-3.5" /> Danger Zone
             </p>
-            <p className="text-sm font-body text-gray-500">Database actions are restricted to the Admin role.</p>
+            <p className="text-sm font-body text-gray-500">Database actions are restricted to staff and admin.</p>
           </div>
         )}
       </div>

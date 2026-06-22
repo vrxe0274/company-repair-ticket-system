@@ -11,8 +11,8 @@ import { buildStatusNotification, NOTIFY_ROLES } from '../../lib/notifications'
 // ─── NOTIFY_ROLES ─────────────────────────────────────────────────────────────
 
 describe('NOTIFY_ROLES', () => {
-  it('defines Admin constant', () => {
-    expect(NOTIFY_ROLES.ADMIN).toBe('Admin')
+  it('defines Staff constant', () => {
+    expect(NOTIFY_ROLES.STAFF).toBe('Staff')
   })
 
   it('defines Technician constant', () => {
@@ -21,13 +21,17 @@ describe('NOTIFY_ROLES', () => {
 })
 
 // ─── buildStatusNotification ─────────────────────────────────────────────────
+//
+// Routing rule: the queue side is "Staff". An Admin actor is normalized to
+// Staff (Admin operates the Staff queue), so it routes identically to a Staff
+// actor and the Admin reads the Staff notification stream.
 
 describe('buildStatusNotification', () => {
   const label = "Juan Dela Cruz's Meta Quest 3"
 
   it('Inspection & Quote: notifies Technician regardless of actor', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Inspection & Quote',
       ticketLabel: label,
     })
@@ -37,7 +41,7 @@ describe('buildStatusNotification', () => {
 
   it('Denied: notifies Technician', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Denied',
       ticketLabel: label,
     })
@@ -45,19 +49,19 @@ describe('buildStatusNotification', () => {
     expect(result.message).toBe(`Denied: ${label}`)
   })
 
-  it('Repair in Progress (Technician actor): notifies Admin (the other role)', () => {
+  it('Repair in Progress (Technician actor): notifies Staff (the other side)', () => {
     const result = buildStatusNotification({
       actorRole: 'Technician',
       newStatus: 'Repair in Progress',
       ticketLabel: label,
     })
-    expect(result.recipientRole).toBe('Admin')
+    expect(result.recipientRole).toBe('Staff')
     expect(result.message).toBe(`Repair started: ${label}`)
   })
 
-  it('Repair in Progress (Admin actor): notifies Technician (the other role)', () => {
+  it('Repair in Progress (Staff actor): notifies Technician (the other side)', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Repair in Progress',
       ticketLabel: label,
     })
@@ -65,19 +69,28 @@ describe('buildStatusNotification', () => {
     expect(result.message).toBe(`Repair started: ${label}`)
   })
 
-  it('Done: always notifies Admin (ready for pickup)', () => {
+  it('Repair in Progress (Admin actor): normalized to Staff → notifies Technician', () => {
+    const result = buildStatusNotification({
+      actorRole: 'Admin',
+      newStatus: 'Repair in Progress',
+      ticketLabel: label,
+    })
+    expect(result.recipientRole).toBe('Technician')
+  })
+
+  it('Done: always notifies Staff (ready for pickup)', () => {
     const result = buildStatusNotification({
       actorRole: 'Technician',
       newStatus: 'Done',
       ticketLabel: label,
     })
-    expect(result.recipientRole).toBe('Admin')
+    expect(result.recipientRole).toBe('Staff')
     expect(result.message).toBe(`Ready for pickup: ${label}`)
   })
 
   it('Paid: notifies Technician', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Paid',
       ticketLabel: label,
     })
@@ -87,7 +100,7 @@ describe('buildStatusNotification', () => {
 
   it('uses "Unnamed Ticket" when ticketLabel is empty string', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Paid',
       ticketLabel: '',
     })
@@ -96,16 +109,16 @@ describe('buildStatusNotification', () => {
 
   it('uses "Unnamed Ticket" when ticketLabel is null', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Paid',
       ticketLabel: null,
     })
     expect(result.message).toBe('Paid: Unnamed Ticket')
   })
 
-  it('unknown status falls through to generic message with other-role recipient', () => {
+  it('unknown status falls through to generic message with other-side recipient', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Some Future Status',
       ticketLabel: label,
     })
@@ -115,10 +128,10 @@ describe('buildStatusNotification', () => {
 
   it('never sends notification to the actor themselves for Inspection & Quote', () => {
     const result = buildStatusNotification({
-      actorRole: 'Admin',
+      actorRole: 'Staff',
       newStatus: 'Inspection & Quote',
       ticketLabel: label,
     })
-    expect(result.recipientRole).not.toBe('Admin')
+    expect(result.recipientRole).not.toBe('Staff')
   })
 })

@@ -2,15 +2,15 @@
  * @file LoginPage.jsx
  * @description Staff login page — two-step flow:
  *
- *   Step 1: Pick a role (Admin / Technician).
+ *   Step 1: Pick a role (Admin / Staff / Technician).
  *   Step 2: Enter the password for that role.
  *
  * There is no username — the password alone determines access per role.
  *
  * Auth flow:
  *   1. User selects a role, then enters the role's password.
- *   2. loginWithRole() compares against the matching VITE_*_PASSWORD env var.
- *   3. On success, setRole() persists the role to sessionStorage via RoleProvider.
+ *   2. loginWithRole() verifies the password server-side (verify-login).
+ *   3. On success, setRole() persists the role to the session via RoleProvider.
  *   4. navigate('/') → ProtectedRoute lets them through.
  */
 
@@ -48,6 +48,11 @@ const ROLE_BUTTON_STYLES = {
 /** Role display config used by both steps. */
 const ROLE_CONFIG = {
   [ROLES.ADMIN]: {
+    icon:        ShieldCheck,
+    color:       'brand',
+    description: 'Manage accounts & terms, plus everything staff can do',
+  },
+  [ROLES.STAFF]: {
     icon:        Shield,
     color:       'brand',
     description: 'Approve / deny tickets, manage queue, mark as paid',

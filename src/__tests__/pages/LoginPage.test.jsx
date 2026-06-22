@@ -19,7 +19,7 @@ vi.mock('../../hooks/useAuth.jsx', () => ({
 
 vi.mock('../../hooks/useRole.jsx', () => ({
   useRole: () => ({ setRole: mockSetRole }),
-  ROLES: { ADMIN: 'Admin', TECHNICIAN: 'Technician' },
+  ROLES: { ADMIN: 'Admin', STAFF: 'Staff', TECHNICIAN: 'Technician' },
 }))
 
 vi.mock('../../lib/session', () => ({
@@ -43,9 +43,10 @@ function renderLogin() {
 describe('LoginPage — step 1 (role selection)', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('renders both role buttons on step 1', () => {
+  it('renders all three role buttons on step 1', () => {
     renderLogin()
     expect(screen.getByText('Admin')).toBeInTheDocument()
+    expect(screen.getByText('Staff')).toBeInTheDocument()
     expect(screen.getByText('Technician')).toBeInTheDocument()
   })
 
@@ -78,20 +79,23 @@ describe('LoginPage — step 2 (password)', () => {
 
   it('calls loginWithRole with the selected role and password', async () => {
     mockLoginWith.mockResolvedValue(true)
-    goToStep2('Admin')
+    goToStep2('Staff')
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'secret' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in as/i }))
     await waitFor(() => {
-      expect(mockLoginWith).toHaveBeenCalledWith('secret', 'Admin', expect.any(Object))
+      expect(mockLoginWith).toHaveBeenCalledWith('secret', 'Staff', expect.any(Object))
     })
   })
 
-  it('navigates to / on successful login', async () => {
+  it('sets the selected role and navigates to / on successful login', async () => {
     mockLoginWith.mockResolvedValue(true)
     goToStep2('Admin')
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'secret' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in as/i }))
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+    await waitFor(() => {
+      expect(mockSetRole).toHaveBeenCalledWith('Admin')
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+    })
   })
 
   it('shows incorrect password error on failed login', async () => {

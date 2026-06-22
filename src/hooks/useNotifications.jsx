@@ -6,26 +6,28 @@ const NotificationsContext = createContext(null)
 
 export function NotificationsProvider({ children }) {
   const { role } = useRole()
+  // Admin shares the Staff queue's notifications (Admin is a superset of Staff).
+  const notifyRole = role === 'Admin' ? 'Staff' : role
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // ── Fetch current role's notifications ─────────────────────────────────────
+  // ── Fetch this user's notification stream ──────────────────────────────────
   const fetchNotifications = useCallback(async () => {
-    if (!role) { setNotifications([]); return }
+    if (!notifyRole) { setNotifications([]); return }
     setLoading(true)
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('recipient_role', role)
+      .eq('recipient_role', notifyRole)
       .order('created_at', { ascending: false })
       .limit(100)
     if (!error) setNotifications(data || [])
     setLoading(false)
-  }, [role])
+  }, [notifyRole])
 
   // ── Initial load + live subscription ───────────────────────────────────────
   useEffect(() => {
-    if (!role) {
+    if (!notifyRole) {
       setNotifications([])
       return
     }
@@ -33,10 +35,10 @@ export function NotificationsProvider({ children }) {
     fetchNotifications()
 
     const channel = supabase
-      .channel(`notifications-${role}`)
+      .channel(`notifications-${notifyRole}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_role=eq.${role}` },
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_role=eq.${notifyRole}` },
         (payload) => {
           setNotifications(prev =>
             prev.some(n => n.id === payload.new.id) ? prev : [payload.new, ...prev]
@@ -45,7 +47,7 @@ export function NotificationsProvider({ children }) {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_role=eq.${role}` },
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_role=eq.${notifyRole}` },
         (payload) => {
           setNotifications(prev => prev.map(n => (n.id === payload.new.id ? payload.new : n)))
         }
@@ -59,21 +61,21 @@ export function NotificationsProvider({ children }) {
       supabase.removeChannel(channel)
       clearInterval(interval)
     }
-  }, [role, fetchNotifications])
+  }, [notifyRole, fetchNotifications])
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const unseenCount = notifications.filter(n => !n.seen).length
 
   // ── Mark actions (optimistic, then persist) ─────────────────────────────────
   const markAllSeen = useCallback(async () => {
-    if (!role) return
+    if (!notifyRole) return
     setNotifications(prev => prev.map(n => (n.seen ? n : { ...n, seen: true })))
     await supabase
       .from('notifications')
       .update({ seen: true })
-      .eq('recipient_role', role)
+      .eq('recipient_role', notifyRole)
       .eq('seen', false)
-  }, [role])
+  }, [notifyRole])
 
   const markSeen = useCallback(async (id) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, seen: true } : n)))

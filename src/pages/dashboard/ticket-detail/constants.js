@@ -3,7 +3,7 @@ export const PDF_DOWNLOAD_DELAY_MS = 300
 export const MAX_PHOTO_BYTES       = 10 * 1024 * 1024
 
 export const STATUS_GUIDANCE = {
-  Admin: {
+  Staff: {
     'Pending':            'Your action: review the request — approve or deny.',
     'Inspection & Quote': 'Your action: add the quotation. The technician inspects the unit and saves the diagnosis.',
     'Repair in Progress': 'Waiting for the technician to finish the repair…',
@@ -12,8 +12,8 @@ export const STATUS_GUIDANCE = {
     'Denied':             'Request denied — no further action needed.',
   },
   Technician: {
-    'Pending':            'Waiting for the admin to review the request…',
-    'Inspection & Quote': 'Your action: inspect the unit and save the diagnosis. The admin adds the quotation.',
+    'Pending':            'Waiting for staff to review the request…',
+    'Inspection & Quote': 'Your action: inspect the unit and save the diagnosis. Staff adds the quotation.',
     'Repair in Progress': 'Your action: finish the repair — add notes & photos, then mark Done.',
     'Done':               'Waiting for the admin to collect payment…',
     'Paid':               'Ticket complete — payment received.',

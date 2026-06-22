@@ -2,10 +2,10 @@
  * @file session.js
  * @description Persistent-session storage shared by useAuth and useRole.
  *
- * The app has no Supabase Auth users/tokens — login is a client-side password
+ * The app has no Supabase Auth users/tokens — login is a per-role password
  * check (see useAuth.jsx). "Session" here is a single JSON record:
  *
- *   { v: 1, role: 'Admin'|'Technician', persistent: bool, expiresAt: number|null }
+ *   { v: 1, role: 'Admin'|'Staff'|'Technician', persistent: bool, expiresAt: number|null }
  *
  * Storage rules (Feature: persistent login / stay signed in):
  *   - persistent === true  → localStorage, 30-day sliding expiry.
@@ -23,6 +23,9 @@
  */
 
 const SESSION_KEY = 'vrxe_session'
+
+/** Valid role strings (kept local to avoid a circular import with useRole). */
+const VALID_ROLES = new Set(['Admin', 'Staff', 'Technician'])
 
 /** Pre-rewrite keys — migrated then removed on first load. */
 const LEGACY_AUTH_KEY = 'vrxe_auth'
@@ -46,7 +49,7 @@ export function isStandalone() {
 function parse(raw) {
   try {
     const s = JSON.parse(raw)
-    return s && (s.role === 'Admin' || s.role === 'Technician') ? s : null
+    return s && VALID_ROLES.has(s.role) ? s : null
   } catch {
     return null
   }
@@ -89,7 +92,7 @@ function migrateLegacySession() {
   const role = sessionStorage.getItem(LEGACY_ROLE_KEY)
   sessionStorage.removeItem(LEGACY_AUTH_KEY)
   sessionStorage.removeItem(LEGACY_ROLE_KEY)
-  if (auth === 'true' && (role === 'Admin' || role === 'Technician')) {
+  if (auth === 'true' && VALID_ROLES.has(role)) {
     return saveSession(role, { persistent: isStandalone() })
   }
   return null
@@ -97,7 +100,7 @@ function migrateLegacySession() {
 
 /**
  * Create/replace the session record after a successful login.
- * @param {'Admin'|'Technician'} role
+ * @param {'Admin'|'Staff'|'Technician'} role
  * @param {{persistent?: boolean}} opts - persistent is forced on in standalone PWA.
  */
 export function saveSession(role, { persistent = false } = {}) {

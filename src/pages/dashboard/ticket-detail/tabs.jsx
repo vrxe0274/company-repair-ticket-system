@@ -190,7 +190,7 @@ export function TechTab({
 }
 
 export function QuotationTab({
-  isAdmin, canSeePricing, canEdit,
+  canSeePricing, canEdit,
   laborItems, partsItems,
   discount, setDiscount,
   finalPrice, setFinalPrice,
@@ -491,7 +491,7 @@ export function QuotationTab({
   )
 }
 
-export function SettingsTab({ isAdmin, deleteConfirm, setDeleteConfirm, onDelete }) {
+export function SettingsTab({ isManager, deleteConfirm, setDeleteConfirm, onDelete }) {
   const [pw, setPw]     = useState('')
   const [err, setErr]   = useState('')
   const [busy, setBusy] = useState(false)
@@ -509,7 +509,7 @@ export function SettingsTab({ isAdmin, deleteConfirm, setDeleteConfirm, onDelete
 
   return (
     <div className="space-y-5">
-      {isAdmin ? (
+      {isManager ? (
         <div className="card border border-red-100 p-5">
           <p className="section-title text-red-400 flex items-center gap-2 mb-3">
             <Trash2 className="w-3.5 h-3.5" /> Delete Ticket

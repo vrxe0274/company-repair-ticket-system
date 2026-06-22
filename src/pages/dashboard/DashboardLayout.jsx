@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Shield, Wrench, Bell, ClipboardList, Settings,
+  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -58,7 +58,7 @@ const NOTIFICATION_BADGE_MAX = 99
 /** DashboardLayout — the persistent shell rendered for all dashboard routes. */
 export default function DashboardLayout() {
   const { logout }               = useAuth()
-  const { role, clearRole, isAdmin, getAllowedTransitions } = useRole()
+  const { role, clearRole, getAllowedTransitions } = useRole()
   const { unseenCount }          = useNotifications()
   const [taskCount, setTaskCount] = useState(0)
   const location                 = useLocation()
@@ -112,10 +112,13 @@ export default function DashboardLayout() {
 
   // ── Derived role display values ──────────────────────────────────────────
 
-  // role can be null during the brief window between mount and sessionStorage read.
-  const RoleIcon  = role === 'Admin' ? Shield : Wrench
-  const roleColor = role === 'Admin' ? 'text-brand-400'              : 'text-accent-400'
-  const roleBg    = role === 'Admin' ? 'bg-brand-900/30 border-brand-700/40' : 'bg-accent-900/30 border-accent-700/40'
+  // role can be null during the brief window between mount and session read.
+  // Admin & Staff share the brand palette (queue side); Technician uses accent.
+  const RoleIcon  = role === 'Admin' ? ShieldCheck : role === 'Staff' ? Shield : Wrench
+  const roleColor = role === 'Technician' ? 'text-accent-400' : 'text-brand-400'
+  const roleBg    = role === 'Technician'
+    ? 'bg-accent-900/30 border-accent-700/40'
+    : 'bg-brand-900/30 border-brand-700/40'
 
   // ── Sidebar content (extracted so it can be shared by both desktop and mobile) ──
 

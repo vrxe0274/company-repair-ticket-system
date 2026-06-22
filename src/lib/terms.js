@@ -49,12 +49,14 @@ export async function getTerms() {
   return data ? data.value : DEFAULT_TERMS
 }
 
+/** Save custom terms. Gated to the Admin role in the UI (SettingsPage). */
 export async function saveTerms(sections) {
   await supabase
     .from('app_settings')
     .upsert({ key: TERMS_KEY, value: sections })
 }
 
+/** Reset to default terms by deleting the custom record. Admin-only in the UI. */
 export async function resetTerms() {
   await supabase
     .from('app_settings')
