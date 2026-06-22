@@ -17,19 +17,25 @@ export const DEFAULT_TERMS = [
     content: 'Full payment is required upon completion of the repair before the unit is released. If you choose to decline the quotation after inspection, a minimal inspection fee may apply.',
   },
   {
-    title: '4. Data & Content',
+    title: '4. Discounts',
+    // PLACEHOLDER — replace with the real discount range criteria before launch.
+    // Edit via Dashboard → Settings → Edit Terms. Do not ship this copy as-is.
+    content: '[PLACEHOLDER — discount range criteria to be provided.] Discounts, when offered, are applied at our discretion based on the following criteria: <describe who qualifies and the corresponding discount range, e.g. "Returning clients: up to X%", "Bulk / multiple units: up to Y%">. The applicable discount, if any, will be reflected in your repair quotation.',
+  },
+  {
+    title: '5. Data & Content',
     content: 'We are not responsible for any data, accounts, or saved content on the device. We strongly recommend backing up your data before submitting your unit for repair.',
   },
   {
-    title: '5. Warranty on Repairs',
+    title: '6. Warranty on Repairs',
     content: 'Completed repairs carry a 30-day warranty covering the same issue that was repaired, though warranty coverage may vary depending on the type of repair performed. The warranty is void if the unit shows signs of physical damage, unauthorized tampering, or liquid exposure after it has been released to the client.',
   },
   {
-    title: '6. Unclaimed Units',
+    title: '7. Unclaimed Units',
     content: 'Units not claimed within 30 days after repair completion will be subject to a storage fee. Units left unclaimed for more than 90 days may be forfeited without further notice.',
   },
   {
-    title: '7. Liability',
+    title: '8. Liability',
     content: 'We handle all units with the utmost care. However, we are not liable for pre-existing damage or faults unrelated to the reported issue that may become apparent during the repair process.',
   },
 ]

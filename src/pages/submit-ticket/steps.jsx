@@ -4,7 +4,7 @@ import {
   User, Cpu, CalendarClock,
 } from 'lucide-react'
 import {
-  PLATFORMS, VR_BRANDS, VR_ISSUES, UNIT_TYPES, MODES_OF_SERVICE, getTrackingUrl,
+  PLATFORMS, VR_BRANDS, VR_ISSUES, UNIT_TYPES, UNIT_CONDITIONS, MODES_OF_SERVICE, getTrackingUrl,
 } from '../../lib/utils'
 import { PublicHeader, StepHeading, Field, SummaryRow } from './components'
 import { getTerms, DEFAULT_TERMS } from '../../lib/terms'
@@ -66,6 +66,12 @@ export function Step2UnitInfo({ form, errors, handleChange }) {
           <input className="input-field" name="unit_type_custom" value={form.unit_type_custom} onChange={handleChange} placeholder="Describe the unit type" />
         </Field>
       )}
+      <Field label="Condition of Unit *" error={errors.unit_condition}>
+        <select className="input-field" name="unit_condition" value={form.unit_condition} onChange={handleChange}>
+          <option value="">Select condition</option>
+          {UNIT_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </Field>
       <Field label="Accessories Included">
         <input className="input-field" name="accessories_included" value={form.accessories_included} onChange={handleChange} placeholder="e.g. charging cable, carry case (optional)" />
       </Field>

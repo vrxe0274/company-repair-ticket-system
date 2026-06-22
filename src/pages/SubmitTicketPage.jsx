@@ -1,12 +1,13 @@
 /**
  * @file SubmitTicketPage.jsx
- * @description Public 4-step ticket submission form. No auth required.
+ * @description Public 5-step ticket submission form. No auth required.
  *
  * Flow:
- *   Step 1 — Client info (name, contact, email, address, platform)
- *   Step 2 — Unit info  (brand, model, type)
- *   Step 3 — Issue      (preset selector + free-text description)
- *   Step 4 — Appointment (date, time, mode of service) → submit
+ *   Step 1 — Terms & Conditions (must accept before proceeding)
+ *   Step 2 — Client info (name, contact, email, address, platform)
+ *   Step 3 — Unit info  (brand, model, type, condition)
+ *   Step 4 — Issue      (preset selector + free-text description)
+ *   Step 5 — Appointment (date, time, mode of service) → submit
  *
  * On success the form resets and a confirmation screen is shown with the
  * generated Ticket ID and a copyable tracking URL.
@@ -73,8 +74,9 @@ export default function SubmitTicketPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const errs = validateStep(form, 4)
+    const errs = validateStep(form, 5)  // step 5 = Appointment (the submit step)
     if (Object.keys(errs).length) { setErrors(errs); return }
+    if (!termsAccepted) { setStep(1); return }  // safety net — Terms is step 1
     setSubmitting(true)
     try {
       const ticketId      = await generateTicketId(supabase)
@@ -91,6 +93,7 @@ export default function SubmitTicketPage() {
         unit_brand:           resolvedBrand,
         unit_model:           form.unit_model,
         unit_type:            resolvedType,
+        unit_condition:       form.unit_condition,
         accessories_included: form.accessories_included || null,
         issue_description:    form.issue_description,
         preferred_date:       form.preferred_date  || null,
@@ -230,11 +233,11 @@ export default function SubmitTicketPage() {
       <main className="flex-1 px-6 py-8">
         <form onSubmit={handleSubmit} noValidate className="max-w-2xl mx-auto">
           <div className="card p-6 animate-slide-up" key={step}>
-            {step === 1 && <Step1ClientInfo form={form} errors={errors} handleChange={handleChange} />}
-            {step === 2 && <Step2UnitInfo   form={form} errors={errors} handleChange={handleChange} />}
-            {step === 3 && <Step3Issue      form={form} errors={errors} handleChange={handleChange} handleIssuePreset={handleIssuePreset} />}
-            {step === 4 && <Step4Appointment form={form} errors={errors} handleChange={handleChange} />}
-            {step === 5 && <Step5Terms termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} />}
+            {step === 1 && <Step5Terms termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} />}
+            {step === 2 && <Step1ClientInfo form={form} errors={errors} handleChange={handleChange} />}
+            {step === 3 && <Step2UnitInfo   form={form} errors={errors} handleChange={handleChange} />}
+            {step === 4 && <Step3Issue      form={form} errors={errors} handleChange={handleChange} handleIssuePreset={handleIssuePreset} />}
+            {step === 5 && <Step4Appointment form={form} errors={errors} handleChange={handleChange} />}
           </div>
 
           {/* Navigation buttons */}
@@ -249,7 +252,12 @@ export default function SubmitTicketPage() {
             </button>
 
             {step < STEPS.length ? (
-              <button type="button" onClick={next} className="btn-primary">
+              <button
+                type="button"
+                onClick={next}
+                disabled={step === 1 && !termsAccepted}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Next <ChevronRight className="w-4 h-4" />
               </button>
             ) : (

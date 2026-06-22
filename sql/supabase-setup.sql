@@ -25,6 +25,7 @@ CREATE TABLE tickets (
   unit_brand TEXT NOT NULL,
   unit_model TEXT NOT NULL,
   unit_type TEXT NOT NULL,
+  unit_condition TEXT,
   accessories_included TEXT,
 
   -- Issue
@@ -55,11 +56,23 @@ CREATE TABLE tickets (
   -- Itemized pricing (Admin-only)
   labor_items JSONB NOT NULL DEFAULT '[]'::jsonb,
   parts_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- Manual discount percentage (0–100); discount_amount is the resolved peso value.
+  discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
   discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
 
   -- Computed totals
   quotation_amount NUMERIC(10,2),
   final_price NUMERIC(10,2),
+
+  -- Payment plan — chosen by the client on the tracker page. The plan sets the
+  -- maximum discount the admin may grant on the quotation:
+  --   full_now  → up to payment_partial_high_pct% discount
+  --   half_now  → up to payment_partial_low_pct%  discount
+  --   pay_later → no discount
+  payment_option TEXT
+    CHECK (payment_option IS NULL OR payment_option IN ('full_now', 'half_now', 'pay_later')),
+  payment_partial_high_pct NUMERIC(5,2) DEFAULT 40,
+  payment_partial_low_pct  NUMERIC(5,2) DEFAULT 20,
 
   -- Receipt number (auto-generated when marked Paid)
   receipt_number TEXT,

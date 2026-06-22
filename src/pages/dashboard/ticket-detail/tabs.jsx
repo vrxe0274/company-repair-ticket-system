@@ -8,6 +8,7 @@ import {
 import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine } from './components'
 import { peso } from './helpers'
 import { DIAGNOSIS_FEE } from '../../../lib/constants'
+import { paymentPlanLabel, discountCapFor } from '../../../lib/utils'
 
 export function OverviewTab({
   ticket, statusGuidance,
@@ -46,6 +47,7 @@ export function OverviewTab({
             <InfoBox label="Brand"           value={ticket.unit_brand} accent />
             <InfoBox label="Model"           value={ticket.unit_model} accent />
             <InfoBox label="Type"            value={ticket.unit_type} />
+            <InfoBox label="Condition"       value={ticket.unit_condition || '—'} />
             <InfoBox label="Mode of Service" value={ticket.mode_of_service} />
             <InfoBox label="Preferred Date"  value={ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'} />
             <InfoBox label="Preferred Time"  value={ticket.preferred_time || '—'} />
@@ -192,6 +194,7 @@ export function QuotationTab({
   laborItems, partsItems,
   discount, setDiscount,
   finalPrice, setFinalPrice,
+  paymentOption, partialHighPct, partialLowPct,
   saving, saveMsg,
   laborTotal, partsTotal, discountValue, quotationLive,
   paymentProofUrl, uploadingProof, proofInputRef, onUploadProof, onDeleteProof,
@@ -201,6 +204,12 @@ export function QuotationTab({
   onToggleDiagnosis,
 }) {
   const diagnosisIncluded = laborItems.some(it => it.description === 'Diagnosis')
+  // The payment plan is chosen by the CLIENT on the tracker page — read-only here.
+  // The chosen plan caps how large a discount the admin may grant:
+  //   full_now → up to partialHighPct%, half_now → up to partialLowPct%, pay_later → 0%.
+  const discountCap = discountCapFor(paymentOption, partialHighPct, partialLowPct)
+  // Effective discount after the plan cap — what is actually applied / displayed.
+  const effDiscountPct = Math.min(discountCap, Math.max(0, parseFloat(discount) || 0))
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {canSeePricing ? (
@@ -303,18 +312,52 @@ export function QuotationTab({
                   </button>
                 )}
               </div>
+
+              {/* Payment plan — chosen by the client on the tracker page.
+                  Read-only here. The chosen plan sets the maximum discount the
+                  admin may grant (see the Discount % field below). */}
+              <div className="border-t border-gray-100 pt-5">
+                <label className="label mb-2">Payment Plan <span className="font-normal text-gray-400">(chosen by client)</span></label>
+                {paymentOption ? (
+                  <div className="p-3 rounded-lg border bg-brand-50 border-brand-200">
+                    <p className="text-sm font-sans font-semibold text-gray-800">
+                      {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
+                    </p>
+                    <p className="text-xs font-body text-gray-500 mt-1">
+                      {discountCap > 0
+                        ? <>Discount allowed: up to <span className="font-mono text-gray-700">{discountCap}%</span></>
+                        : 'No discount allowed for this plan.'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm font-body text-gray-400 italic">
+                    Client hasn’t selected a payment plan yet — they choose it on their tracking page. No discount can be applied until they do.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Discount + save — pinned to bottom of card */}
             <div className="border-t border-gray-100 pt-4 mt-4 space-y-3 shrink-0">
               <div className="flex items-center gap-3 flex-wrap">
-                <label className="label w-24 shrink-0 mb-0">Discount</label>
+                <label className="label w-24 shrink-0 mb-0">Discount %</label>
                 {canEdit ? (
-                  <div className="relative flex-1 min-w-[10rem] sm:flex-none sm:w-32">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
-                    <input type="number" min="0" step="0.01" value={discount}
-                      onChange={e => setDiscount(e.target.value)} placeholder="0.00"
-                      className="input-field pl-7 text-sm text-right font-mono" />
+                  <div className="flex items-center gap-3 flex-1 flex-wrap">
+                    <div className="relative w-28">
+                      <input type="number" min="0" max={discountCap} step="0.01" value={discount}
+                        disabled={discountCap === 0}
+                        onChange={e => setDiscount(e.target.value)} placeholder="0"
+                        className="input-field pr-7 text-sm text-right font-mono disabled:opacity-50 disabled:cursor-not-allowed" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
+                    </div>
+                    {discountValue > 0 && (
+                      <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
+                    )}
+                    <span className="text-xs font-body text-gray-400 w-full">
+                      {discountCap > 0
+                        ? `Max ${discountCap}% for the client's chosen plan${Number(discount) > discountCap ? ' — will be capped on save' : ''}`
+                        : 'No discount allowed — depends on the payment plan the client chooses.'}
+                    </span>
                   </div>
                 ) : (
                   <span className="font-mono text-sm text-gray-700">
@@ -349,7 +392,7 @@ export function QuotationTab({
               <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
               <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
               {discountValue > 0 && (
-                <SummaryLine label="Discount" value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
+                <SummaryLine label={`Discount${effDiscountPct ? ` (${effDiscountPct}%)` : ''}`} value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
               )}
               <div className="border-t border-gray-200 pt-3 mt-1 flex items-center justify-between">
                 <span className="text-sm font-sans font-bold text-gray-700">Quotation Total</span>

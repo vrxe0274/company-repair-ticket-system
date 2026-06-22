@@ -3,6 +3,7 @@ import {
   emptyItem,
   peso,
   sumItems,
+  discountAmount,
   computeQuotation,
 } from '../../pages/dashboard/ticket-detail/helpers'
 
@@ -78,20 +79,52 @@ describe('sumItems', () => {
   })
 })
 
-// ─── computeQuotation ────────────────────────────────────────────────────────
+// ─── discountAmount ──────────────────────────────────────────────────────────
+// `discountAmount(base, percent)` resolves a manual percentage to a peso value.
 
-describe('computeQuotation', () => {
-  it('sums labor + parts and subtracts discount', () => {
-    const labor = [{ amount: '1000' }]
-    const parts = [{ amount: '500' }]
-    expect(computeQuotation(labor, parts, '200')).toBe(1300)
+describe('discountAmount', () => {
+  it('returns the percentage of the base', () => {
+    expect(discountAmount(1500, 10)).toBe(150)
   })
 
-  it('treats empty discount string as 0', () => {
+  it('treats empty / non-numeric percent as 0', () => {
+    expect(discountAmount(1500, '')).toBe(0)
+    expect(discountAmount(1500, 'abc')).toBe(0)
+  })
+
+  it('clamps percent above 100 to 100', () => {
+    expect(discountAmount(1500, 999)).toBe(1500)
+  })
+
+  it('clamps negative percent to 0', () => {
+    expect(discountAmount(1500, -10)).toBe(0)
+  })
+
+  it('rounds to 2 decimals', () => {
+    expect(discountAmount(1000, 12.345)).toBe(123.45)
+  })
+})
+
+// ─── computeQuotation ────────────────────────────────────────────────────────
+// Third arg is now a manual discount PERCENTAGE, not a peso amount.
+
+describe('computeQuotation', () => {
+  it('sums labor + parts and subtracts a percentage discount', () => {
+    const labor = [{ amount: '1000' }]
+    const parts = [{ amount: '500' }]
+    // 10% of 1500 = 150 → 1350
+    expect(computeQuotation(labor, parts, '10')).toBe(1350)
+  })
+
+  it('treats empty discount string as 0%', () => {
     expect(computeQuotation([{ amount: '1000' }], [{ amount: '500' }], '')).toBe(1500)
   })
 
-  it('floors at 0 — discount cannot make total negative', () => {
+  it('100% discount floors the total at 0', () => {
+    expect(computeQuotation([{ amount: '100' }], [], '100')).toBe(0)
+  })
+
+  it('clamps percent above 100 so total never goes negative', () => {
     expect(computeQuotation([{ amount: '100' }], [], '9999')).toBe(0)
   })
 
@@ -99,16 +132,18 @@ describe('computeQuotation', () => {
     expect(computeQuotation([], [], '')).toBe(0)
   })
 
-  it('handles decimal precision correctly', () => {
+  it('handles decimal precision correctly with 0% discount', () => {
     expect(computeQuotation([{ amount: '750.50' }], [{ amount: '249.50' }], '0'))
       .toBeCloseTo(1000)
   })
 
   it('works with no parts items', () => {
-    expect(computeQuotation([{ amount: '800' }], [], '100')).toBe(700)
+    // 25% of 800 = 200 → 600
+    expect(computeQuotation([{ amount: '800' }], [], '25')).toBe(600)
   })
 
   it('works with no labor items', () => {
-    expect(computeQuotation([], [{ amount: '350' }], '50')).toBe(300)
+    // 50% of 350 = 175 → 175
+    expect(computeQuotation([], [{ amount: '350' }], '50')).toBe(175)
   })
 })

@@ -166,7 +166,7 @@ export function downloadTicketPDF(ticket) {
     ['Brand',       ticket.unit_brand,   'Type',            ticket.unit_type],
     ['Model',       ticket.unit_model,   'Mode of Service', ticket.mode_of_service],
     ['Accessories', ticket.accessories_included || 'None', 'Preferred Date', ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'],
-    [null, null, 'Preferred Time', ticket.preferred_time || '—'],
+    ['Condition', ticket.unit_condition || '—', 'Preferred Time', ticket.preferred_time || '—'],
   ]
 
   unitRows.forEach(([l1, v1, l2, v2]) => {
@@ -341,10 +341,20 @@ export function downloadTicketPDF(ticket) {
     const SUMMARY_ROWS  = []
 
     if (ticket.discount_amount > 0) {
-      SUMMARY_ROWS.push({ label: 'Discount', value: `- ${peso(ticket.discount_amount)}`, color: C.green })
+      const dLabel = ticket.discount_percent > 0 ? `Discount (${ticket.discount_percent}%)` : 'Discount'
+      SUMMARY_ROWS.push({ label: dLabel, value: `- ${peso(ticket.discount_amount)}`, color: C.green })
     }
     if (ticket.quotation_amount != null) {
       SUMMARY_ROWS.push({ label: 'Quotation Total', value: peso(ticket.quotation_amount), color: C.brandPurple, bold: true })
+    }
+    // Payment plan chosen by the client (the applied discount, if any, is shown
+    // on its own Discount row above).
+    if (ticket.payment_option) {
+      const planText = ticket.payment_option === 'pay_later' ? 'Pay later'
+        : ticket.payment_option === 'full_now' ? 'Pay full now'
+        : ticket.payment_option === 'half_now' ? 'Pay half now'
+        : ''
+      if (planText) SUMMARY_ROWS.push({ label: 'Payment Plan', value: planText, color: C.gray })
     }
 
     const boxH = SUMMARY_ROWS.length * 7 + 4

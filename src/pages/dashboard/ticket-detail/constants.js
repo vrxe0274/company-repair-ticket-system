@@ -24,9 +24,10 @@ export const STATUS_GUIDANCE = {
 export const TICKET_COLUMNS = [
   'id', 'ticket_id', 'status', 'previous_status', 'created_at', 'updated_at', 'paid_at', 'receipt_number',
   'tracking_token', 'client_name', 'contact_number', 'platform', 'email',
-  'address', 'unit_brand', 'unit_model', 'unit_type', 'mode_of_service',
+  'address', 'unit_brand', 'unit_model', 'unit_type', 'unit_condition', 'mode_of_service',
   'preferred_date', 'preferred_time', 'accessories_included', 'issue_description',
   'diagnosis_notes', 'repair_notes', 'repair_photos',
-  'labor_items', 'parts_items', 'discount_amount', 'quotation_amount', 'final_price',
+  'labor_items', 'parts_items', 'discount_percent', 'discount_amount', 'quotation_amount', 'final_price',
   'payment_proof_url',
+  'payment_option', 'payment_partial_high_pct', 'payment_partial_low_pct',
 ].join(', ')

@@ -11,10 +11,11 @@ import { downloadTicketPDF } from '../../../lib/pdf'
 import { generateReceiptNumber } from '../../../lib/receipt'
 import { useRole }           from '../../../hooks/useRole.jsx'
 import { DIAGNOSIS_FEE }    from '../../../lib/constants'
+import { DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT, discountCapFor } from '../../../lib/utils'
 import {
   TICKET_COLUMNS, SAVE_MSG_DURATION_MS, PDF_DOWNLOAD_DELAY_MS, MAX_PHOTO_BYTES,
 } from './constants'
-import { emptyItem, computeQuotation } from './helpers'
+import { emptyItem, computeQuotation, discountAmount, sumItems } from './helpers'
 
 export function useTicket(id) {
   const navigate      = useNavigate()
@@ -33,6 +34,11 @@ export function useTicket(id) {
   const [partsItems,     setPartsItems]     = useState([emptyItem()])
   const [discount,       setDiscount]       = useState('')
   const [finalPrice,     setFinalPrice]     = useState('')
+  // Payment plan (per-ticket). Caps are configurable per job — defaults applied
+  // when the ticket has none yet. No plan applies any discount (see save below).
+  const [paymentOption,  setPaymentOption]  = useState('')
+  const [partialHighPct, setPartialHighPct] = useState(DEFAULT_PARTIAL_HIGH_PCT)
+  const [partialLowPct,  setPartialLowPct]  = useState(DEFAULT_PARTIAL_LOW_PCT)
   const [saveMsg,          setSaveMsg]          = useState('')
   const [transitionErrors, setTransitionErrors] = useState([])
   const [deleteConfirm,    setDeleteConfirm]    = useState(false)
@@ -96,8 +102,11 @@ export function useTicket(id) {
         ? data.parts_items.map(it => ({ ...it, id: it.id ?? crypto.randomUUID() }))
         : [emptyItem()]
     )
-    setDiscount(data.discount_amount ?? '')
+    setDiscount(data.discount_percent ?? '')  // discount is now a manual percentage
     setFinalPrice(data.final_price ?? '')
+    setPaymentOption(data.payment_option ?? '')
+    setPartialHighPct(data.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
+    setPartialLowPct(data.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)
   }
 
   async function updateStatus(newStatus) {
@@ -238,7 +247,14 @@ export function useTicket(id) {
       .filter(it => it.description.trim() || String(it.amount).trim() !== '')
       .map(({ description, amount }) => ({ description: description.trim(), amount: parseFloat(amount) || 0 }))
     const hasItems  = cleanLabor.length > 0 || cleanParts.length > 0
-    const quotation = computeQuotation(cleanLabor, cleanParts, discount)
+    // `discount` holds a manual percentage. It is capped by the client's chosen
+    // payment plan (full_now → high cap, half_now → low cap, pay_later/none → 0)
+    // and resolved to a peso amount against the (labor + parts) base so
+    // discount_amount stays the source of truth for PDF / receipt / export.
+    const cap         = discountCapFor(paymentOption, partialHighPct, partialLowPct)
+    const discountPct = Math.min(cap, Math.max(0, parseFloat(discount) || 0))
+    const baseTotal   = sumItems(cleanLabor) + sumItems(cleanParts)
+    const quotation   = computeQuotation(cleanLabor, cleanParts, discountPct)
     let patch = {}
     if (scope === 'notes' && isTechnician) {
       patch = { diagnosis_notes: notes.diagnosis_notes || null, repair_notes: notes.repair_notes || null }
@@ -246,8 +262,12 @@ export function useTicket(id) {
       patch = {
         labor_items:      cleanLabor,
         parts_items:      cleanParts,
-        discount_amount:  parseFloat(discount) || 0,
+        discount_percent: discountPct,
+        discount_amount:  discountAmount(baseTotal, discountPct),
         quotation_amount: hasItems ? quotation : null,
+        // NOTE: payment_option is intentionally NOT written here — the client
+        // chooses their payment plan on the tracker page. Saving the quotation
+        // must not clobber their selection.
       }
     } else if (scope === 'payment' && isAdmin) {
       patch = {
@@ -392,6 +412,9 @@ export function useTicket(id) {
     partsItems, setPartsItems,
     discount, setDiscount,
     finalPrice, setFinalPrice,
+    paymentOption, setPaymentOption,
+    partialHighPct, setPartialHighPct,
+    partialLowPct, setPartialLowPct,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
     isAdmin, isTechnician, getAllowedTransitions,
