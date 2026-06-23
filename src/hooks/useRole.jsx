@@ -85,12 +85,24 @@ export function RoleProvider({ children }) {
   // Staff-level access — Admin is a superset of Staff for every queue action.
   const isManager    = isStaff || isAdmin
 
-  /** Returns the list of next statuses this role can move `currentStatus` to */
-  function getAllowedTransitions(currentStatus) {
+  /**
+   * Returns the list of next statuses this role can move the ticket to.
+   * Accepts either a status string (for UI buttons) or a full ticket object
+   * (for task-list filtering). When a ticket object is passed, additional
+   * "already done their part" checks suppress the task:
+   *   - Technician at Inspection & Quote: hidden once diagnosis_notes is saved
+   *   - Staff/Admin at Inspection & Quote: hidden once quotation_amount is saved
+   */
+  function getAllowedTransitions(ticketOrStatus) {
     if (!role) return []
-    // Admin inherits Staff's transition table.
+    const status = typeof ticketOrStatus === 'string' ? ticketOrStatus : ticketOrStatus?.status
+    const ticket = typeof ticketOrStatus === 'object' ? ticketOrStatus : null
     const key = isAdmin ? ROLES.STAFF : role
-    return ROLE_TRANSITIONS[key]?.[currentStatus] || []
+    const transitions = ROLE_TRANSITIONS[key]?.[status] || []
+    if (!transitions.length || !ticket) return transitions
+    if (isTechnician && status === 'Inspection & Quote' && ticket.diagnosis_notes?.trim()) return []
+    if (isManager   && status === 'Inspection & Quote' && ticket.quotation_amount != null) return []
+    return transitions
   }
 
   return (

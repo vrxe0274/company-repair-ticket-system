@@ -98,8 +98,8 @@ export default function DashboardLayout() {
     if (!role) { setTaskCount(0); return }
 
     async function fetchCount() {
-      const { data } = await supabase.from('tickets').select('status')
-      if (data) setTaskCount(data.filter(t => getAllowedTransitions(t.status).length > 0).length)
+      const { data } = await supabase.from('tickets').select('status, diagnosis_notes, quotation_amount')
+      if (data) setTaskCount(data.filter(t => getAllowedTransitions(t).length > 0).length)
     }
     fetchCount()
 

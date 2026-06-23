@@ -22,7 +22,7 @@ export default function TasksPage() {
 
   // Tickets the current role can act on right now, oldest first.
   const tasks = tickets
-    .filter(t => getAllowedTransitions(t.status).length > 0)
+    .filter(t => getAllowedTransitions(t).length > 0)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
   return (

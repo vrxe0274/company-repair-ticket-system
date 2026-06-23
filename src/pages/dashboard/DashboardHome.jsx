@@ -63,7 +63,7 @@ export default function DashboardHome() {
   // Tasks: tickets the current role can act on right now (has an allowed
   // status transition). Oldest first — it's a work queue.
   const tasks = tickets
-    .filter(t => getAllowedTransitions(t.status).length > 0)
+    .filter(t => getAllowedTransitions(t).length > 0)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
   /**
