@@ -23,7 +23,15 @@
  * Brute-force protection (Deno KV, keyed by client IP):
  *   - 5 failed attempts within 15 minutes → 15-minute lockout.
  *   - Successful login clears the counter immediately.
+ *
+ * Password priority:
+ *   1. PBKDF2 hash in role_passwords table (set via change-password function)
+ *   2. Plain-text env secret (ADMIN_PASSWORD / STAFF_PASSWORD / TECH_PASSWORD)
+ *
+ * No external crypto dependencies — uses only the Web Crypto API built into Deno.
  */
+
+import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +50,8 @@ interface AttemptRecord {
   lockedUntil?: number
 }
 
+const enc = new TextEncoder()
+
 function json(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -57,7 +67,37 @@ function getClientIp(req: Request): string {
   )
 }
 
-const kv = await Deno.openKv()
+/** Constant-time string comparison (same length only). */
+function timingSafeEqual(a: string, b: string): boolean {
+  const ab = enc.encode(a)
+  const bb = enc.encode(b)
+  if (ab.length !== bb.length) return false
+  let diff = 0
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i]
+  return diff === 0
+}
+
+/**
+ * Derive a PBKDF2 key from a password + role-specific salt.
+ * Must match the derivation in the change-password function.
+ */
+async function deriveKey(password: string, role: string): Promise<string> {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'],
+  )
+  const salt = enc.encode(`vrxe-${role}-pw-v1`)
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
+    keyMaterial, 256,
+  )
+  return btoa(String.fromCharCode(...new Uint8Array(bits)))
+}
+
+// KV is available on Supabase Deploy but not in all local runtimes.
+// Brute-force protection is silently skipped when KV isn't available.
+// deno-lint-ignore no-explicit-any
+let kv: any = null
+try { kv = await Deno.openKv() } catch { /* local runtime without KV support */ }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -90,50 +130,72 @@ Deno.serve(async (req) => {
     return json(200, { ok: false })
   }
 
-  // ── Brute-force check ────────────────────────────────────────────────────────
+  // ── Brute-force check (skipped when KV unavailable, e.g. local dev) ──────────
 
   const ip    = getClientIp(req)
   const kvKey = ['login_attempts', ip]
   const now   = Date.now()
 
-  const entry  = await kv.get<AttemptRecord>(kvKey)
-  let   record = entry.value ?? { attempts: 0, windowStart: now }
+  let record: AttemptRecord = { attempts: 0, windowStart: now }
 
-  if (record.lockedUntil && now < record.lockedUntil) {
-    const retryAfter = Math.ceil((record.lockedUntil - now) / 1000)
-    return json(200, { ok: false, rateLimited: true, retryAfter })
-  }
+  if (kv) {
+    const entry = await kv.get(kvKey)
+    record = (entry.value as AttemptRecord) ?? { attempts: 0, windowStart: now }
 
-  // Reset counter when the window has rolled over
-  if (now - record.windowStart > WINDOW_MS) {
-    record = { attempts: 0, windowStart: now }
+    if (record.lockedUntil && now < record.lockedUntil) {
+      const retryAfter = Math.ceil((record.lockedUntil - now) / 1000)
+      return json(200, { ok: false, rateLimited: true, retryAfter })
+    }
+
+    if (now - record.windowStart > WINDOW_MS) {
+      record = { attempts: 0, windowStart: now }
+    }
   }
 
   // ── Password verification ────────────────────────────────────────────────────
+  // Check role_passwords table first (set via change-password function).
+  // Fall back to env secret (plain-text constant-time compare) if no DB row yet.
 
-  const expected = passwords[role]!
-  const encoder  = new TextEncoder()
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  )
 
-  // Constant-time comparison to prevent timing attacks
+  const { data: dbRow } = await supabase
+    .from('role_passwords')
+    .select('password_hash')
+    .eq('role', role)
+    .maybeSingle()
+
   let ok = false
-  if (password.length === expected.length) {
-    const a = encoder.encode(password)
-    const b = encoder.encode(expected)
-    let diff = 0
-    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
-    ok = diff === 0
+
+  if (dbRow?.password_hash) {
+    const inputHash = await deriveKey(password, role)
+    ok = timingSafeEqual(inputHash, dbRow.password_hash)
+  } else {
+    const expected = passwords[role]!
+    // Constant-time comparison to prevent timing attacks
+    if (password.length === expected.length) {
+      const a = enc.encode(password)
+      const b = enc.encode(expected)
+      let diff = 0
+      for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
+      ok = diff === 0
+    }
   }
 
   // ── Update attempt record ────────────────────────────────────────────────────
 
-  if (ok) {
-    await kv.delete(kvKey)
-  } else {
-    record.attempts++
-    if (record.attempts >= MAX_ATTEMPTS) {
-      record.lockedUntil = now + LOCKOUT_MS
+  if (kv) {
+    if (ok) {
+      await kv.delete(kvKey)
+    } else {
+      record.attempts++
+      if (record.attempts >= MAX_ATTEMPTS) {
+        record.lockedUntil = now + LOCKOUT_MS
+      }
+      await kv.set(kvKey, record, { expireIn: KV_TTL_MS })
     }
-    await kv.set(kvKey, record, { expireIn: KV_TTL_MS })
   }
 
   return json(200, { ok })

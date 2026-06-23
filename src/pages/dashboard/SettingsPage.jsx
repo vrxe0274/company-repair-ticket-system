@@ -10,17 +10,18 @@
  */
 
 import { useState } from 'react'
-import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw } from 'lucide-react'
+import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
 import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '../../lib/terms'
+import { changePassword } from '../../lib/changePassword'
 
 /** How long the "flushed" success toast stays up. */
 const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
-  const { isAdmin, isManager } = useRole()
+  const { isAdmin, isManager, isTechnician, role } = useRole()
   const { isDark, toggleTheme } = useTheme()
 
   // Flush DB state (admin only)
@@ -30,6 +31,42 @@ export default function SettingsPage() {
   const [flushError,   setFlushError]   = useState('')
   const [flushing,     setFlushing]     = useState(false)
   const [flushDone,    setFlushDone]    = useState(false)
+
+  // Change password state (admin + technician)
+  const [showChangePw,    setShowChangePw]    = useState(false)
+  const [pwCurrent,       setPwCurrent]       = useState('')
+  const [pwNew,           setPwNew]           = useState('')
+  const [pwConfirm,       setPwConfirm]       = useState('')
+  const [pwError,         setPwError]         = useState('')
+  const [pwSaving,        setPwSaving]        = useState(false)
+  const [pwDone,          setPwDone]          = useState(false)
+  const [pwShowCurrent,   setPwShowCurrent]   = useState(false)
+  const [pwShowNew,       setPwShowNew]       = useState(false)
+  const [pwShowConfirm,   setPwShowConfirm]   = useState(false)
+
+  function closeChangePw() {
+    setShowChangePw(false)
+    setPwCurrent(''); setPwNew(''); setPwConfirm(''); setPwError('')
+    setPwShowCurrent(false); setPwShowNew(false); setPwShowConfirm(false)
+  }
+
+  async function handleChangePw() {
+    if (!pwCurrent)                { setPwError('Enter your current password.');           return }
+    if (pwNew.length < 8)          { setPwError('New password must be at least 8 characters.'); return }
+    if (pwNew !== pwConfirm)       { setPwError('Passwords do not match.');                return }
+    if (pwNew === pwCurrent)       { setPwError('New password must differ from current.'); return }
+    setPwSaving(true); setPwError('')
+    try {
+      await changePassword(role, pwCurrent, pwNew)
+      setPwDone(true)
+      closeChangePw()
+      setTimeout(() => setPwDone(false), 4000)
+    } catch (err) {
+      setPwError(err.message)
+    } finally {
+      setPwSaving(false)
+    }
+  }
 
   // Terms editor state (admin only)
   const [showTerms, setShowTerms]     = useState(false)
@@ -151,6 +188,22 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Change password — admin + technician */}
+        {(isAdmin || isTechnician) && (
+          <div className="card p-5">
+            <p className="section-title flex items-center gap-2 mb-3">
+              <Lock className="w-3.5 h-3.5" /> Password
+            </p>
+            <p className="text-sm font-body text-gray-500 mb-4">
+              Change the shared password for the <span className="font-semibold text-gray-700">{role}</span> role.
+              All {role} logins use this password.
+            </p>
+            <button onClick={() => setShowChangePw(true)} className="btn-primary text-sm">
+              <Lock className="w-3.5 h-3.5" /> Change Password
+            </button>
+          </div>
+        )}
+
         {/* Terms & Conditions editor — admin only */}
         {isAdmin && (
           <div className="card p-5">
@@ -184,6 +237,13 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* Password changed toast */}
+      {pwDone && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> Password changed successfully
+        </div>
+      )}
+
       {/* Terms saved toast */}
       {termsSaved && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
@@ -195,6 +255,118 @@ export default function SettingsPage() {
       {flushDone && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed successfully
+        </div>
+      )}
+
+      {/* Change password modal */}
+      {showChangePw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4 text-brand-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Change Password</h2>
+              </div>
+              <button onClick={closeChangePw} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-sm font-body text-gray-500">
+              Updating the <span className="font-semibold text-gray-700">{role}</span> password affects all logins for this role.
+            </p>
+
+            <div className="space-y-3">
+              {/* Current password */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Current password</label>
+                <div className="relative">
+                  <input
+                    type={pwShowCurrent ? 'text' : 'password'}
+                    value={pwCurrent}
+                    onChange={e => { setPwCurrent(e.target.value); setPwError('') }}
+                    className="input-field pr-9"
+                    placeholder="Enter current password"
+                    autoFocus
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPwShowCurrent(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    aria-label={pwShowCurrent ? 'Hide password' : 'Show password'}
+                  >
+                    {pwShowCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New password */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">New password</label>
+                <div className="relative">
+                  <input
+                    type={pwShowNew ? 'text' : 'password'}
+                    value={pwNew}
+                    onChange={e => { setPwNew(e.target.value); setPwError('') }}
+                    className="input-field pr-9"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPwShowNew(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    aria-label={pwShowNew ? 'Hide password' : 'Show password'}
+                  >
+                    {pwShowNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm new password */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm new password</label>
+                <div className="relative">
+                  <input
+                    type={pwShowConfirm ? 'text' : 'password'}
+                    value={pwConfirm}
+                    onChange={e => { setPwConfirm(e.target.value); setPwError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !pwSaving) handleChangePw() }}
+                    className="input-field pr-9"
+                    placeholder="Repeat new password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPwShowConfirm(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    aria-label={pwShowConfirm ? 'Hide password' : 'Show password'}
+                  >
+                    {pwShowConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {pwError && <p className="text-xs text-red-500 font-sans">{pwError}</p>}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={closeChangePw} disabled={pwSaving} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handleChangePw}
+                disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}
+                className="btn-primary flex-1 justify-center"
+              >
+                {pwSaving
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Lock className="w-3.5 h-3.5" /> Save</>
+                }
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
