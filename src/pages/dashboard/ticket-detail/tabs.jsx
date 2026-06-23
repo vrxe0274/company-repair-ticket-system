@@ -210,6 +210,13 @@ export function QuotationTab({
   const discountCap = discountCapFor(paymentOption, partialHighPct, partialLowPct)
   // Effective discount after the plan cap — what is actually applied / displayed.
   const effDiscountPct = Math.min(discountCap, Math.max(0, parseFloat(discount) || 0))
+  // No payment plan for diagnosis/cleaning-only tickets.
+  const filledLabor = laborItems.filter(i => i.description || i.amount)
+  const filledParts = partsItems.filter(i => i.description || i.amount)
+  const isDiagCleanOnly =
+    filledLabor.length > 0 &&
+    filledParts.length === 0 &&
+    filledLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {canSeePricing ? (
@@ -313,28 +320,28 @@ export function QuotationTab({
                 )}
               </div>
 
-              {/* Payment plan — chosen by the client on the tracker page.
-                  Read-only here. The chosen plan sets the maximum discount the
-                  admin may grant (see the Discount % field below). */}
-              <div className="border-t border-gray-100 pt-5">
-                <label className="label mb-2">Payment Plan <span className="font-normal text-gray-400">(chosen by client)</span></label>
-                {paymentOption ? (
-                  <div className="p-3 rounded-lg border bg-brand-50 border-brand-200">
-                    <p className="text-sm font-sans font-semibold text-gray-800">
-                      {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
+              {/* Payment plan — hidden for diagnosis/cleaning-only tickets. */}
+              {!isDiagCleanOnly && (
+                <div className="border-t border-gray-100 pt-5">
+                  <label className="label mb-2">Payment Plan <span className="font-normal text-gray-400">(chosen by client)</span></label>
+                  {paymentOption ? (
+                    <div className="p-3 rounded-lg border bg-brand-50 border-brand-200">
+                      <p className="text-sm font-sans font-semibold text-gray-800">
+                        {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
+                      </p>
+                      <p className="text-xs font-body text-gray-500 mt-1">
+                        {discountCap > 0
+                          ? <>Discount allowed: up to <span className="font-mono text-gray-700">{discountCap}%</span></>
+                          : "No discount allowed for this plan."}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-body text-gray-400 italic">
+                      Client hasn’t selected a payment plan yet — they choose it on their tracking page. No discount can be applied until they do.
                     </p>
-                    <p className="text-xs font-body text-gray-500 mt-1">
-                      {discountCap > 0
-                        ? <>Discount allowed: up to <span className="font-mono text-gray-700">{discountCap}%</span></>
-                        : 'No discount allowed for this plan.'}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm font-body text-gray-400 italic">
-                    Client hasn’t selected a payment plan yet — they choose it on their tracking page. No discount can be applied until they do.
-                  </p>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Discount + save — pinned to bottom of card */}

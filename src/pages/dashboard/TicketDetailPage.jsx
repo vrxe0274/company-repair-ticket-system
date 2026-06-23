@@ -14,13 +14,13 @@
  *   (other)    — pricing hidden until ticket is approved; notes always hidden
  */
 
-import { useState }              from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, Link }       from 'react-router-dom'
 import { format }                from 'date-fns'
 import {
   ArrowLeft, Download, ExternalLink,
   Eye, Wrench, CreditCard, Settings,
-  AlertTriangle, Undo2, FileText, Receipt,
+  AlertTriangle, Undo2, FileText, Receipt, MoreHorizontal,
 } from 'lucide-react'
 import { getTrackingUrl }        from '../../lib/utils'
 import { downloadTicketPDF }     from '../../lib/pdf'
@@ -36,7 +36,19 @@ import { STATUS_GUIDANCE }       from './ticket-detail/constants'
 
 export default function TicketDetailPage() {
   const { id } = useParams()
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab]     = useState('overview')
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsRef                    = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (actionsRef.current && !actionsRef.current.contains(e.target)) {
+        setActionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const {
     ticket, loading, saving, uploading, statusUpdating, fileInputRef,
@@ -107,25 +119,45 @@ export default function TicketDetailPage() {
               <ExternalLink className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Tracking Page</span>
             </a>
-            {ticket.quotation_amount > 0 && (
-              <button onClick={() => downloadQuotationPDF(ticket)}
-                className="btn-secondary text-sm bg-brand-600 border-brand-600 text-white hover:bg-brand-700 hover:border-brand-700">
-                <FileText className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Quotation</span>
+            {/* Downloads dropdown */}
+            <div className="relative" ref={actionsRef}>
+              <button
+                onClick={() => setActionsOpen(o => !o)}
+                className="btn-secondary text-sm bg-white border-white text-gray-900 hover:bg-gray-100 hover:border-gray-100"
+                aria-label="More actions"
+              >
+                <MoreHorizontal className="w-4 h-4" />
               </button>
-            )}
-            {isPaid && (
-              <button onClick={() => downloadReceiptPDF(ticket)}
-                className="btn-secondary text-sm bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 hover:border-emerald-700">
-                <Receipt className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Receipt</span>
-              </button>
-            )}
-            <button onClick={() => downloadTicketPDF(ticket)}
-              className="btn-secondary text-sm bg-white border-white text-gray-900 hover:bg-gray-100 hover:border-gray-100">
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">PDF</span>
-            </button>
+              {actionsOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50 animate-fade-in">
+                  <button
+                    onClick={() => { downloadTicketPDF(ticket); setActionsOpen(false) }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-sans text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    Ticket PDF
+                  </button>
+                  {ticket.quotation_amount != null && (
+                    <button
+                      onClick={() => { downloadQuotationPDF(ticket); setActionsOpen(false) }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-sans text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                      Quotation Slip
+                    </button>
+                  )}
+                  {isPaid && (
+                    <button
+                      onClick={() => { downloadReceiptPDF(ticket); setActionsOpen(false) }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-sans text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Receipt className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      Receipt
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

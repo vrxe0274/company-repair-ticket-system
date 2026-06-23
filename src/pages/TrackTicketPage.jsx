@@ -434,7 +434,7 @@ export default function TrackTicketPage() {
                     </div>
                     <p className="text-xs font-sans font-bold text-gray-700 uppercase tracking-[0.1em]">Pricing</p>
                   </div>
-                  {ticket.quotation_amount > 0 && (
+                  {ticket.quotation_amount != null && (
                     <button
                       onClick={() => downloadQuotationPDF(ticket)}
                       className="inline-flex items-center gap-1.5 text-xs font-sans font-semibold px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-colors shrink-0"
@@ -488,7 +488,7 @@ export default function TrackTicketPage() {
                       <span className="font-mono font-semibold text-gray-800">{formatPeso(ticket.quotation_amount)}</span>
                     </div>
                   )}
-                  {ticket.payment_option && (
+                  {ticket.payment_option && !isDiagCleanOnly && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-body text-gray-600">Payment Plan</span>
                       <span className="font-sans font-semibold text-gray-800 text-right">
@@ -566,7 +566,7 @@ export default function TrackTicketPage() {
                     )
                   })}
                 </div>
-                {ticket.payment_option && (
+                {ticket.payment_option && !isDiagCleanOnly && (
                   <p className="text-xs font-body text-emerald-600 font-semibold mt-3">
                     ✓ You chose: {paymentPlanLabel(ticket.payment_option, ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT, ticket.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)}
                   </p>

@@ -257,6 +257,12 @@ export function useTicket(id) {
     const discountPct = Math.min(cap, Math.max(0, parseFloat(discount) || 0))
     const baseTotal   = sumItems(cleanLabor) + sumItems(cleanParts)
     const quotation   = computeQuotation(cleanLabor, cleanParts, discountPct)
+    // Diag/clean-only tickets have no payment plan — clear any stale client
+    // selection so the discount cap is also cleared on the admin side.
+    const diagCleanOnly =
+      cleanLabor.length > 0 &&
+      cleanParts.length === 0 &&
+      cleanLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
     let patch = {}
     if (scope === 'notes' && isTechnician) {
       patch = { diagnosis_notes: notes.diagnosis_notes || null, repair_notes: notes.repair_notes || null }
@@ -267,9 +273,9 @@ export function useTicket(id) {
         discount_percent: discountPct,
         discount_amount:  discountAmount(baseTotal, discountPct),
         quotation_amount: hasItems ? quotation : null,
-        // NOTE: payment_option is intentionally NOT written here — the client
-        // chooses their payment plan on the tracker page. Saving the quotation
-        // must not clobber their selection.
+        // Clear a stale payment_option when saving a diag/clean-only ticket.
+        // Otherwise leave it untouched — the client owns this field.
+        ...(diagCleanOnly && { payment_option: null }),
       }
     } else if (scope === 'payment' && isManager) {
       patch = {

@@ -284,7 +284,7 @@ function renderQuotationPage(doc, ticket) {
   doc.setFont('helvetica', 'bold')
 
   if (discountAmt > 0) {
-    const origTotal = displayTotal + discountAmt
+    const origTotal = quotationAmt + discountAmt
     doc.setFontSize(8)
     doc.text('QUOTATION TOTAL', totalBoxX + 5, y + 7)
     doc.setFontSize(7)
@@ -366,7 +366,9 @@ function renderQuotationPage(doc, ticket) {
   // Right — Payment Terms
   const highPct = Number(ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
   const lowPct  = Number(ticket.payment_partial_low_pct  ?? DEFAULT_PARTIAL_LOW_PCT)
-  const base    = displayTotal
+  // Use quotationAmt (post-discount) when a manual discount has already been applied,
+  // so payment-option prices stay consistent with the total box on the same document.
+  const base    = quotationAmt > 0 ? quotationAmt : displayTotal
 
   const ph = (n) => `Php ${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 
