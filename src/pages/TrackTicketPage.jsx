@@ -24,7 +24,8 @@ import {
   PAYMENT_OPTIONS, paymentPlanLabel, discountCapFor,
   DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT,
 } from '../lib/utils'
-import { downloadReceiptPDF } from '../lib/receipt'
+import { downloadReceiptPDF }   from '../lib/receipt'
+import { downloadQuotationPDF } from '../lib/quotation'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
 import Logo from '../components/ui/Logo.jsx'
 
@@ -200,6 +201,13 @@ export default function TrackTicketPage() {
   // Payment-plan chooser appears once the workflow reaches "Inspection & Quote"
   // (the inspection/quotation stage) and stays until the ticket is paid.
   const quoteStageReached = !isDenied && currentStep >= STATUS_ORDER.indexOf('Inspection & Quote')
+  // No payment plan choice for diagnosis/cleaning-only tickets — client pays full price.
+  const filledLabor = (ticket.labor_items || []).filter(i => i.description || i.amount)
+  const filledParts = (ticket.parts_items || []).filter(i => i.description || i.amount)
+  const isDiagCleanOnly =
+    filledLabor.length > 0 &&
+    filledParts.length === 0 &&
+    filledLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
 
   // ── Main render ──────────────────────────────────────────────────────────
 
@@ -419,7 +427,22 @@ export default function TrackTicketPage() {
             {/* Pricing */}
             {isApproved && (ticket.labor_items?.length > 0 || ticket.parts_items?.length > 0 || ticket.quotation_amount || ticket.final_price) && (
               <div className="p-5">
-                <SectionHeader icon={DollarSign} label="Pricing" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <p className="text-xs font-sans font-bold text-gray-700 uppercase tracking-[0.1em]">Pricing</p>
+                  </div>
+                  {ticket.quotation_amount > 0 && (
+                    <button
+                      onClick={() => downloadQuotationPDF(ticket)}
+                      className="inline-flex items-center gap-1.5 text-xs font-sans font-semibold px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-colors shrink-0"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Quotation
+                    </button>
+                  )}
+                </div>
 
                 {/* Labor items */}
                 {ticket.labor_items?.filter(i => i.description || i.amount).length > 0 && (
@@ -490,7 +513,7 @@ export default function TrackTicketPage() {
 
             {/* Payment plan — client chooses once the workflow reaches the
                 inspection/quotation stage, until the ticket is paid. */}
-            {quoteStageReached && !isPaid && (
+            {quoteStageReached && !isPaid && !isDiagCleanOnly && (
               <div className="p-5">
                 <SectionHeader icon={DollarSign} label="Choose Your Payment Plan" iconBg="bg-accent-50" iconColor="text-accent-600" />
                 <p className="text-sm font-body text-gray-500 mb-3">

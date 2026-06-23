@@ -20,10 +20,12 @@ import { format }                from 'date-fns'
 import {
   ArrowLeft, Download, ExternalLink,
   Eye, Wrench, CreditCard, Settings,
-  AlertTriangle, Undo2,
+  AlertTriangle, Undo2, FileText, Receipt,
 } from 'lucide-react'
 import { getTrackingUrl }        from '../../lib/utils'
 import { downloadTicketPDF }     from '../../lib/pdf'
+import { downloadReceiptPDF }    from '../../lib/receipt'
+import { downloadQuotationPDF }  from '../../lib/quotation'
 import StatusBadge               from '../../components/ui/StatusBadge.jsx'
 import { useTicket }             from './ticket-detail/useTicket'
 import { TabButton }             from './ticket-detail/components'
@@ -105,6 +107,20 @@ export default function TicketDetailPage() {
               <ExternalLink className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Tracking Page</span>
             </a>
+            {ticket.quotation_amount > 0 && (
+              <button onClick={() => downloadQuotationPDF(ticket)}
+                className="btn-secondary text-sm bg-brand-600 border-brand-600 text-white hover:bg-brand-700 hover:border-brand-700">
+                <FileText className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Quotation</span>
+              </button>
+            )}
+            {isPaid && (
+              <button onClick={() => downloadReceiptPDF(ticket)}
+                className="btn-secondary text-sm bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 hover:border-emerald-700">
+                <Receipt className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Receipt</span>
+              </button>
+            )}
             <button onClick={() => downloadTicketPDF(ticket)}
               className="btn-secondary text-sm bg-white border-white text-gray-900 hover:bg-gray-100 hover:border-gray-100">
               <Download className="w-3.5 h-3.5" />
