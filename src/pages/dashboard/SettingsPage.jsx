@@ -143,9 +143,6 @@ export default function SettingsPage() {
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200">
         <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
         <div className="px-5 lg:px-7 py-5">
-          <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />Preferences
-          </p>
           <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">SETTINGS</h1>
         </div>
       </div>

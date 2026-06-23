@@ -183,17 +183,7 @@ export default function AccountsPage() {
         <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
         <div className="px-5 lg:px-7 py-5 flex items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />Admin
-            </p>
             <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">ACCOUNTS</h1>
-            {!listLoading && (
-              <p className="text-sm font-body text-gray-400 mt-2">
-                {accounts.length === 0
-                  ? 'No staff accounts'
-                  : `${accounts.length} staff account${accounts.length !== 1 ? 's' : ''}`}
-              </p>
-            )}
           </div>
           <button onClick={openCreate} className="btn-primary text-sm shrink-0">
             <Plus className="w-4 h-4" /> Add Account
