@@ -100,7 +100,7 @@ export function useTicket(id) {
     setPartsItems(
       data.parts_items?.length
         ? data.parts_items.map(it => ({ ...it, id: it.id ?? crypto.randomUUID() }))
-        : [emptyItem()]
+        : []
     )
     setDiscount(data.discount_percent ?? '')  // discount is now a manual percentage
     setFinalPrice(data.final_price ?? '')
@@ -136,7 +136,7 @@ export function useTicket(id) {
     // Gate 3: final price + payment proof must be saved before marking paid
     if (newStatus === 'Paid' && ticket.status === 'Done') {
       const errs = []
-      if (ticket.final_price === null || ticket.final_price === undefined) {
+      if (ticket.final_price == null || ticket.final_price <= 0) {
         errs.push('A saved final price is required before marking as paid. Fill in the final price in the Quotation & Payment tab and save.')
       }
       if (!ticket.payment_proof_url) {

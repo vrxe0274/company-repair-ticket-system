@@ -41,11 +41,11 @@ import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
  */
 const NAV = [
   { to: '/',             label: 'Overview',      icon: LayoutDashboard, exact: true },
-  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
+  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
   { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
-  { to: 'accounts',      label: 'Accounts',      icon: Users,     adminOnly: true },
   { to: 'analytics',     label: 'Analytics',     icon: BarChart2, adminOnly: true },
+  { to: 'accounts',      label: 'Accounts',      icon: Users,     adminOnly: true },
   { to: 'settings',      label: 'Settings',      icon: Settings },
 ]
 

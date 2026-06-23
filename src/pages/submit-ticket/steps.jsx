@@ -64,7 +64,7 @@ export function Step2UnitInfo({ form, errors, handleChange }) {
         </select>
       </Field>
       {form.unit_type === 'Others' && (
-        <Field label="Specify Unit Type *" error={errors.unit_type_custom}>
+        <Field label="Specify Unit Type *" error={errors.unit_type}>
           <input className="input-field" name="unit_type_custom" value={form.unit_type_custom} onChange={handleChange} placeholder="Describe the unit type" />
         </Field>
       )}

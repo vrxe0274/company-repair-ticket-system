@@ -10,7 +10,7 @@
  * details hidden until they're relevant to the client.
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
@@ -80,6 +80,8 @@ export default function TrackTicketPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState(null)
   const [savingPlan, setSavingPlan] = useState(false)
+  const intervalRef    = useRef(null)
+  const ticketLoadedRef = useRef(false)
 
   /**
    * Client picks their payment plan from the tracker once the quotation is
@@ -118,11 +120,17 @@ export default function TrackTicketPage() {
         .single()
       if (fetchError) throw fetchError
       setTicket(data)
+      ticketLoadedRef.current = true
       setError(null)
     } catch {
       // Shown only while no ticket is loaded — a failed background poll
       // must not replace an already-rendered ticket with the error page.
       setError('Ticket not found. Please check your tracking link.')
+      // Stop polling once we know the token is invalid — no point retrying.
+      if (!ticketLoadedRef.current && intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     } finally {
       setLoading(false)
     }
@@ -145,8 +153,8 @@ export default function TrackTicketPage() {
       )
       .subscribe()
 
-    const interval = setInterval(fetchTicket, TRACK_POLL_INTERVAL_MS)
-    return () => { supabase.removeChannel(channel); clearInterval(interval) }
+    intervalRef.current = setInterval(fetchTicket, TRACK_POLL_INTERVAL_MS)
+    return () => { supabase.removeChannel(channel); clearInterval(intervalRef.current) }
   }, [token, fetchTicket])
 
   // ── Loading state ────────────────────────────────────────────────────────

@@ -121,16 +121,27 @@ export function saveSession(role, { persistent = false, username = null, name = 
   return session
 }
 
+/**
+ * Patch specific fields on the stored session without touching expiresAt.
+ * Used by updateSessionName and updateSessionRole to avoid silently resetting
+ * the 30-day sliding expiry that saveSession() would recompute.
+ */
+function patchSession(patch) {
+  const persistRaw = localStorage.getItem(SESSION_KEY)
+  if (persistRaw) {
+    const s = parse(persistRaw)
+    if (s) { localStorage.setItem(SESSION_KEY, JSON.stringify({ ...s, ...patch })); return }
+  }
+  const tabRaw = sessionStorage.getItem(SESSION_KEY)
+  if (tabRaw) {
+    const s = parse(tabRaw)
+    if (s) sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...s, ...patch }))
+  }
+}
+
 /** Update only the display name on the existing record (keeps all other fields). */
 export function updateSessionName(name) {
-  const current = getSession()
-  if (current) {
-    saveSession(current.role, {
-      persistent: current.persistent,
-      username:   current.username ?? null,
-      name,
-    })
-  }
+  patchSession({ name })
 }
 
 /** Slide a persistent session's expiry forward (call on app load / activity). */
@@ -142,16 +153,9 @@ export function renewSession() {
   localStorage.setItem(SESSION_KEY, JSON.stringify(s))
 }
 
-/** Update only the role on the existing record (keeps persistence mode, username, and name). */
+/** Update only the role on the existing record (keeps persistence mode, username, name, and expiresAt). */
 export function updateSessionRole(role) {
-  const current = getSession()
-  if (current) {
-    saveSession(role, {
-      persistent: current.persistent,
-      username:   current.username ?? null,
-      name:       current.name     ?? null,
-    })
-  }
+  patchSession({ role })
 }
 
 /** Remove the session from both storages (explicit logout / replace). */

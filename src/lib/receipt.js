@@ -211,7 +211,9 @@ function renderReceiptPage(doc, ticket) {
   // ── TOTAL + WARRANTY BULLETS ──────────────────────────────────────────────────
   const discountAmt = parseFloat(ticket.discount_amount) || 0
   const finalAmt    = parseFloat(ticket.final_price) || parseFloat(ticket.quotation_amount) || 0
-  const origAmt     = finalAmt + discountAmt
+  // origAmt is only meaningful when finalAmt is the post-discount final_price.
+  // When falling back to quotation_amount (pre-discount), adding discount again would double-count it.
+  const origAmt     = ticket.final_price != null ? finalAmt + discountAmt : finalAmt
 
   const totalBoxH = discountAmt > 0 ? 24 : 20
   const totalBoxW = cw * 0.40

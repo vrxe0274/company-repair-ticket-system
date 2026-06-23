@@ -63,10 +63,9 @@ export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
         message: `Approved: ${label}`,
       }
     case 'Denied':
-      return {
-        recipientRole: NOTIFY_ROLES.TECHNICIAN,
-        message: `Denied: ${label}`,
-      }
+      // Denial happens at Pending stage — technician was never involved.
+      // No notification needed; the actor (Staff/Admin) made the decision.
+      return null
     case 'Repair in Progress':
       return {
         recipientRole: other,
