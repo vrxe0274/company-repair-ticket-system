@@ -101,9 +101,11 @@ function migrateLegacySession() {
 /**
  * Create/replace the session record after a successful login.
  * @param {'Admin'|'Staff'|'Technician'} role
- * @param {{persistent?: boolean}} opts - persistent is forced on in standalone PWA.
+ * @param {{persistent?: boolean, username?: string|null}} opts
+ *   persistent is forced on in standalone PWA.
+ *   username is set for individual Staff accounts (null for shared-password roles).
  */
-export function saveSession(role, { persistent = false } = {}) {
+export function saveSession(role, { persistent = false, username = null, name = null } = {}) {
   const isPersistent = persistent || isStandalone()
   const session = {
     v: 1,
@@ -111,10 +113,24 @@ export function saveSession(role, { persistent = false } = {}) {
     persistent: isPersistent,
     expiresAt: isPersistent ? Date.now() + SESSION_TTL_MS : null,
   }
+  if (username) session.username = username
+  if (name)     session.name     = name
   clearSession() // never leave a stale copy in the other storage
   const store = isPersistent ? localStorage : sessionStorage
   store.setItem(SESSION_KEY, JSON.stringify(session))
   return session
+}
+
+/** Update only the display name on the existing record (keeps all other fields). */
+export function updateSessionName(name) {
+  const current = getSession()
+  if (current) {
+    saveSession(current.role, {
+      persistent: current.persistent,
+      username:   current.username ?? null,
+      name,
+    })
+  }
 }
 
 /** Slide a persistent session's expiry forward (call on app load / activity). */
@@ -126,11 +142,15 @@ export function renewSession() {
   localStorage.setItem(SESSION_KEY, JSON.stringify(s))
 }
 
-/** Update only the role on the existing record (keeps persistence mode). */
+/** Update only the role on the existing record (keeps persistence mode, username, and name). */
 export function updateSessionRole(role) {
   const current = getSession()
   if (current) {
-    saveSession(role, { persistent: current.persistent })
+    saveSession(role, {
+      persistent: current.persistent,
+      username:   current.username ?? null,
+      name:       current.name     ?? null,
+    })
   }
 }
 

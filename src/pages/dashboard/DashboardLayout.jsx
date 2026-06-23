@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings,
+  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -44,6 +44,7 @@ const NAV = [
   { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
+  { to: 'accounts',      label: 'Accounts',      icon: Users, adminOnly: true },
   { to: 'settings',      label: 'Settings',      icon: Settings },
 ]
 
@@ -58,13 +59,38 @@ const NOTIFICATION_BADGE_MAX = 99
 /** DashboardLayout — the persistent shell rendered for all dashboard routes. */
 export default function DashboardLayout() {
   const { logout }               = useAuth()
-  const { role, clearRole, getAllowedTransitions } = useRole()
+  const { role, clearRole, getAllowedTransitions, isAdmin, isStaff, staffUsername, staffName, setStaffName } = useRole()
   const { unseenCount }          = useNotifications()
   const [taskCount, setTaskCount] = useState(0)
   const location                 = useLocation()
   const navigate                 = useNavigate()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // First-login name setup — shown when a Staff account has no display name yet.
+  const needsName = isStaff && staffUsername && !staffName
+  const [nameInput,  setNameInput]  = useState('')
+  const [nameError,  setNameError]  = useState('')
+  const [nameSaving, setNameSaving] = useState(false)
+
+  async function handleSetName(e) {
+    e?.preventDefault()
+    const trimmed = nameInput.trim()
+    if (!trimmed)        { setNameError('Please enter your name.'); return }
+    if (trimmed.length > 80) { setNameError('Name must be 80 characters or fewer.'); return }
+    setNameSaving(true); setNameError('')
+    try {
+      const { data, error } = await supabase.functions.invoke('staff-manage', {
+        body: { action: 'set-name', username: staffUsername, name: trimmed },
+      })
+      if (error || !data?.ok) throw new Error(data?.error || 'Failed to save name.')
+      setStaffName(trimmed)
+    } catch (err) {
+      setNameError(err.message)
+    } finally {
+      setNameSaving(false)
+    }
+  }
 
   // Fetch task count separately with a unique channel name to avoid
   // conflicting with the 'tickets-live' channel used by child pages.
@@ -137,19 +163,27 @@ export default function DashboardLayout() {
         </span>
       </div>
 
-      {/* Role badge */}
+      {/* Role badge + name/username */}
       {role && (
         <div className="px-4 py-3 border-b border-dark-700">
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${roleBg}`}>
-            <RoleIcon className={`w-3.5 h-3.5 shrink-0 ${roleColor}`} />
-            <span className={`text-xs font-sans font-semibold ${roleColor}`}>{role}</span>
+          <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border ${roleBg}`}>
+            <RoleIcon className={`w-4 h-4 shrink-0 ${roleColor}`} />
+            <div className="min-w-0 flex-1">
+              <p className={`text-xs font-sans font-bold tracking-wide leading-none ${roleColor}`}>{role}</p>
+              {staffName && (
+                <p className="text-[12px] font-sans font-semibold text-gray-200 truncate mt-1 leading-none">{staffName}</p>
+              )}
+              {staffUsername && !staffName && (
+                <p className="text-[11px] font-mono text-gray-400 truncate mt-1 leading-none">{staffUsername}</p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.map(({ to, label, icon: Icon, exact, id }) => (
+        {NAV.filter(item => !item.adminOnly || isAdmin).map(({ to, label, icon: Icon, exact, id }) => (
           <Link
             key={to}
             to={to}
@@ -247,6 +281,58 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* ── First-login: set display name ── */}
+      {needsName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-5 animate-slide-up">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                <UserCircle className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="font-sans font-bold text-gray-900 text-base">Welcome, {staffUsername}!</h2>
+                <p className="text-xs font-body text-gray-500 mt-0.5">Set a display name before you continue.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSetName} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={e => { setNameInput(e.target.value); setNameError('') }}
+                  className="input-field"
+                  placeholder="e.g. Juan dela Cruz"
+                  autoFocus
+                  autoComplete="name"
+                  maxLength={80}
+                />
+                <p className="text-xs font-body text-gray-400">
+                  This is how you'll appear across the dashboard.
+                </p>
+                {nameError && (
+                  <p className="text-xs text-red-500 font-sans">{nameError}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={nameSaving || !nameInput.trim()}
+                className="btn-primary w-full justify-center disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {nameSaving
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : 'Save & Continue'
+                }
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

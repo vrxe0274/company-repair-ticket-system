@@ -76,16 +76,18 @@ export default function PushPermissionPrompt() {
   if (!isPushSupported()) {
     if (!(isIos() && !isStandalone())) return null
     return (
-      <div className="flex items-start gap-3 px-4 py-3 mb-8 rounded-xl border border-gray-200 bg-white text-sm font-body text-gray-600">
-        <Share className="w-4 h-4 mt-0.5 shrink-0 text-brand-600" />
-        <p className="flex-1">
-          To get push notifications on iPhone/iPad, add this app to your Home
-          Screen (Share → <strong>Add to Home Screen</strong>), then enable
-          notifications inside the installed app. Requires iOS 16.4+.
-        </p>
-        <button onClick={handleDismiss} aria-label="Dismiss" className="text-gray-400 hover:text-gray-600">
-          <X className="w-4 h-4" />
-        </button>
+      <div className="fixed top-4 left-1/2 lg:left-[calc(50%+8rem)] -translate-x-1/2 z-40 w-full max-w-md lg:max-w-xl px-4 pointer-events-none">
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white shadow-lg text-sm font-body text-gray-600 pointer-events-auto">
+          <Share className="w-4 h-4 mt-0.5 shrink-0 text-brand-600" />
+          <p className="flex-1">
+            To get push notifications on iPhone/iPad, add this app to your Home
+            Screen (Share → <strong>Add to Home Screen</strong>), then enable
+            notifications inside the installed app. Requires iOS 16.4+.
+          </p>
+          <button onClick={handleDismiss} aria-label="Dismiss" className="text-gray-400 hover:text-gray-600 shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     )
   }
@@ -93,46 +95,50 @@ export default function PushPermissionPrompt() {
   // ── Permission previously denied: we can't re-prompt, only guide ─────────
   if (permission === 'denied') {
     return (
-      <div className="flex items-start gap-3 px-4 py-3 mb-8 rounded-xl border border-gray-200 bg-white text-sm font-body text-gray-600">
-        <BellOff className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
-        <p className="flex-1">
-          Notifications are blocked for this site. To receive global alerts,
-          allow notifications in your browser settings for this app.
-        </p>
-        <button onClick={handleDismiss} aria-label="Dismiss" className="text-gray-400 hover:text-gray-600">
-          <X className="w-4 h-4" />
-        </button>
+      <div className="fixed top-4 left-1/2 lg:left-[calc(50%+8rem)] -translate-x-1/2 z-40 w-full max-w-md lg:max-w-xl px-4 pointer-events-none">
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white shadow-lg text-sm font-body text-gray-600 pointer-events-auto">
+          <BellOff className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+          <p className="flex-1">
+            Notifications are blocked for this site. To receive global alerts,
+            allow notifications in your browser settings for this app.
+          </p>
+          <button onClick={handleDismiss} aria-label="Dismiss" className="text-gray-400 hover:text-gray-600 shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     )
   }
 
   // ── Default state: offer to enable ────────────────────────────────────────
   return (
-    <div className="flex flex-wrap items-center gap-3 px-4 py-3 mb-8 rounded-xl border border-brand-200 bg-brand-50">
-      <Bell className="w-4 h-4 shrink-0 text-brand-600" />
-      <p className="flex-1 min-w-[200px] text-sm font-body text-gray-700">
-        Enable push notifications to get ticket alerts on this device — even
-        when the app is closed.
-        {failed && (
-          <span className="block text-red-500 mt-0.5">
-            Couldn&apos;t enable notifications. Please try again.
-          </span>
-        )}
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleEnable}
-          disabled={enabling}
-          className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-sans font-semibold tracking-wide transition-colors disabled:opacity-50"
-        >
-          {enabling ? 'Enabling…' : 'Enable'}
-        </button>
-        <button
-          onClick={handleDismiss}
-          className="px-3 py-1.5 rounded-lg text-xs font-sans font-semibold text-gray-500 hover:text-gray-700 hover:bg-white transition-colors"
-        >
-          Not now
-        </button>
+    <div className="fixed top-4 left-1/2 lg:left-[calc(50%+8rem)] -translate-x-1/2 z-40 w-full max-w-md lg:max-w-xl px-4 pointer-events-none">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl border border-brand-200 bg-brand-50 shadow-lg pointer-events-auto">
+        <Bell className="w-4 h-4 shrink-0 text-brand-600" />
+        <p className="flex-1 min-w-[200px] text-sm font-body text-gray-700">
+          Enable push notifications to get ticket alerts on this device — even
+          when the app is closed.
+          {failed && (
+            <span className="block text-red-500 mt-0.5">
+              Couldn&apos;t enable notifications. Please try again.
+            </span>
+          )}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleEnable}
+            disabled={enabling}
+            className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-sans font-semibold tracking-wide transition-colors disabled:opacity-50"
+          >
+            {enabling ? 'Enabling…' : 'Enable'}
+          </button>
+          <button
+            onClick={handleDismiss}
+            className="px-3 py-1.5 rounded-lg text-xs font-sans font-semibold text-gray-500 hover:text-gray-700 hover:bg-white transition-colors"
+          >
+            Not now
+          </button>
+        </div>
       </div>
     </div>
   )

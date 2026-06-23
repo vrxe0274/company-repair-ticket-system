@@ -47,12 +47,12 @@ export function AuthProvider({ children }) {
   }, [])
 
   /**
-   * loginWithRole — verifies the role's password server-side via the
-   * verify-login Edge Function. Passwords never leave the server; the browser
-   * bundle contains no credentials.
+   * loginWithRole — verifies the role's shared password server-side via the
+   * verify-login Edge Function. Used by Admin and Technician roles.
+   * Passwords never leave the server; the browser bundle contains no credentials.
    *
    * @param {string} password
-   * @param {'Admin'|'Staff'|'Technician'} role
+   * @param {'Admin'|'Technician'} role
    * @param {{rememberMe?: boolean}} opts
    * @returns {Promise<boolean>} true on success, false on wrong password.
    * @throws {Error} if the Edge Function is unreachable or misconfigured.
@@ -75,6 +75,35 @@ export function AuthProvider({ children }) {
   }
 
   /**
+   * loginAsStaff — verifies an individual Staff account's username + password
+   * via the staff-login Edge Function. Each staff member has their own account
+   * (created by Admin). The username is stored in the session so it can be
+   * displayed in the UI.
+   *
+   * @param {string} username
+   * @param {string} password
+   * @param {{rememberMe?: boolean}} opts
+   * @returns {Promise<boolean>} true on success, false on wrong credentials.
+   * @throws {Error} if the Edge Function is unreachable.
+   */
+  async function loginAsStaff(username, password, { rememberMe = false } = {}) {
+    const { data, error } = await supabase.functions.invoke('staff-login', {
+      body: { username: username.trim(), password },
+    })
+
+    if (error) throw new Error('Connection error. Check your network and try again.')
+    if (data?.rateLimited) {
+      const mins = Math.ceil(data.retryAfter / 60)
+      throw new Error(`Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.`)
+    }
+    if (!data?.ok) return false
+
+    saveSession('Staff', { persistent: rememberMe, username: username.trim(), name: data.name ?? null })
+    setAuthenticated(true)
+    return true
+  }
+
+  /**
    * Explicit logout: invalidate the session everywhere and remove this
    * device's push subscription so it stops receiving global pushes.
    */
@@ -85,7 +114,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, logout }}>
+    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, loginAsStaff, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -57,7 +57,7 @@ export default function DashboardHome() {
   // Live data — realtime inserts/updates/deletes keep counts current
   // without a refresh (see useLiveTickets).
   const { tickets, loading } = useLiveTickets()
-  const { role, getAllowedTransitions } = useRole()
+  const { role, getAllowedTransitions, staffUsername, staffName } = useRole()
   const { notifications, loading: notifLoading } = useNotifications()
 
   // Tasks: tickets the current role can act on right now (has an allowed
@@ -89,6 +89,10 @@ export default function DashboardHome() {
             <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase mb-2 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />Dashboard</p>
             <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">OVERVIEW</h1>
             <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+          </div>
+          <div className="text-right pb-0.5">
+            <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-gray-400 uppercase mb-1">Welcome back</p>
+            <p className="font-sans font-bold text-xl text-gray-900 leading-tight">{staffName ?? staffUsername ?? role}</p>
           </div>
         </div>
       </div>

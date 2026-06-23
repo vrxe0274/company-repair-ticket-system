@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
-import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield, ArrowLeft } from 'lucide-react'
+import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield, ArrowLeft, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useRole, ROLES } from '../hooks/useRole.jsx'
 import { isStandalone } from '../lib/session'
@@ -110,11 +110,12 @@ function RoleButton({ icon: Icon, label, description, color, onClick }) {
  * Redirects immediately to '/' if the session is already authenticated.
  */
 export default function LoginPage() {
-  const { loginWithRole, authenticated } = useAuth()
-  const { setRole }                      = useRole()
-  const navigate                         = useNavigate()
+  const { loginWithRole, loginAsStaff, authenticated } = useAuth()
+  const { setRole }                                    = useRole()
+  const navigate                                       = useNavigate()
 
   const [selectedRole, setSelectedRole] = useState(null) // null = step 1 (role selection)
+  const [username,     setUsername]     = useState('')
   const [password,     setPassword]     = useState('')
   const [showPw,       setShowPw]       = useState(false)
   const [error,        setError]        = useState('')
@@ -129,9 +130,10 @@ export default function LoginPage() {
     return <Navigate to="/" replace />
   }
 
-  /** Step 1 → Step 2: pick a role, then ask for its password. */
+  /** Step 1 → Step 2: pick a role, then ask for its password (+ username for Staff). */
   function selectRole(role) {
     setSelectedRole(role)
+    setUsername('')
     setPassword('')
     setError('')
   }
@@ -139,27 +141,46 @@ export default function LoginPage() {
   /** Step 2 → Step 1: go back and pick a different role. */
   function changeRole() {
     setSelectedRole(null)
+    setUsername('')
     setPassword('')
     setError('')
   }
 
-  /** Attempt login for the selected role. Password is verified server-side. */
+  /** Attempt login for the selected role. Credentials are verified server-side. */
   async function handleLogin(e) {
     e?.preventDefault()
+
+    const isStaffRole = selectedRole === ROLES.STAFF
+
+    if (isStaffRole && !username.trim()) {
+      setError('Please enter your username.')
+      return
+    }
     if (!password) {
       setError('Please enter your password.')
       return
     }
+
     setLoading(true)
     setError('')
 
     try {
-      const ok = await loginWithRole(password, selectedRole, { rememberMe: standalone || rememberMe })
+      let ok
+      if (isStaffRole) {
+        ok = await loginAsStaff(username, password, { rememberMe: standalone || rememberMe })
+      } else {
+        ok = await loginWithRole(password, selectedRole, { rememberMe: standalone || rememberMe })
+      }
+
       if (ok) {
         setRole(selectedRole)
         navigate('/', { replace: true })
       } else {
-        setError(`Incorrect password for ${selectedRole}.`)
+        setError(
+          isStaffRole
+            ? 'Incorrect username or password.'
+            : `Incorrect password for ${selectedRole}.`
+        )
         setPassword('')
       }
     } catch (err) {
@@ -270,6 +291,26 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleLogin}>
+                {/* Username field — Staff accounts only */}
+                {selectedRole === ROLES.STAFF && (
+                  <div className="mb-4">
+                    <label className="label">Username</label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={e => { setUsername(e.target.value); setError('') }}
+                        className="input-field pl-10"
+                        placeholder="Enter your username"
+                        autoFocus
+                        autoComplete="username"
+                        spellCheck={false}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Password field */}
                 <div className="mb-6">
                   <label className="label">Password</label>
@@ -281,7 +322,8 @@ export default function LoginPage() {
                       onChange={e => { setPassword(e.target.value); setError('') }}
                       className="input-field pl-10 pr-10"
                       placeholder="Enter your password"
-                      autoFocus
+                      autoFocus={selectedRole !== ROLES.STAFF}
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"
@@ -322,7 +364,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || !password}
+                  disabled={loading || !password || (selectedRole === ROLES.STAFF && !username.trim())}
                   className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {loading
