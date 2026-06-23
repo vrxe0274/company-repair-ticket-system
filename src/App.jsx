@@ -29,6 +29,7 @@ import TicketDetailPage   from './pages/dashboard/TicketDetailPage.jsx'
 import NotificationsPage  from './pages/dashboard/NotificationsPage.jsx'
 import SettingsPage       from './pages/dashboard/SettingsPage.jsx'
 import AccountsPage       from './pages/dashboard/AccountsPage.jsx'
+import AnalyticsPage      from './pages/dashboard/AnalyticsPage.jsx'
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 import ProtectedRoute     from './components/ui/ProtectedRoute.jsx'
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="tickets/:id"      element={<TicketDetailPage />} />
         <Route path="notifications"    element={<NotificationsPage />} />
         <Route path="accounts"         element={<AccountsPage />} />
+        <Route path="analytics"        element={<AnalyticsPage />} />
         <Route path="settings"         element={<SettingsPage />} />
       </Route>
 

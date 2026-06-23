@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X,
+  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -44,7 +44,8 @@ const NAV = [
   { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
-  { to: 'accounts',      label: 'Accounts',      icon: Users, adminOnly: true },
+  { to: 'accounts',      label: 'Accounts',      icon: Users,     adminOnly: true },
+  { to: 'analytics',     label: 'Analytics',     icon: BarChart2, adminOnly: true },
   { to: 'settings',      label: 'Settings',      icon: Settings },
 ]
 
