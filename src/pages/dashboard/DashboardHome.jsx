@@ -83,10 +83,10 @@ export default function DashboardHome() {
 
       {/* Header */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
-        <div className="h-1 bg-gradient-to-r from-brand-500 to-accent-500" />
+        <div className="h-0.5 bg-gradient-to-r from-brand-500 to-accent-500" />
         <div className="px-5 lg:px-7 py-5 flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-gray-900 leading-none">OVERVIEW</h1>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">OVERVIEW</h1>
             <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
           </div>
           <div className="text-right pb-0.5">
