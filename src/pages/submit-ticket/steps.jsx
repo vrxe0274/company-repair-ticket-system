@@ -177,7 +177,11 @@ export function Step5Terms({ termsAccepted, setTermsAccepted }) {
           <div key={section.title} className={`px-5 py-4${i < lastIdx ? ' border-b border-gray-100' : ''}`}>
             <p className="text-xs font-sans font-semibold uppercase tracking-widest text-gray-400 mb-2">{section.title}</p>
             {section.content.split('\n\n').map((para, pi) => (
-              <p key={pi} className={`text-sm font-body text-gray-700 leading-relaxed whitespace-pre-line${pi > 0 ? ' mt-2' : ''}`}>{para}</p>
+              <p key={pi} className={`text-sm font-body text-gray-700 leading-relaxed whitespace-pre-line${pi > 0 ? ' mt-2' : ''}`}>
+                {para.split(/\*\*(.+?)\*\*/g).map((chunk, ci) =>
+                  ci % 2 === 1 ? <strong key={ci}>{chunk}</strong> : chunk
+                )}
+              </p>
             ))}
           </div>
         ))}
