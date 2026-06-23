@@ -63,6 +63,10 @@ export function AuthProvider({ children }) {
     })
 
     if (error) throw new Error('Connection error. Check your network and try again.')
+    if (data?.rateLimited) {
+      const mins = Math.ceil(data.retryAfter / 60)
+      throw new Error(`Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.`)
+    }
     if (!data?.ok) return false
 
     saveSession(role, { persistent: rememberMe })
