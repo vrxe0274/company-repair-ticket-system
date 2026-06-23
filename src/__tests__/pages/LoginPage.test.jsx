@@ -4,9 +4,10 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockNavigate  = vi.fn()
-const mockLoginWith = vi.fn()
-const mockSetRole   = vi.fn()
+const mockNavigate     = vi.fn()
+const mockLoginWith    = vi.fn()
+const mockLoginAsStaff = vi.fn()
+const mockSetRole      = vi.fn()
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -14,7 +15,7 @@ vi.mock('react-router-dom', async () => {
 })
 
 vi.mock('../../hooks/useAuth.jsx', () => ({
-  useAuth: () => ({ loginWithRole: mockLoginWith, authenticated: false }),
+  useAuth: () => ({ loginWithRole: mockLoginWith, loginAsStaff: mockLoginAsStaff, authenticated: false }),
 }))
 
 vi.mock('../../hooks/useRole.jsx', () => ({
@@ -79,11 +80,22 @@ describe('LoginPage — step 2 (password)', () => {
 
   it('calls loginWithRole with the selected role and password', async () => {
     mockLoginWith.mockResolvedValue(true)
-    goToStep2('Staff')
+    goToStep2('Admin')
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'secret' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in as/i }))
     await waitFor(() => {
-      expect(mockLoginWith).toHaveBeenCalledWith('secret', 'Staff', expect.any(Object))
+      expect(mockLoginWith).toHaveBeenCalledWith('secret', 'Admin', expect.any(Object))
+    })
+  })
+
+  it('calls loginAsStaff with username and password for Staff role', async () => {
+    mockLoginAsStaff.mockResolvedValue(true)
+    goToStep2('Staff')
+    fireEvent.change(screen.getByPlaceholderText('Enter your username'), { target: { value: 'jdelacruz' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in as/i }))
+    await waitFor(() => {
+      expect(mockLoginAsStaff).toHaveBeenCalledWith('jdelacruz', 'secret', expect.any(Object))
     })
   })
 
