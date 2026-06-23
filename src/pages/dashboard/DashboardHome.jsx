@@ -14,7 +14,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   Ticket, Clock, Wrench, CheckCircle,
   AlertTriangle, BarChart2, DollarSign,
-  ClipboardList, ChevronRight, Bell,
+  ClipboardList, ChevronRight, Bell, Search,
 } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
@@ -39,12 +39,12 @@ const STATUS_BAR_COLORS = {
 }
 
 const STAT_CONFIGS = [
-  { label: 'Total',       key: 'total',             color: 'text-gray-700',    bg: 'bg-white',       border: 'border-gray-200',   accent: 'border-t-gray-400',    icon: Ticket },
-  { label: 'Pending',     key: 'Pending',            color: 'text-yellow-700',  bg: 'bg-yellow-50',   border: 'border-yellow-200', accent: 'border-t-yellow-400',  icon: Clock },
-  { label: 'In Progress', key: 'Repair in Progress', color: 'text-brand-700',   bg: 'bg-brand-50',    border: 'border-brand-200',  accent: 'border-t-brand-500',   icon: Wrench },
-  { label: 'Done',        key: 'Done',               color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200',   accent: 'border-t-blue-500',    icon: CheckCircle },
-  { label: 'Paid',        key: 'Paid',               color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200',accent: 'border-t-emerald-500', icon: DollarSign },
-  { label: 'Denied',      key: 'Denied',             color: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200',    accent: 'border-t-red-500',     icon: AlertTriangle },
+  { label: 'Pending',     key: 'Pending',            color: 'text-yellow-700',  bg: 'bg-yellow-50',    border: 'border-yellow-200',  accent: 'border-t-yellow-400',  icon: Clock },
+  { label: 'Inspection',  key: 'Inspection & Quote', color: 'text-purple-700',  bg: 'bg-purple-50',    border: 'border-purple-200',  accent: 'border-t-purple-500',  icon: Search },
+  { label: 'In Progress', key: 'Repair in Progress', color: 'text-brand-700',   bg: 'bg-brand-50',     border: 'border-brand-200',   accent: 'border-t-brand-500',   icon: Wrench },
+  { label: 'Done',        key: 'Done',               color: 'text-blue-700',    bg: 'bg-blue-50',      border: 'border-blue-200',    accent: 'border-t-blue-500',    icon: CheckCircle },
+  { label: 'Paid',        key: 'Paid',               color: 'text-emerald-700', bg: 'bg-emerald-50',   border: 'border-emerald-200', accent: 'border-t-emerald-500', icon: DollarSign },
+  { label: 'Denied',      key: 'Denied',             color: 'text-red-700',     bg: 'bg-red-50',       border: 'border-red-200',     accent: 'border-t-red-500',     icon: AlertTriangle },
 ]
 
 // ── Page component ─────────────────────────────────────────────────────────────
@@ -97,12 +97,33 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Stat cards — each links to the ticket list filtered by status */}
+      {/* Total — distinct full-width banner */}
+      <Link
+        to="tickets"
+        className="flex items-center justify-between gap-4 px-5 sm:px-7 py-4 sm:py-5 rounded-xl bg-white border-t-2 border border-brand-200 border-t-brand-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 group max-w-sm mx-auto w-full"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
+            <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-sans font-semibold tracking-[0.14em] text-brand-600 uppercase">All Tickets</p>
+            <p className="font-display text-3xl sm:text-4xl tracking-wider text-gray-900 leading-none mt-0.5">
+              {loading ? '–' : tickets.length}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs font-sans font-semibold text-gray-400 group-hover:text-brand-500 transition-colors hidden sm:block">
+          View all →
+        </p>
+      </Link>
+
+      {/* Status cards */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {STAT_CONFIGS.map(({ label, key, color, bg, border, accent, icon: Icon }) => (
           <Link
             key={key}
-            to={key === 'total' ? 'tickets' : `tickets?status=${encodeURIComponent(key)}`}
+            to={`tickets?status=${encodeURIComponent(key)}`}
             className={`rounded-xl border border-t-2 p-3 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 ${bg} ${border} ${accent}`}
           >
             <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-2 sm:mb-3 ${color}`} />
