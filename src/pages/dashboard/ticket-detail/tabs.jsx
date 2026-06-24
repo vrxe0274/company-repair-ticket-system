@@ -49,8 +49,8 @@ export function OverviewTab({
             <InfoBox label="Type"            value={ticket.unit_type} />
             <InfoBox label="Condition"       value={ticket.unit_condition || '—'} />
             <InfoBox label="Mode of Service" value={ticket.mode_of_service} />
-            <InfoBox label="Preferred Date"  value={ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'} />
-            <InfoBox label="Preferred Time"  value={ticket.preferred_time || '—'} />
+            <InfoBox label="Appointment Date" value={ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'} />
+            <InfoBox label="Appointment Time" value={ticket.preferred_time || '—'} />
             <div className="col-span-3"><InfoBox label="Accessories" value={ticket.accessories_included || '—'} /></div>
           </div>
         </div>

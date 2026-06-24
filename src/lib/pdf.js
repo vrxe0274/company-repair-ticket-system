@@ -165,8 +165,8 @@ export function downloadTicketPDF(ticket) {
   const unitRows = [
     ['Brand',       ticket.unit_brand,   'Type',            ticket.unit_type],
     ['Model',       ticket.unit_model,   'Mode of Service', ticket.mode_of_service],
-    ['Accessories', ticket.accessories_included || 'None', 'Preferred Date', ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'],
-    ['Condition', ticket.unit_condition || '—', 'Preferred Time', ticket.preferred_time || '—'],
+    ['Accessories', ticket.accessories_included || 'None', 'Appointment Date', ticket.preferred_date ? format(new Date(ticket.preferred_date), 'MMM d, yyyy') : '—'],
+    ['Condition', ticket.unit_condition || '—', 'Appointment Time', ticket.preferred_time || '—'],
   ]
 
   unitRows.forEach(([l1, v1, l2, v2]) => {

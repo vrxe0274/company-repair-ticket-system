@@ -119,10 +119,10 @@ export function Step4Appointment({ form, errors, handleChange }) {
     <div className="space-y-4">
       <StepHeading icon={CalendarClock} title="Appointment" subtitle="When would you like to bring in your device?" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Preferred Date">
+        <Field label="Appointment Date">
           <input className="input-field min-w-0 max-w-full" type="date" name="preferred_date" value={form.preferred_date} onChange={handleChange} />
         </Field>
-        <Field label="Preferred Time">
+        <Field label="Appointment Time">
           <input className="input-field min-w-0 max-w-full" type="time" name="preferred_time" value={form.preferred_time} onChange={handleChange} />
         </Field>
       </div>
