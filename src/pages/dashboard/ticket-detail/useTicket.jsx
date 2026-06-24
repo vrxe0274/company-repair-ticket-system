@@ -8,7 +8,7 @@ import {
 } from '../../../lib/notifications'
 import { sendGlobalPush }    from '../../../lib/push'
 import { downloadTicketPDF } from '../../../lib/pdf'
-import { generateReceiptNumber } from '../../../lib/receipt'
+import { generateReceiptNumber, downloadReceiptPDF } from '../../../lib/receipt'
 import { useRole }           from '../../../hooks/useRole.jsx'
 import { DIAGNOSIS_FEE }    from '../../../lib/constants'
 import { DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT, discountCapFor } from '../../../lib/utils'
@@ -184,7 +184,7 @@ export function useTicket(id) {
           body:  `${data.client_name?.trim() || 'A client'} marked Paid.`,
           url:   `/tickets/${data.id}`,
         })
-        setTimeout(() => downloadTicketPDF(data), PDF_DOWNLOAD_DELAY_MS)
+        setTimeout(() => downloadReceiptPDF(data), PDF_DOWNLOAD_DELAY_MS)
       }
     }
     setStatusUpdating(false)
