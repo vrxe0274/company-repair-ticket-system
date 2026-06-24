@@ -20,47 +20,7 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-function json(status: number, payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
-
-const enc = new TextEncoder()
-
-/**
- * Derive a PBKDF2 key from a password + role-specific salt.
- * Returns a base64 string suitable for storage and constant-time comparison.
- */
-async function deriveKey(password: string, role: string): Promise<string> {
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'],
-  )
-  const salt = enc.encode(`vrxe-${role}-pw-v1`)
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
-    keyMaterial, 256,
-  )
-  return btoa(String.fromCharCode(...new Uint8Array(bits)))
-}
-
-/** Constant-time string comparison (same length only). */
-function timingSafeEqual(a: string, b: string): boolean {
-  const ab = enc.encode(a)
-  const bb = enc.encode(b)
-  if (ab.length !== bb.length) return false
-  let diff = 0
-  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i]
-  return diff === 0
-}
+import { corsHeaders, json, timingSafeEqual, deriveRoleKey } from '../_shared/auth.ts'
 
 const ALLOWED_ROLES = new Set(['Admin', 'Technician'])
 const MIN_LENGTH    = 8
@@ -113,7 +73,7 @@ Deno.serve(async (req) => {
   let currentOk = false
 
   if (row?.password_hash) {
-    const inputHash = await deriveKey(currentPassword, role)
+    const inputHash = await deriveRoleKey(currentPassword, role)
     currentOk = timingSafeEqual(inputHash, row.password_hash)
   } else {
     const expected = envPasswords[role]
@@ -128,7 +88,7 @@ Deno.serve(async (req) => {
 
   // ── Derive and store new password hash ────────────────────────────────────
 
-  const newHash = await deriveKey(newPassword, role)
+  const newHash = await deriveRoleKey(newPassword, role)
 
   const { error: upsertError } = await supabase
     .from('role_passwords')

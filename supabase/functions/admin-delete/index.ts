@@ -24,23 +24,10 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { corsHeaders, json } from '../_shared/auth.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-const BUCKET = 'repair-photos'
-// Sentinel UUID that never matches a real row — used to express "all rows".
+const BUCKET   = 'repair-photos'
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
-
-function json(status: number, payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
 
 /** Remove a list of storage object paths, ignoring failures (best-effort cleanup). */
 async function removePhotos(

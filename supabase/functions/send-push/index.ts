@@ -22,19 +22,7 @@
 
 import webpush from 'npm:web-push@3.6.7'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-function json(status: number, payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
+import { corsHeaders, json } from '../_shared/auth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -44,9 +32,9 @@ Deno.serve(async (req) => {
     return json(405, { error: 'Method not allowed' })
   }
 
-  const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')
+  const vapidPublicKey  = Deno.env.get('VAPID_PUBLIC_KEY')
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')
-  const vapidSubject = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com'
+  const vapidSubject    = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com'
 
   if (!vapidPublicKey || !vapidPrivateKey) {
     return json(500, { error: 'VAPID keys not configured (supabase secrets set ...)' })
@@ -60,14 +48,13 @@ Deno.serve(async (req) => {
     return json(400, { error: 'Invalid JSON body' })
   }
 
-  const title = (body.title ?? '').toString().trim().slice(0, 120)
-  const message = (body.body ?? '').toString().trim().slice(0, 500)
-  const url = body.url ? body.url.toString().trim().slice(0, 500) : null
+  const title   = (body.title ?? '').toString().trim().slice(0, 120)
+  const message = (body.body  ?? '').toString().trim().slice(0, 500)
+  const url     = body.url ? body.url.toString().trim().slice(0, 500) : null
 
   if (!title || !message) {
     return json(400, { error: 'title and body are required' })
   }
-  // Only allow same-app relative deep links or https URLs
   if (url && !url.startsWith('/') && !url.startsWith('https://')) {
     return json(400, { error: 'url must be a relative path or https URL' })
   }
@@ -88,8 +75,8 @@ Deno.serve(async (req) => {
   const payload = JSON.stringify({
     title,
     body: message,
-    url: url ?? '/',
-    icon: '/icons/icon-192x192.png',
+    url:   url ?? '/',
+    icon:  '/icons/icon-192x192.png',
     badge: '/icons/icon-192x192.png',
   })
 

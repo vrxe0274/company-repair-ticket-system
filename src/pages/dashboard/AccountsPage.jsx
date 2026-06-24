@@ -4,17 +4,20 @@
  *
  * Admins can:
  *   - View all staff accounts (username + creation date)
- *   - Create a new staff account (username + password, requires admin password)
- *   - Delete a staff account (requires admin password)
+ *   - Create a new staff account (username + password)
+ *   - Delete a staff account
  *
- * Non-admins are redirected by the ProtectedRoute / DashboardLayout before
- * this page renders, but we also guard here defensively via isAdmin.
+ * The page requires the admin password once on load (unlock gate). That
+ * password is stored in component state for the session and reused for all
+ * subsequent list refreshes, creates, and deletes — no re-entry needed.
+ *
+ * Route guard: ProtectedRoute requiredRole="Admin" in App.jsx redirects
+ * any non-Admin before this component mounts.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { format } from 'date-fns'
-import { Users, Plus, Trash2, X, Lock, Eye, EyeOff, Search } from 'lucide-react'
-import { useRole } from '../../hooks/useRole.jsx'
+import { Users, Plus, Trash2, X, Lock, Eye, EyeOff, Search, ShieldCheck } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -29,31 +32,33 @@ async function callStaffManage(body) {
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function AccountsPage() {
-  const { isAdmin } = useRole()
+  // ── Unlock state (password entered once per session) ──────────────────────
+  const [adminPassword,   setAdminPassword]   = useState('')   // '' = locked
+  const [pwInput,         setPwInput]         = useState('')
+  const [showPwInput,     setShowPwInput]     = useState(false)
+  const [unlocking,       setUnlocking]       = useState(false)
+  const [unlockError,     setUnlockError]     = useState('')
 
-  const [accounts, setAccounts]   = useState([])
-  const [listLoading, setListLoading] = useState(true)
-  const [listError,   setListError]   = useState('')
+  // ── Account list state ────────────────────────────────────────────────────
+  const [accounts,     setAccounts]     = useState([])
+  const [listLoading,  setListLoading]  = useState(false)
+  const [listError,    setListError]    = useState('')
 
-  // Create modal state
-  const [showCreate,     setShowCreate]     = useState(false)
-  const [newUsername,    setNewUsername]    = useState('')
-  const [newPassword,    setNewPassword]    = useState('')
-  const [newPwConfirm,   setNewPwConfirm]   = useState('')
-  const [createAdminPw,  setCreateAdminPw]  = useState('')
-  const [showCreatePw,   setShowCreatePw]   = useState(false)
-  const [showCreateAdmin, setShowCreateAdmin] = useState(false)
-  const [creating,       setCreating]       = useState(false)
-  const [createError,    setCreateError]    = useState('')
+  // ── Create modal state ────────────────────────────────────────────────────
+  const [showCreate,   setShowCreate]   = useState(false)
+  const [newUsername,  setNewUsername]  = useState('')
+  const [newPassword,  setNewPassword]  = useState('')
+  const [newPwConfirm, setNewPwConfirm] = useState('')
+  const [showNewPw,    setShowNewPw]    = useState(false)
+  const [creating,     setCreating]     = useState(false)
+  const [createError,  setCreateError]  = useState('')
 
-  // Delete modal state
-  const [deleteTarget,   setDeleteTarget]   = useState(null) // username string
-  const [deleteAdminPw,  setDeleteAdminPw]  = useState('')
-  const [showDeleteAdmin, setShowDeleteAdmin] = useState(false)
-  const [deleting,       setDeleting]       = useState(false)
-  const [deleteError,    setDeleteError]    = useState('')
+  // ── Delete modal state ────────────────────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting,     setDeleting]     = useState(false)
+  const [deleteError,  setDeleteError]  = useState('')
 
-  // Search
+  // ── Search ────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
@@ -65,7 +70,7 @@ export default function AccountsPage() {
     )
   }, [accounts, query])
 
-  // Toast
+  // ── Toast ─────────────────────────────────────────────────────────────────
   const [toast, setToast] = useState('')
 
   const showToast = (msg) => {
@@ -73,15 +78,13 @@ export default function AccountsPage() {
     setTimeout(() => setToast(''), 3500)
   }
 
-  const loadAccounts = useCallback(async () => {
+  // ── Load accounts (requires unlocked adminPassword) ───────────────────────
+  const loadAccounts = useCallback(async (pw) => {
     setListLoading(true)
     setListError('')
     try {
-      const { data, error } = await supabase.functions.invoke('staff-manage', {
-        body: { action: 'list' },
-      })
-      if (error || !data?.ok) throw new Error(data?.error || 'Failed to load accounts.')
-      setAccounts(data.accounts ?? [])
+      const { accounts: data } = await callStaffManage({ action: 'list', adminPassword: pw })
+      setAccounts(data ?? [])
     } catch (err) {
       setListError(err.message)
     } finally {
@@ -89,42 +92,52 @@ export default function AccountsPage() {
     }
   }, [])
 
-  useEffect(() => { loadAccounts() }, [loadAccounts])
+  // ── Unlock ────────────────────────────────────────────────────────────────
+  async function handleUnlock() {
+    if (!pwInput) return
+    setUnlocking(true)
+    setUnlockError('')
+    try {
+      const { accounts: data } = await callStaffManage({ action: 'list', adminPassword: pwInput })
+      setAccounts(data ?? [])
+      setAdminPassword(pwInput)
+      setPwInput('')
+    } catch (err) {
+      setUnlockError(err.message)
+    } finally {
+      setUnlocking(false)
+    }
+  }
 
-  // ── Create ──────────────────────────────────────────────────────────────────
-
+  // ── Create ────────────────────────────────────────────────────────────────
   function openCreate() {
     setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
-    setCreateAdminPw(''); setCreateError('')
-    setShowCreatePw(false); setShowCreateAdmin(false)
+    setShowNewPw(false); setCreateError('')
     setShowCreate(true)
   }
 
-  function closeCreate() {
-    setShowCreate(false)
-  }
+  function closeCreate() { setShowCreate(false) }
 
   async function handleCreate() {
-    if (!newUsername.trim())                  { setCreateError('Username is required.'); return }
+    if (!newUsername.trim()) { setCreateError('Username is required.'); return }
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(newUsername.trim())) {
       setCreateError('Username: 3–30 chars, letters, digits, underscores only.')
       return
     }
-    if (newPassword.length < 8)              { setCreateError('Password must be at least 8 characters.'); return }
-    if (newPassword !== newPwConfirm)        { setCreateError('Passwords do not match.'); return }
-    if (!createAdminPw)                      { setCreateError('Admin password is required.'); return }
+    if (newPassword.length < 8)         { setCreateError('Password must be at least 8 characters.'); return }
+    if (newPassword !== newPwConfirm)   { setCreateError('Passwords do not match.'); return }
 
     setCreating(true); setCreateError('')
     try {
       await callStaffManage({
         action:        'create',
-        adminPassword: createAdminPw,
+        adminPassword,
         username:      newUsername.trim().toLowerCase(),
         password:      newPassword,
       })
       closeCreate()
       showToast(`Account "${newUsername.trim().toLowerCase()}" created.`)
-      loadAccounts()
+      loadAccounts(adminPassword)
     } catch (err) {
       setCreateError(err.message)
     } finally {
@@ -132,32 +145,28 @@ export default function AccountsPage() {
     }
   }
 
-  // ── Delete ──────────────────────────────────────────────────────────────────
-
+  // ── Delete ────────────────────────────────────────────────────────────────
   function openDelete(username) {
     setDeleteTarget(username)
-    setDeleteAdminPw(''); setDeleteError('')
-    setShowDeleteAdmin(false)
+    setDeleteError('')
   }
 
   function closeDelete() {
     setDeleteTarget(null)
-    setDeleteAdminPw(''); setDeleteError('')
+    setDeleteError('')
   }
 
   async function handleDelete() {
-    if (!deleteAdminPw) { setDeleteError('Admin password is required.'); return }
-
     setDeleting(true); setDeleteError('')
     try {
       await callStaffManage({
         action:        'delete',
-        adminPassword: deleteAdminPw,
+        adminPassword,
         username:      deleteTarget,
       })
       closeDelete()
       showToast(`Account "${deleteTarget}" deleted.`)
-      loadAccounts()
+      loadAccounts(adminPassword)
     } catch (err) {
       setDeleteError(err.message)
     } finally {
@@ -165,15 +174,64 @@ export default function AccountsPage() {
     }
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render — locked state ─────────────────────────────────────────────────
 
-  if (!isAdmin) {
+  if (!adminPassword) {
     return (
-      <div className="flex flex-col flex-1 items-center justify-center text-gray-400 font-body text-sm">
-        Admin access required.
+      <div className="flex flex-col flex-1 items-center justify-center animate-fade-in">
+        <div className="card w-full max-w-sm p-8 space-y-5">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center">
+              <ShieldCheck className="w-6 h-6 text-brand-600" />
+            </div>
+            <div>
+              <h2 className="font-sans font-bold text-gray-900 text-lg">Admin verification</h2>
+              <p className="text-sm font-body text-gray-400 mt-1">Enter your admin password to view and manage accounts.</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                type={showPwInput ? 'text' : 'password'}
+                value={pwInput}
+                onChange={e => { setPwInput(e.target.value); setUnlockError('') }}
+                onKeyDown={e => { if (e.key === 'Enter' && !unlocking) handleUnlock() }}
+                className="input-field pl-9 pr-9"
+                placeholder="Admin password"
+                autoFocus
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwInput(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label={showPwInput ? 'Hide' : 'Show'}
+              >
+                {showPwInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {unlockError && <p className="text-xs text-red-500 font-sans">{unlockError}</p>}
+
+            <button
+              onClick={handleUnlock}
+              disabled={unlocking || !pwInput}
+              className="btn-primary w-full justify-center"
+            >
+              {unlocking
+                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : 'Unlock'
+              }
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
+
+  // ── Render — unlocked state ───────────────────────────────────────────────
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -210,80 +268,80 @@ export default function AccountsPage() {
           </div>
         </div>
 
-          {listLoading && (
-            <div className="flex items-center justify-center py-14">
-              <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+        {listLoading && (
+          <div className="flex items-center justify-center py-14">
+            <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {listError && !listLoading && (
+          <p className="text-sm text-red-500 font-body py-8 text-center px-5">{listError}</p>
+        )}
+
+        {!listLoading && !listError && accounts.length === 0 && (
+          <div className="text-center py-14 px-5">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-6 h-6 text-gray-400" />
             </div>
-          )}
+            <p className="text-sm font-sans font-semibold text-gray-700">No staff accounts yet</p>
+            <p className="text-xs font-body text-gray-400 mt-1">Add the first one using the button above.</p>
+          </div>
+        )}
 
-          {listError && !listLoading && (
-            <p className="text-sm text-red-500 font-body py-8 text-center px-5">{listError}</p>
-          )}
+        {!listLoading && !listError && accounts.length > 0 && filtered.length === 0 && (
+          <div className="text-center py-14 px-5">
+            <p className="text-sm font-sans font-semibold text-gray-700">No results for "{query}"</p>
+            <p className="text-xs font-body text-gray-400 mt-1">Try a different name or username.</p>
+          </div>
+        )}
 
-          {!listLoading && !listError && accounts.length === 0 && (
-            <div className="text-center py-14 px-5">
-              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                <Users className="w-6 h-6 text-gray-400" />
-              </div>
-              <p className="text-sm font-sans font-semibold text-gray-700">No staff accounts yet</p>
-              <p className="text-xs font-body text-gray-400 mt-1">Add the first one using the button above.</p>
-            </div>
-          )}
+        {!listLoading && !listError && filtered.length > 0 && (
+          <ul className="divide-y divide-gray-100">
+            {filtered.map(acc => (
+              <li
+                key={acc.id}
+                className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/70 transition-colors"
+              >
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-sans font-bold text-emerald-700 uppercase leading-none">
+                    {(acc.name ?? acc.username).charAt(0)}
+                  </span>
+                </div>
 
-          {!listLoading && !listError && accounts.length > 0 && filtered.length === 0 && (
-            <div className="text-center py-14 px-5">
-              <p className="text-sm font-sans font-semibold text-gray-700">No results for "{query}"</p>
-              <p className="text-xs font-body text-gray-400 mt-1">Try a different name or username.</p>
-            </div>
-          )}
+                {/* Identity */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-sans font-semibold text-gray-900 truncate">
+                      {acc.name ?? acc.username}
+                    </p>
+                    {!acc.name && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-sans font-semibold text-amber-700 leading-none shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                        Setup pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{acc.username}</p>
+                </div>
 
-          {!listLoading && !listError && filtered.length > 0 && (
-            <ul className="divide-y divide-gray-100">
-              {filtered.map(acc => (
-                <li
-                  key={acc.id}
-                  className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/70 transition-colors"
+                {/* Date — hidden on very small screens */}
+                <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
+                  {format(new Date(acc.created_at), 'MMM d, yyyy')}
+                </p>
+
+                {/* Delete */}
+                <button
+                  onClick={() => openDelete(acc.username)}
+                  className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
+                  aria-label={`Delete ${acc.username}`}
                 >
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-sans font-bold text-emerald-700 uppercase leading-none">
-                      {(acc.name ?? acc.username).charAt(0)}
-                    </span>
-                  </div>
-
-                  {/* Identity */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-sans font-semibold text-gray-900 truncate">
-                        {acc.name ?? acc.username}
-                      </p>
-                      {!acc.name && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-sans font-semibold text-amber-700 leading-none shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                          Setup pending
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{acc.username}</p>
-                  </div>
-
-                  {/* Date — hidden on very small screens */}
-                  <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
-                    {format(new Date(acc.created_at), 'MMM d, yyyy')}
-                  </p>
-
-                  {/* Delete */}
-                  <button
-                    onClick={() => openDelete(acc.username)}
-                    className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
-                    aria-label={`Delete ${acc.username}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* ── Create account modal ── */}
@@ -324,18 +382,18 @@ export default function AccountsPage() {
                 <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Password</label>
                 <div className="relative">
                   <input
-                    type={showCreatePw ? 'text' : 'password'}
+                    type={showNewPw ? 'text' : 'password'}
                     value={newPassword}
                     onChange={e => { setNewPassword(e.target.value); setCreateError('') }}
                     className="input-field pr-9"
                     placeholder="At least 8 characters"
                     autoComplete="new-password"
                   />
-                  <button type="button" onClick={() => setShowCreatePw(v => !v)}
+                  <button type="button" onClick={() => setShowNewPw(v => !v)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    aria-label={showCreatePw ? 'Hide' : 'Show'}
+                    aria-label={showNewPw ? 'Hide' : 'Show'}
                   >
-                    {showCreatePw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -350,32 +408,8 @@ export default function AccountsPage() {
                   className="input-field"
                   placeholder="Repeat password"
                   autoComplete="new-password"
+                  onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
                 />
-              </div>
-
-              {/* Admin password gate */}
-              <div className="space-y-1.5 pt-1 border-t border-gray-100">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
-                  Your Admin Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                  <input
-                    type={showCreateAdmin ? 'text' : 'password'}
-                    value={createAdminPw}
-                    onChange={e => { setCreateAdminPw(e.target.value); setCreateError('') }}
-                    onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
-                    className="input-field pl-9 pr-9"
-                    placeholder="Confirm with your password"
-                    autoComplete="current-password"
-                  />
-                  <button type="button" onClick={() => setShowCreateAdmin(v => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    aria-label={showCreateAdmin ? 'Hide' : 'Show'}
-                  >
-                    {showCreateAdmin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
               </div>
 
               {createError && <p className="text-xs text-red-500 font-sans">{createError}</p>}
@@ -385,7 +419,7 @@ export default function AccountsPage() {
               <button onClick={closeCreate} disabled={creating} className="btn-secondary flex-1 justify-center">Cancel</button>
               <button
                 onClick={handleCreate}
-                disabled={creating || !newUsername.trim() || !newPassword || !newPwConfirm || !createAdminPw}
+                disabled={creating || !newUsername.trim() || !newPassword || !newPwConfirm}
                 className="btn-primary flex-1 justify-center"
               >
                 {creating
@@ -420,37 +454,13 @@ export default function AccountsPage() {
               This immediately revokes their access and cannot be undone.
             </p>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
-                Your Admin Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <input
-                  type={showDeleteAdmin ? 'text' : 'password'}
-                  value={deleteAdminPw}
-                  onChange={e => { setDeleteAdminPw(e.target.value); setDeleteError('') }}
-                  onKeyDown={e => { if (e.key === 'Enter' && deleteAdminPw && !deleting) handleDelete() }}
-                  className="input-field pl-9 pr-9"
-                  placeholder="Confirm with your password"
-                  autoFocus
-                  autoComplete="current-password"
-                />
-                <button type="button" onClick={() => setShowDeleteAdmin(v => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label={showDeleteAdmin ? 'Hide' : 'Show'}
-                >
-                  {showDeleteAdmin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {deleteError && <p className="text-xs text-red-500 font-sans">{deleteError}</p>}
-            </div>
+            {deleteError && <p className="text-xs text-red-500 font-sans">{deleteError}</p>}
 
             <div className="flex gap-2 pt-1">
               <button onClick={closeDelete} disabled={deleting} className="btn-secondary flex-1 justify-center">Cancel</button>
               <button
                 onClick={handleDelete}
-                disabled={deleting || !deleteAdminPw}
+                disabled={deleting}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
               >
                 {deleting
