@@ -77,12 +77,15 @@ export default function PayrollPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
 
-      {/* Title row */}
-      <div className="flex items-center gap-2">
-        <Banknote className="w-5 h-5 text-brand-500" />
-        <h1 className="text-xl font-display font-bold text-gray-900">Payroll</h1>
+      {/* Header */}
+      <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
+        <div className="h-0.5 bg-gradient-to-r from-brand-500 to-accent-500" />
+        <div className="px-5 lg:px-7 py-5">
+          <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">PAYROLL</h1>
+          <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+        </div>
       </div>
 
       {/* ── Summary banner ── */}
