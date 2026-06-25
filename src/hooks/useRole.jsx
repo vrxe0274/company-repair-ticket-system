@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { getSession, updateSessionRole, updateSessionName } from '../lib/session'
+import { getSession, updateSessionRole, updateSessionName, updateSessionUsername } from '../lib/session'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Role definitions
@@ -42,9 +42,9 @@ export const ROLE_TRANSITIONS = {
 const RoleContext = createContext(null)
 
 export function RoleProvider({ children }) {
-  const [role,          setRoleState]     = useState(null)
-  const [staffUsername, setStaffUsername] = useState(null)
-  const [staffName,     setStaffNameState] = useState(null)
+  const [role,          setRoleState]       = useState(null)
+  const [staffUsername, setStaffUsernameState] = useState(null)
+  const [staffName,     setStaffNameState]  = useState(null)
 
   // Role is stored inside the shared session record (lib/session.js) so it
   // persists alongside auth — localStorage when "Remember me" / PWA,
@@ -53,7 +53,7 @@ export function RoleProvider({ children }) {
     const session = getSession()
     if (session?.role && VALID_ROLES.has(session.role)) {
       setRoleState(session.role)
-      if (session.username) setStaffUsername(session.username)
+      if (session.username) setStaffUsernameState(session.username)
       if (session.name)     setStaffNameState(session.name)
     }
   }, [])
@@ -66,17 +66,21 @@ export function RoleProvider({ children }) {
   }
 
   function clearRole() {
-    // The session record itself is cleared by useAuth.logout();
-    // here we only reset the in-memory role, username, and name.
     setRoleState(null)
-    setStaffUsername(null)
+    setStaffUsernameState(null)
     setStaffNameState(null)
   }
 
-  /** Persist the staff member's chosen display name to session + DB. */
+  /** Persist the staff member's chosen display name to session + state. */
   function setStaffName(name) {
     updateSessionName(name)
     setStaffNameState(name)
+  }
+
+  /** Persist the staff member's username to session + state (called after change-username). */
+  function setStaffUsername(username) {
+    updateSessionUsername(username)
+    setStaffUsernameState(username)
   }
 
   const isAdmin      = role === ROLES.ADMIN
@@ -109,7 +113,7 @@ export function RoleProvider({ children }) {
     <RoleContext.Provider
       value={{ role, setRole, clearRole, getAllowedTransitions,
                isAdmin, isStaff, isTechnician, isManager,
-               staffUsername, staffName, setStaffName }}
+               staffUsername, staffName, setStaffName, setStaffUsername }}
     >
       {children}
     </RoleContext.Provider>

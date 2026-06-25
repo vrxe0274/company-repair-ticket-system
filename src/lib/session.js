@@ -145,6 +145,11 @@ export function updateSessionName(name) {
   patchSession({ name })
 }
 
+/** Update only the username on the existing record (keeps all other fields). */
+export function updateSessionUsername(username) {
+  patchSession({ username })
+}
+
 /** Clear the mustChangePassword flag once the employee has set a new password. */
 export function clearMustChangePassword() {
   patchSession({ mustChangePassword: false })

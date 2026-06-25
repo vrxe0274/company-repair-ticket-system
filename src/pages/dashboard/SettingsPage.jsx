@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff } from 'lucide-react'
+import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
@@ -23,7 +23,7 @@ import { supabase } from '../../lib/supabase'
 const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
-  const { isAdmin, isManager, isStaff, isTechnician, role, staffUsername } = useRole()
+  const { isAdmin, isManager, isStaff, isTechnician, role, staffUsername, staffName, setStaffName, setStaffUsername } = useRole()
   const { isDark, toggleTheme } = useTheme()
 
   // Flush DB state (admin only)
@@ -116,6 +116,69 @@ export default function SettingsPage() {
     } finally {
       setPersonalPwSaving(false)
     }
+  }
+
+  // Edit name state — Staff / Technician
+  const [showEditName,  setShowEditName]  = useState(false)
+  const [nameInput,     setNameInput]     = useState('')
+  const [nameError,     setNameError]     = useState('')
+  const [nameSaving,    setNameSaving]    = useState(false)
+  const [nameDone,      setNameDone]      = useState(false)
+
+  function openEditName() { setNameInput(staffName ?? ''); setNameError(''); setShowEditName(true) }
+  function closeEditName() { setShowEditName(false); setNameInput(''); setNameError('') }
+
+  async function handleEditName() {
+    const trimmed = nameInput.trim()
+    if (!trimmed)          { setNameError('Name is required.'); return }
+    if (trimmed.length > 80) { setNameError('Name must be 80 characters or fewer.'); return }
+    setNameSaving(true); setNameError('')
+    try {
+      const fn = isTechnician ? 'tech-manage' : 'staff-manage'
+      const { data, error } = await supabase.functions.invoke(fn, {
+        body: { action: 'set-name', username: staffUsername, name: trimmed },
+      })
+      if (error || !data?.ok) throw new Error(data?.error || 'Failed to save name.')
+      setStaffName(trimmed)
+      setNameDone(true)
+      closeEditName()
+      setTimeout(() => setNameDone(false), 3500)
+    } catch (err) { setNameError(err.message) }
+    finally { setNameSaving(false) }
+  }
+
+  // Edit username state — Staff / Technician
+  const [showEditUsername,  setShowEditUsername]  = useState(false)
+  const [newUsernameInput,  setNewUsernameInput]  = useState('')
+  const [usernamePwInput,   setUsernamePwInput]   = useState('')
+  const [showUsernamePw,    setShowUsernamePw]    = useState(false)
+  const [usernameError,     setUsernameError]     = useState('')
+  const [usernameSaving,    setUsernameSaving]    = useState(false)
+  const [usernameDone,      setUsernameDone]      = useState(false)
+
+  function openEditUsername() { setNewUsernameInput(staffUsername ?? ''); setUsernamePwInput(''); setUsernameError(''); setShowEditUsername(true) }
+  function closeEditUsername() { setShowEditUsername(false); setNewUsernameInput(''); setUsernamePwInput(''); setUsernameError('') }
+
+  async function handleEditUsername() {
+    if (!newUsernameInput.trim()) { setUsernameError('New username is required.'); return }
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(newUsernameInput.trim())) {
+      setUsernameError('3–30 characters, letters, digits, underscores only.')
+      return
+    }
+    if (!usernamePwInput) { setUsernameError('Current password is required.'); return }
+    setUsernameSaving(true); setUsernameError('')
+    try {
+      const fn = isTechnician ? 'tech-manage' : 'staff-manage'
+      const { data, error } = await supabase.functions.invoke(fn, {
+        body: { action: 'change-username', username: staffUsername, newUsername: newUsernameInput.trim().toLowerCase(), currentPassword: usernamePwInput },
+      })
+      if (error || !data?.ok) throw new Error(data?.error || 'Failed to update username.')
+      setStaffUsername(newUsernameInput.trim().toLowerCase())
+      setUsernameDone(true)
+      closeEditUsername()
+      setTimeout(() => setUsernameDone(false), 3500)
+    } catch (err) { setUsernameError(err.message) }
+    finally { setUsernameSaving(false) }
   }
 
   // Terms editor state (admin only)
@@ -252,6 +315,36 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Profile — Staff / Technician */}
+        {(isStaff || isTechnician) && (
+          <div className="card p-5">
+            <p className="section-title flex items-center gap-2 mb-4">
+              <User className="w-3.5 h-3.5" /> Profile
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Display name</p>
+                  <p className="text-sm font-sans font-semibold text-gray-800 truncate">{staffName || <span className="text-gray-400 font-normal">Not set</span>}</p>
+                </div>
+                <button onClick={openEditName} className="btn-secondary text-xs py-1.5 px-3 shrink-0">
+                  <Pencil className="w-3 h-3" /> Edit
+                </button>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Username</p>
+                  <p className="text-sm font-mono text-gray-800 truncate">{staffUsername}</p>
+                </div>
+                <button onClick={openEditUsername} className="btn-secondary text-xs py-1.5 px-3 shrink-0">
+                  <Pencil className="w-3 h-3" /> Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Change personal password — Staff / Technician individual accounts */}
         {(isStaff || isTechnician) && (
           <div className="card p-5">
@@ -312,6 +405,18 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {nameDone && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> Display name updated
+        </div>
+      )}
+
+      {usernameDone && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> Username updated
+        </div>
+      )}
+
       {/* Terms saved toast */}
       {termsSaved && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
@@ -323,6 +428,126 @@ export default function SettingsPage() {
       {flushDone && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed successfully
+        </div>
+      )}
+
+      {/* Edit name modal */}
+      {showEditName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                  <User className="w-4 h-4 text-brand-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Edit Display Name</h2>
+              </div>
+              <button onClick={closeEditName} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Display name</label>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={e => { setNameInput(e.target.value); setNameError('') }}
+                onKeyDown={e => { if (e.key === 'Enter' && !nameSaving) handleEditName() }}
+                className="input-field"
+                placeholder="Your full name"
+                autoFocus
+                autoComplete="name"
+                maxLength={80}
+              />
+              {nameError && <p className="text-xs text-red-500 font-sans">{nameError}</p>}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={closeEditName} disabled={nameSaving} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handleEditName}
+                disabled={nameSaving || !nameInput.trim()}
+                className="btn-primary flex-1 justify-center"
+              >
+                {nameSaving
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : 'Save'
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit username modal */}
+      {showEditUsername && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                  <User className="w-4 h-4 text-brand-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Edit Username</h2>
+              </div>
+              <button onClick={closeEditUsername} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">New username</label>
+                <input
+                  type="text"
+                  value={newUsernameInput}
+                  onChange={e => { setNewUsernameInput(e.target.value); setUsernameError('') }}
+                  className="input-field font-mono"
+                  placeholder="e.g. juan_dela_cruz"
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <p className="text-xs font-body text-gray-400">3–30 chars · letters, digits, underscores</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Current password</label>
+                <div className="relative">
+                  <input
+                    type={showUsernamePw ? 'text' : 'password'}
+                    value={usernamePwInput}
+                    onChange={e => { setUsernamePwInput(e.target.value); setUsernameError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !usernameSaving) handleEditUsername() }}
+                    className="input-field pr-9"
+                    placeholder="Confirm with your password"
+                    autoComplete="current-password"
+                  />
+                  <button type="button" onClick={() => setShowUsernamePw(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showUsernamePw ? 'Hide' : 'Show'}
+                  >
+                    {showUsernamePw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              {usernameError && <p className="text-xs text-red-500 font-sans">{usernameError}</p>}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={closeEditUsername} disabled={usernameSaving} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handleEditUsername}
+                disabled={usernameSaving || !newUsernameInput.trim() || !usernamePwInput}
+                className="btn-primary flex-1 justify-center"
+              >
+                {usernameSaving
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : 'Save'
+                }
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

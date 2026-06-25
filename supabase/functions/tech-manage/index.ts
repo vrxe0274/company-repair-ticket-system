@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
     password?: string
     currentPassword?: string
     newPassword?: string
+    newUsername?: string
     name?: string
   }
   try {
@@ -109,6 +110,47 @@ Deno.serve(async (req) => {
       .eq('username', username.trim())
 
     if (error) return json(500, { ok: false, error: 'Failed to save new password.' })
+    return json(200, { ok: true })
+  }
+
+  // ── Change own username ───────────────────────────────────────────────────────
+
+  if (action === 'change-username') {
+    const { currentPassword, newUsername } = body
+    if (!username)        return json(200, { ok: false, error: 'Username is required.' })
+    if (!currentPassword) return json(200, { ok: false, error: 'Password is required to change username.' })
+    if (!newUsername || !USERNAME_RE.test(newUsername.trim())) {
+      return json(200, { ok: false, error: 'New username: 3–30 characters, letters, digits, underscores only.' })
+    }
+    const normalizedNew = newUsername.trim().toLowerCase()
+    if (normalizedNew === username.trim()) {
+      return json(200, { ok: false, error: 'New username must differ from current username.' })
+    }
+
+    const { data: row } = await supabase
+      .from('technician_accounts')
+      .select('password_hash')
+      .eq('username', username.trim())
+      .maybeSingle()
+
+    if (!row) return json(200, { ok: false, error: 'Account not found.' })
+
+    const currentHash = await deriveTechKey(currentPassword, username.trim())
+    if (!timingSafeEqual(currentHash, row.password_hash)) {
+      return json(200, { ok: false, error: 'Incorrect password.' })
+    }
+
+    const newHash = await deriveTechKey(currentPassword, normalizedNew)
+
+    const { error } = await supabase
+      .from('technician_accounts')
+      .update({ username: normalizedNew, password_hash: newHash })
+      .eq('username', username.trim())
+
+    if (error) {
+      if (error.code === '23505') return json(200, { ok: false, error: 'That username is already taken.' })
+      return json(500, { ok: false, error: 'Failed to update username.' })
+    }
     return json(200, { ok: true })
   }
 
