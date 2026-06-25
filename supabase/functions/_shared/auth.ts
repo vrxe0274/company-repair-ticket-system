@@ -29,13 +29,16 @@ export function json(status: number, payload: unknown): Response {
 
 export const enc = new TextEncoder()
 
-/** Constant-time string comparison (returns false if lengths differ). */
+/**
+ * Constant-time string comparison.
+ * Always iterates max(len) bytes so length difference is not a timing oracle.
+ */
 export function timingSafeEqual(a: string, b: string): boolean {
-  const ab = enc.encode(a)
-  const bb = enc.encode(b)
-  if (ab.length !== bb.length) return false
-  let diff = 0
-  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i]
+  const ab  = enc.encode(a)
+  const bb  = enc.encode(b)
+  const len = Math.max(ab.length, bb.length)
+  let diff  = ab.length ^ bb.length
+  for (let i = 0; i < len; i++) diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0)
   return diff === 0
 }
 

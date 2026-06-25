@@ -8,10 +8,11 @@
  *   supabase functions deploy staff-manage --no-verify-jwt
  *
  * Actions:
- *   list   — Returns all accounts (id, username, name, created_at, created_by).
- *             Requires adminPassword — usernames are not public data.
- *   create — Creates a new staff account. Requires adminPassword.
- *   delete — Deletes a staff account by username. Requires adminPassword.
+ *   list        — Returns all accounts (id, username, name, created_at, created_by).
+ *                 Requires adminPassword.
+ *   list-names  — Returns all staff usernames and names. Requires adminPassword.
+ *   create      — Creates a new staff account. Requires adminPassword.
+ *   delete      — Deletes a staff account by username. Requires adminPassword.
  *
  * Request:  POST { action, adminPassword, username?, password? }
  * Response: { ok: boolean, accounts?: [...], error?: string }
@@ -28,10 +29,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual,
   deriveRoleKey, deriveStaffKey,
+  checkRateLimit, updateRateLimit,
 } from '../_shared/auth.ts'
 
 const MIN_PASSWORD_LENGTH = 8
-const USERNAME_RE         = /^[a-zA-Z0-9_]{3,30}$/
+const USERNAME_RE         = /^[a-z0-9_]{3,30}$/
 
 // deno-lint-ignore no-explicit-any
 async function verifyAdminPassword(adminPassword: string, supabase: any): Promise<boolean> {
@@ -79,6 +81,10 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
+  // deno-lint-ignore no-explicit-any
+  let kv: any = null
+  try { kv = await Deno.openKv() } catch { /* KV unavailable; rate limiting disabled */ }
+
   // ── Change own password (no admin involvement) ────────────────────────────────
   // The staff member verifies their own current password then sets a new one.
   // Also clears password_reset_required so a forced-reset flow is resolved.
@@ -94,6 +100,13 @@ Deno.serve(async (req) => {
       return json(200, { ok: false, error: 'New password must differ from current password.' })
     }
 
+    const kvKey = ['staff-manage', 'change-password', username.trim()]
+    const now   = Date.now()
+    const rl    = await checkRateLimit(kv, kvKey, now)
+    if (rl.limited) {
+      return json(200, { ok: false, error: `Too many attempts. Try again in ${rl.retryAfter}s.` })
+    }
+
     const { data: row } = await supabase
       .from('staff_accounts')
       .select('password_hash')
@@ -103,7 +116,10 @@ Deno.serve(async (req) => {
     if (!row) return json(200, { ok: false, error: 'Account not found.' })
 
     const currentHash = await deriveStaffKey(currentPassword, username.trim())
-    if (!timingSafeEqual(currentHash, row.password_hash)) {
+    const matched     = timingSafeEqual(currentHash, row.password_hash)
+    await updateRateLimit(kv, kvKey, rl.record, matched, now)
+
+    if (!matched) {
       return json(200, { ok: false, error: 'Current password is incorrect.' })
     }
 
@@ -125,24 +141,35 @@ Deno.serve(async (req) => {
     const { currentPassword, newUsername } = body
     if (!username)        return json(200, { ok: false, error: 'Username is required.' })
     if (!currentPassword) return json(200, { ok: false, error: 'Password is required to change username.' })
-    if (!newUsername || !USERNAME_RE.test(newUsername.trim())) {
-      return json(200, { ok: false, error: 'New username: 3–30 characters, letters, digits, underscores only.' })
+    if (!newUsername || !USERNAME_RE.test(newUsername.trim().toLowerCase())) {
+      return json(200, { ok: false, error: 'New username: 3–30 characters, lowercase letters, digits, underscores only.' })
     }
-    const normalizedNew = newUsername.trim().toLowerCase()
-    if (normalizedNew === username.trim()) {
+    const normalizedCurrent = username.trim().toLowerCase()
+    const normalizedNew     = newUsername.trim().toLowerCase()
+    if (normalizedNew === normalizedCurrent) {
       return json(200, { ok: false, error: 'New username must differ from current username.' })
+    }
+
+    const kvKey = ['staff-manage', 'change-username', normalizedCurrent]
+    const now   = Date.now()
+    const rl    = await checkRateLimit(kv, kvKey, now)
+    if (rl.limited) {
+      return json(200, { ok: false, error: `Too many attempts. Try again in ${rl.retryAfter}s.` })
     }
 
     const { data: row } = await supabase
       .from('staff_accounts')
       .select('password_hash')
-      .eq('username', username.trim())
+      .eq('username', normalizedCurrent)
       .maybeSingle()
 
     if (!row) return json(200, { ok: false, error: 'Account not found.' })
 
-    const currentHash = await deriveStaffKey(currentPassword, username.trim())
-    if (!timingSafeEqual(currentHash, row.password_hash)) {
+    const currentHash = await deriveStaffKey(currentPassword, normalizedCurrent)
+    const matched     = timingSafeEqual(currentHash, row.password_hash)
+    await updateRateLimit(kv, kvKey, rl.record, matched, now)
+
+    if (!matched) {
       return json(200, { ok: false, error: 'Incorrect password.' })
     }
 
@@ -152,7 +179,7 @@ Deno.serve(async (req) => {
     const { error } = await supabase
       .from('staff_accounts')
       .update({ username: normalizedNew, password_hash: newHash })
-      .eq('username', username.trim())
+      .eq('username', normalizedCurrent)
 
     if (error) {
       if (error.code === '23505') return json(200, { ok: false, error: 'That username is already taken.' })
@@ -186,30 +213,6 @@ Deno.serve(async (req) => {
     return json(200, { ok: true })
   }
 
-  // ── List names (no password required — display names only, no credentials) ──────
-
-  if (action === 'list-names') {
-    const { data, error } = await supabase
-      .from('staff_accounts')
-      .select('username, name')
-      .order('name', { ascending: true })
-
-    if (error) return json(500, { ok: false, error: 'Failed to fetch staff names.' })
-    return json(200, { ok: true, staff: data ?? [] })
-  }
-
-  // ── List (no password required — page is admin-only in the UI) ──────────────
-
-  if (action === 'list') {
-    const { data, error } = await supabase
-      .from('staff_accounts')
-      .select('id, username, name, created_at, created_by')
-      .order('created_at', { ascending: false })
-
-    if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
-    return json(200, { ok: true, accounts: data ?? [] })
-  }
-
   // ── All other actions require admin password ───────────────────────────────────
 
   if (!adminPassword) {
@@ -221,6 +224,30 @@ Deno.serve(async (req) => {
     return json(200, { ok: false, error: 'Incorrect admin password.' })
   }
 
+  // ── List names ────────────────────────────────────────────────────────────────
+
+  if (action === 'list-names') {
+    const { data, error } = await supabase
+      .from('staff_accounts')
+      .select('username, name')
+      .order('name', { ascending: true })
+
+    if (error) return json(500, { ok: false, error: 'Failed to fetch staff names.' })
+    return json(200, { ok: true, staff: data ?? [] })
+  }
+
+  // ── List ──────────────────────────────────────────────────────────────────────
+
+  if (action === 'list') {
+    const { data, error } = await supabase
+      .from('staff_accounts')
+      .select('id, username, name, created_at, created_by')
+      .order('created_at', { ascending: false })
+
+    if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
+    return json(200, { ok: true, accounts: data ?? [] })
+  }
+
   // ── Reset password (admin-initiated) ─────────────────────────────────────────
   // Generates a server-side random temp password. Admin never chooses it — they
   // only see it once to hand to the employee verbally. Sets password_reset_required
@@ -228,6 +255,14 @@ Deno.serve(async (req) => {
 
   if (action === 'reset-password') {
     if (!username) return json(200, { ok: false, error: 'Username is required.' })
+
+    const { data: existing } = await supabase
+      .from('staff_accounts')
+      .select('username')
+      .eq('username', username.trim())
+      .maybeSingle()
+
+    if (!existing) return json(200, { ok: false, error: 'Account not found.' })
 
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
     const bytes = new Uint8Array(12)
@@ -248,7 +283,7 @@ Deno.serve(async (req) => {
   // ── Create ────────────────────────────────────────────────────────────────────
 
   if (action === 'create') {
-    const normalizedUsername = (username ?? '').trim()
+    const normalizedUsername = (username ?? '').trim().toLowerCase()
     if (!normalizedUsername || !USERNAME_RE.test(normalizedUsername)) {
       return json(200, {
         ok: false,
@@ -283,6 +318,14 @@ Deno.serve(async (req) => {
     if (!username) {
       return json(200, { ok: false, error: 'Username is required.' })
     }
+
+    const { data: existing } = await supabase
+      .from('staff_accounts')
+      .select('username')
+      .eq('username', username.trim())
+      .maybeSingle()
+
+    if (!existing) return json(200, { ok: false, error: 'Account not found.' })
 
     const { error } = await supabase
       .from('staff_accounts')
