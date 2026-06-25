@@ -140,7 +140,7 @@ export default function EarningsPage() {
               </div>
             </div>
 
-            <p className="text-6xl font-display font-bold leading-none tracking-tight bg-gradient-to-r from-brand-400 to-accent-400 bg-clip-text text-transparent">
+            <p className="text-6xl font-display font-bold leading-none tracking-tight text-white">
               {PESO(totalCommission)}
             </p>
             <p className="text-brand-300 text-sm font-body mt-3">
