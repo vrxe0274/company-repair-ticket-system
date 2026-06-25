@@ -332,7 +332,12 @@ Deno.serve(async (req) => {
       .delete()
       .eq('username', username.trim())
 
-    if (error) return json(500, { ok: false, error: 'Failed to delete account.' })
+    if (error) {
+      if (error.code === '23503') {
+        return json(200, { ok: false, error: 'Cannot delete account — it is still referenced by existing records.' })
+      }
+      return json(200, { ok: false, error: 'Failed to delete account.' })
+    }
     return json(200, { ok: true })
   }
 
