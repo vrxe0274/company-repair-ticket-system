@@ -198,6 +198,18 @@ Deno.serve(async (req) => {
     return json(200, { ok: true, staff: data ?? [] })
   }
 
+  // ── List (no password required — page is admin-only in the UI) ──────────────
+
+  if (action === 'list') {
+    const { data, error } = await supabase
+      .from('staff_accounts')
+      .select('id, username, name, created_at, created_by')
+      .order('created_at', { ascending: false })
+
+    if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
+    return json(200, { ok: true, accounts: data ?? [] })
+  }
+
   // ── All other actions require admin password ───────────────────────────────────
 
   if (!adminPassword) {
@@ -231,18 +243,6 @@ Deno.serve(async (req) => {
 
     if (error) return json(500, { ok: false, error: 'Failed to reset password.' })
     return json(200, { ok: true, tempPassword })
-  }
-
-  // ── List ─────────────────────────────────────────────────────────────────────
-
-  if (action === 'list') {
-    const { data, error } = await supabase
-      .from('staff_accounts')
-      .select('id, username, name, created_at, created_by')
-      .order('created_at', { ascending: false })
-
-    if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
-    return json(200, { ok: true, accounts: data ?? [] })
   }
 
   // ── Create ────────────────────────────────────────────────────────────────────

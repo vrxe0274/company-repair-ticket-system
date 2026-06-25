@@ -14,11 +14,11 @@
  * subsequent operations — no re-entry needed.
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import {
   Plus, Trash2, X, Lock, Eye, EyeOff, Search,
-  ShieldCheck, Shield, Wrench, KeyRound, Copy, Check,
+  Shield, Wrench, KeyRound, Copy, Check,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
@@ -41,12 +41,28 @@ async function callTechManage(body) {
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function AccountsPage() {
-  // ── Unlock state ──────────────────────────────────────────────────────────
-  const [adminPassword, setAdminPassword] = useState('')
-  const [pwInput,       setPwInput]       = useState('')
-  const [showPwInput,   setShowPwInput]   = useState(false)
-  const [unlocking,     setUnlocking]     = useState(false)
-  const [unlockError,   setUnlockError]   = useState('')
+  // ── Admin password — lazily entered on first write op ────────────────────
+  const [adminPassword,    setAdminPassword]    = useState('')
+  const [showAdminGate,    setShowAdminGate]    = useState(false)
+  const [adminGateInput,   setAdminGateInput]   = useState('')
+  const [adminGateShowPw,  setAdminGateShowPw]  = useState(false)
+  const pendingWriteRef = useRef(null) // callback to run after password is confirmed
+
+  function withAdminPw(cb) {
+    if (adminPassword) { cb(adminPassword); return }
+    pendingWriteRef.current = cb
+    setAdminGateInput('')
+    setAdminGateShowPw(false)
+    setShowAdminGate(true)
+  }
+
+  function confirmAdminGate() {
+    if (!adminGateInput) return
+    setAdminPassword(adminGateInput)
+    setShowAdminGate(false)
+    pendingWriteRef.current?.(adminGateInput)
+    pendingWriteRef.current = null
+  }
 
   // ── Staff state ───────────────────────────────────────────────────────────
   const [accounts,     setAccounts]     = useState([])
@@ -115,51 +131,37 @@ export default function AccountsPage() {
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3500) }
 
   // ── Load helpers ──────────────────────────────────────────────────────────
-  const loadStaff = useCallback(async (pw) => {
+  const loadStaff = useCallback(async () => {
     setListLoading(true); setListError('')
     try {
-      const { accounts: data } = await callStaffManage({ action: 'list', adminPassword: pw })
+      const { accounts: data } = await callStaffManage({ action: 'list' })
       setAccounts(data ?? [])
     } catch (err) { setListError(err.message) }
     finally { setListLoading(false) }
   }, [])
 
-  const loadTech = useCallback(async (pw) => {
+  const loadTech = useCallback(async () => {
     setTechListLoading(true); setTechListError('')
     try {
-      const { accounts: data } = await callTechManage({ action: 'list', adminPassword: pw })
+      const { accounts: data } = await callTechManage({ action: 'list' })
       setTechAccounts(data ?? [])
     } catch (err) { setTechListError(err.message) }
     finally { setTechListLoading(false) }
   }, [])
 
-  // ── Unlock ────────────────────────────────────────────────────────────────
-  async function handleUnlock() {
-    if (!pwInput) return
-    setUnlocking(true); setUnlockError('')
-    try {
-      // Staff list is the auth gate — if it succeeds, password is valid.
-      const { accounts: staffData } = await callStaffManage({ action: 'list', adminPassword: pwInput })
-      setAccounts(staffData ?? [])
-      setAdminPassword(pwInput)
-      setPwInput('')
-      loadTech(pwInput)
-    } catch (err) {
-      setUnlockError(err.message)
-    } finally {
-      setUnlocking(false)
-    }
-  }
+  useEffect(() => { loadStaff(); loadTech() }, [loadStaff, loadTech])
 
   // ── Staff create ──────────────────────────────────────────────────────────
   function openCreate() {
-    setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
-    setShowNewPw(false); setCreateError('')
-    setShowCreate(true)
+    withAdminPw(() => {
+      setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
+      setShowNewPw(false); setCreateError('')
+      setShowCreate(true)
+    })
   }
   function closeCreate() { setShowCreate(false) }
 
-  async function handleCreate() {
+  async function handleCreate(pw = adminPassword) {
     if (!newUsername.trim()) { setCreateError('Username is required.'); return }
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(newUsername.trim())) {
       setCreateError('Username: 3–30 chars, letters, digits, underscores only.')
@@ -171,41 +173,51 @@ export default function AccountsPage() {
     setCreating(true); setCreateError('')
     try {
       await callStaffManage({
-        action: 'create', adminPassword,
+        action: 'create', adminPassword: pw,
         username: newUsername.trim().toLowerCase(),
         password: newPassword,
       })
       closeCreate()
       showToast(`Staff account "${newUsername.trim().toLowerCase()}" created.`)
-      loadStaff(adminPassword)
-    } catch (err) { setCreateError(err.message) }
+      loadStaff()
+    } catch (err) {
+      if (err.message.includes('admin password')) { setAdminPassword(''); setCreateError(err.message) }
+      else setCreateError(err.message)
+    }
     finally { setCreating(false) }
   }
 
   // ── Staff delete ──────────────────────────────────────────────────────────
-  function openDelete(username) { setDeleteTarget(username); setDeleteError('') }
-  function closeDelete()        { setDeleteTarget(null); setDeleteError('') }
+  function openDelete(username) {
+    withAdminPw(() => { setDeleteTarget(username); setDeleteError('') })
+  }
+  function closeDelete() { setDeleteTarget(null); setDeleteError('') }
 
-  async function handleDelete() {
+  async function handleDelete(pw = adminPassword) {
     setDeleting(true); setDeleteError('')
     try {
-      await callStaffManage({ action: 'delete', adminPassword, username: deleteTarget })
+      await callStaffManage({ action: 'delete', adminPassword: pw, username: deleteTarget })
       closeDelete()
       showToast(`Staff account "${deleteTarget}" deleted.`)
-      loadStaff(adminPassword)
-    } catch (err) { setDeleteError(err.message) }
+      loadStaff()
+    } catch (err) {
+      if (err.message.includes('admin password')) { setAdminPassword(''); setDeleteError(err.message) }
+      else setDeleteError(err.message)
+    }
     finally { setDeleting(false) }
   }
 
   // ── Tech create ───────────────────────────────────────────────────────────
   function openCreateTech() {
-    setNewTechUsername(''); setNewTechPassword(''); setNewTechPwConfirm('')
-    setShowNewTechPw(false); setCreateTechError('')
-    setShowCreateTech(true)
+    withAdminPw(() => {
+      setNewTechUsername(''); setNewTechPassword(''); setNewTechPwConfirm('')
+      setShowNewTechPw(false); setCreateTechError('')
+      setShowCreateTech(true)
+    })
   }
   function closeCreateTech() { setShowCreateTech(false) }
 
-  async function handleCreateTech() {
+  async function handleCreateTech(pw = adminPassword) {
     if (!newTechUsername.trim()) { setCreateTechError('Username is required.'); return }
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(newTechUsername.trim())) {
       setCreateTechError('Username: 3–30 chars, letters, digits, underscores only.')
@@ -217,53 +229,62 @@ export default function AccountsPage() {
     setCreatingTech(true); setCreateTechError('')
     try {
       await callTechManage({
-        action: 'create', adminPassword,
+        action: 'create', adminPassword: pw,
         username: newTechUsername.trim().toLowerCase(),
         password: newTechPassword,
       })
       closeCreateTech()
       showToast(`Technician account "${newTechUsername.trim().toLowerCase()}" created.`)
-      loadTech(adminPassword)
-    } catch (err) { setCreateTechError(err.message) }
+      loadTech()
+    } catch (err) {
+      if (err.message.includes('admin password')) { setAdminPassword(''); setCreateTechError(err.message) }
+      else setCreateTechError(err.message)
+    }
     finally { setCreatingTech(false) }
   }
 
   // ── Tech delete (type-to-confirm) ─────────────────────────────────────────
   function openDeleteTech(username) {
-    setDeleteTechTarget(username)
-    setDeleteTechConfirm('')
-    setDeleteTechError('')
+    withAdminPw(() => { setDeleteTechTarget(username); setDeleteTechConfirm(''); setDeleteTechError('') })
   }
   function closeDeleteTech() { setDeleteTechTarget(null); setDeleteTechConfirm(''); setDeleteTechError('') }
 
-  async function handleDeleteTech() {
+  async function handleDeleteTech(pw = adminPassword) {
     if (deleteTechConfirm !== deleteTechTarget) return
     setDeletingTech(true); setDeleteTechError('')
     try {
-      await callTechManage({ action: 'delete', adminPassword, username: deleteTechTarget })
+      await callTechManage({ action: 'delete', adminPassword: pw, username: deleteTechTarget })
       closeDeleteTech()
       showToast(`Technician account "${deleteTechTarget}" deleted.`)
-      loadTech(adminPassword)
-    } catch (err) { setDeleteTechError(err.message) }
+      loadTech()
+    } catch (err) {
+      if (err.message.includes('admin password')) { setAdminPassword(''); setDeleteTechError(err.message) }
+      else setDeleteTechError(err.message)
+    }
     finally { setDeletingTech(false) }
   }
 
   // ── Reset password ────────────────────────────────────────────────────────
   function openReset(username, type) {
-    setResetTarget({ username, type })
-    setResetError('')
-    setTempPassword('')
-    setCopied(false)
+    withAdminPw(() => {
+      setResetTarget({ username, type })
+      setResetError('')
+      setTempPassword('')
+      setCopied(false)
+    })
   }
   function closeReset() { setResetTarget(null); setTempPassword(''); setResetError(''); setCopied(false) }
 
-  async function handleReset() {
+  async function handleReset(pw = adminPassword) {
     setResetting(true); setResetError('')
     try {
       const fn     = resetTarget.type === 'tech' ? callTechManage : callStaffManage
-      const result = await fn({ action: 'reset-password', adminPassword, username: resetTarget.username })
+      const result = await fn({ action: 'reset-password', adminPassword: pw, username: resetTarget.username })
       setTempPassword(result.tempPassword)
-    } catch (err) { setResetError(err.message) }
+    } catch (err) {
+      if (err.message.includes('admin password')) { setAdminPassword(''); setResetError(err.message) }
+      else setResetError(err.message)
+    }
     finally { setResetting(false) }
   }
 
@@ -275,64 +296,7 @@ export default function AccountsPage() {
     } catch { /* clipboard denied */ }
   }
 
-  // ── Render — locked ───────────────────────────────────────────────────────
-
-  if (!adminPassword) {
-    return (
-      <div className="flex flex-col flex-1 items-center justify-center animate-fade-in">
-        <div className="card w-full max-w-sm p-8 space-y-5">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6 text-brand-600" />
-            </div>
-            <div>
-              <h2 className="font-sans font-bold text-gray-900 text-lg">Admin verification</h2>
-              <p className="text-sm font-body text-gray-400 mt-1">Enter your admin password to view and manage accounts.</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <input
-                type={showPwInput ? 'text' : 'password'}
-                value={pwInput}
-                onChange={e => { setPwInput(e.target.value); setUnlockError('') }}
-                onKeyDown={e => { if (e.key === 'Enter' && !unlocking) handleUnlock() }}
-                className="input-field pl-9 pr-9"
-                placeholder="Admin password"
-                autoFocus
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPwInput(v => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                aria-label={showPwInput ? 'Hide' : 'Show'}
-              >
-                {showPwInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {unlockError && <p className="text-xs text-red-500 font-sans">{unlockError}</p>}
-
-            <button
-              onClick={handleUnlock}
-              disabled={unlocking || !pwInput}
-              className="btn-primary w-full justify-center"
-            >
-              {unlocking
-                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : 'Unlock'
-              }
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Render — unlocked ─────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -770,6 +734,42 @@ export default function AccountsPage() {
                   : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
                 }
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin password gate (shown before first write op) ── */}
+      {showAdminGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-xs p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                <Lock className="w-4 h-4 text-brand-600" />
+              </div>
+              <h2 className="font-sans font-bold text-gray-900">Admin password</h2>
+            </div>
+            <div className="relative">
+              <input
+                type={adminGateShowPw ? 'text' : 'password'}
+                value={adminGateInput}
+                onChange={e => setAdminGateInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmAdminGate() }}
+                className="input-field pr-9"
+                placeholder="Enter admin password"
+                autoFocus
+                autoComplete="current-password"
+              />
+              <button type="button" onClick={() => setAdminGateShowPw(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label={adminGateShowPw ? 'Hide' : 'Show'}
+              >
+                {adminGateShowPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setShowAdminGate(false); pendingWriteRef.current = null }} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button onClick={confirmAdminGate} disabled={!adminGateInput} className="btn-primary flex-1 justify-center">Confirm</button>
             </div>
           </div>
         </div>
