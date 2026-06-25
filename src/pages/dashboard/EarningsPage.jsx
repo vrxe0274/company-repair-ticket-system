@@ -3,7 +3,10 @@ import { format } from 'date-fns'
 import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check } from 'lucide-react'
 import { supabase }            from '../../lib/supabase'
 import { useRole }             from '../../hooks/useRole.jsx'
-import { laborFee, technicianCommission, staffCommission } from '../../lib/commission'
+import {
+  laborFee, technicianCommission, staffCommission,
+  getApplicableRate, getCommissionRates,
+} from '../../lib/commission'
 
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -17,6 +20,7 @@ export default function EarningsPage() {
   const { isTechnician } = useRole()
 
   const [tickets,       setTickets]       = useState([])
+  const [rateHistory,   setRateHistory]   = useState([])
   const [loading,       setLoading]       = useState(true)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [filterOpen,    setFilterOpen]    = useState(false)
@@ -34,8 +38,12 @@ export default function EarningsPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const { data } = await supabase.from('tickets').select(COLUMNS).order('created_at', { ascending: false })
+      const [{ data }, rates] = await Promise.all([
+        supabase.from('tickets').select(COLUMNS).order('created_at', { ascending: false }),
+        getCommissionRates(),
+      ])
       setTickets(data ?? [])
+      setRateHistory(rates)
       setLoading(false)
     }
     load()
@@ -61,11 +69,19 @@ export default function EarningsPage() {
   }, [relevantTickets, selectedMonth])
 
   function myCommission(ticket) {
-    const fee = laborFee(ticket)
-    return isTechnician ? technicianCommission(fee) : staffCommission(fee)
+    const fee  = laborFee(ticket)
+    const rate = getApplicableRate(ticket.created_at, rateHistory)
+    return isTechnician
+      ? technicianCommission(fee, rate.technician_pct)
+      : staffCommission(fee, rate.technician_pct, rate.staff_pct)
   }
 
-  const totalCommission = filteredTickets.reduce((sum, t) => sum + myCommission(t), 0)
+  const currentRate     = getApplicableRate(new Date().toISOString(), rateHistory)
+  const totalCommission = useMemo(
+    () => filteredTickets.reduce((sum, t) => sum + myCommission(t), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredTickets, rateHistory, isTechnician],
+  )
 
   const monthLabel = selectedMonth === 'all'
     ? 'All Time'
@@ -157,7 +173,9 @@ export default function EarningsPage() {
             <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">How it's calculated</p>
             <div>
               <p className="text-3xl font-display font-bold leading-none">
-                {isTechnician ? '20%' : '5%'}
+                {isTechnician
+                  ? `${+(currentRate.technician_pct * 100).toFixed(1)}%`
+                  : `${+(currentRate.staff_pct * 100).toFixed(1)}%`}
               </p>
               <p className="text-brand-200 text-xs font-body mt-2 leading-relaxed">
                 {isTechnician
