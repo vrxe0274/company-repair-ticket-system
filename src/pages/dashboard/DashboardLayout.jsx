@@ -18,11 +18,12 @@
  * // of truth (see index.css REVIEW notes).
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
   Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp, Banknote,
+  Lock, Eye, EyeOff,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -30,6 +31,8 @@ import { useRole }          from '../../hooks/useRole.jsx'
 import { supabase }         from '../../lib/supabase'
 import Logo                 from '../../components/ui/Logo.jsx'
 import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
+import { getSession }       from '../../lib/session'
+import { clearMustChangePassword } from '../../lib/session'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +72,39 @@ export default function DashboardLayout() {
   const navigate                 = useNavigate()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Forced password change — shown when admin has reset the account's password.
+  const [mustChangePw,    setMustChangePw]    = useState(() => !!(getSession()?.mustChangePassword))
+  const [forcePwCurrent,  setForcePwCurrent]  = useState('')
+  const [forcePwNew,      setForcePwNew]      = useState('')
+  const [forcePwConfirm,  setForcePwConfirm]  = useState('')
+  const [forcePwError,    setForcePwError]    = useState('')
+  const [forcePwSaving,   setForcePwSaving]   = useState(false)
+  const [forcePwShowC,    setForcePwShowC]    = useState(false)
+  const [forcePwShowN,    setForcePwShowN]    = useState(false)
+  const [forcePwShowCf,   setForcePwShowCf]   = useState(false)
+
+  const handleForcedPwChange = useCallback(async () => {
+    if (!forcePwCurrent)                         { setForcePwError('Enter the temporary password.'); return }
+    if (forcePwNew.length < 8)                   { setForcePwError('New password must be at least 8 characters.'); return }
+    if (forcePwNew !== forcePwConfirm)            { setForcePwError('Passwords do not match.'); return }
+    if (forcePwNew === forcePwCurrent)            { setForcePwError('New password must differ from the temporary password.'); return }
+    setForcePwSaving(true); setForcePwError('')
+    try {
+      const fn = isTechnician ? 'tech-manage' : 'staff-manage'
+      const { data, error } = await supabase.functions.invoke(fn, {
+        body: { action: 'change-password', username: staffUsername, currentPassword: forcePwCurrent, newPassword: forcePwNew },
+      })
+      if (error) throw new Error('Connection error. Check your network and try again.')
+      if (!data?.ok) throw new Error(data?.error || 'Failed to change password.')
+      clearMustChangePassword()
+      setMustChangePw(false)
+    } catch (err) {
+      setForcePwError(err.message)
+    } finally {
+      setForcePwSaving(false)
+    }
+  }, [forcePwCurrent, forcePwNew, forcePwConfirm, isTechnician, staffUsername])
 
   // First-login name setup — shown when a Staff or Technician account has no display name yet.
   const needsName = (isStaff || isTechnician) && staffUsername && !staffName
@@ -289,6 +325,100 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* ── Forced password change (admin-initiated reset) ── */}
+      {mustChangePw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4 animate-slide-up">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-sans font-bold text-gray-900">Password reset required</h2>
+                <p className="text-xs font-body text-gray-500 mt-0.5">Enter the temporary password, then choose a new one.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Temporary password</label>
+                <div className="relative">
+                  <input
+                    type={forcePwShowC ? 'text' : 'password'}
+                    value={forcePwCurrent}
+                    onChange={e => { setForcePwCurrent(e.target.value); setForcePwError('') }}
+                    className="input-field pr-9"
+                    placeholder="Enter temporary password"
+                    autoFocus
+                    autoComplete="current-password"
+                  />
+                  <button type="button" onClick={() => setForcePwShowC(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={forcePwShowC ? 'Hide' : 'Show'}
+                  >
+                    {forcePwShowC ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">New password</label>
+                <div className="relative">
+                  <input
+                    type={forcePwShowN ? 'text' : 'password'}
+                    value={forcePwNew}
+                    onChange={e => { setForcePwNew(e.target.value); setForcePwError('') }}
+                    className="input-field pr-9"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setForcePwShowN(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={forcePwShowN ? 'Hide' : 'Show'}
+                  >
+                    {forcePwShowN ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm new password</label>
+                <div className="relative">
+                  <input
+                    type={forcePwShowCf ? 'text' : 'password'}
+                    value={forcePwConfirm}
+                    onChange={e => { setForcePwConfirm(e.target.value); setForcePwError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !forcePwSaving) handleForcedPwChange() }}
+                    className="input-field pr-9"
+                    placeholder="Repeat new password"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setForcePwShowCf(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={forcePwShowCf ? 'Hide' : 'Show'}
+                  >
+                    {forcePwShowCf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {forcePwError && <p className="text-xs text-red-500 font-sans">{forcePwError}</p>}
+            </div>
+
+            <button
+              onClick={handleForcedPwChange}
+              disabled={forcePwSaving || !forcePwCurrent || !forcePwNew || !forcePwConfirm}
+              className="btn-primary w-full justify-center"
+            >
+              {forcePwSaving
+                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <><Lock className="w-3.5 h-3.5" /> Set New Password</>
+              }
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── First-login: set display name ── */}
       {needsName && (

@@ -105,7 +105,7 @@ function migrateLegacySession() {
  *   persistent is forced on in standalone PWA.
  *   username is set for individual Staff accounts (null for shared-password roles).
  */
-export function saveSession(role, { persistent = false, username = null, name = null } = {}) {
+export function saveSession(role, { persistent = false, username = null, name = null, mustChangePassword = false } = {}) {
   const isPersistent = persistent || isStandalone()
   const session = {
     v: 1,
@@ -113,8 +113,9 @@ export function saveSession(role, { persistent = false, username = null, name = 
     persistent: isPersistent,
     expiresAt: isPersistent ? Date.now() + SESSION_TTL_MS : null,
   }
-  if (username) session.username = username
-  if (name)     session.name     = name
+  if (username)          session.username          = username
+  if (name)              session.name              = name
+  if (mustChangePassword) session.mustChangePassword = true
   clearSession() // never leave a stale copy in the other storage
   const store = isPersistent ? localStorage : sessionStorage
   store.setItem(SESSION_KEY, JSON.stringify(session))
@@ -142,6 +143,11 @@ function patchSession(patch) {
 /** Update only the display name on the existing record (keeps all other fields). */
 export function updateSessionName(name) {
   patchSession({ name })
+}
+
+/** Clear the mustChangePassword flag once the employee has set a new password. */
+export function clearMustChangePassword() {
+  patchSession({ mustChangePassword: false })
 }
 
 /** Slide a persistent session's expiry forward (call on app load / activity). */

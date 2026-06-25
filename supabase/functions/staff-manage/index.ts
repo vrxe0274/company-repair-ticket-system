@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
 
   // ── Change own password (no admin involvement) ────────────────────────────────
   // The staff member verifies their own current password then sets a new one.
+  // Also clears password_reset_required so a forced-reset flow is resolved.
 
   if (action === 'change-password') {
     const { currentPassword, newPassword } = body
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
     const newHash = await deriveStaffKey(newPassword, username.trim())
     const { error } = await supabase
       .from('staff_accounts')
-      .update({ password_hash: newHash })
+      .update({ password_hash: newHash, password_reset_required: false })
       .eq('username', username.trim())
 
     if (error) return json(500, { ok: false, error: 'Failed to save new password.' })
@@ -161,6 +162,30 @@ Deno.serve(async (req) => {
   const adminOk = await verifyAdminPassword(adminPassword, supabase)
   if (!adminOk) {
     return json(200, { ok: false, error: 'Incorrect admin password.' })
+  }
+
+  // ── Reset password (admin-initiated) ─────────────────────────────────────────
+  // Generates a server-side random temp password. Admin never chooses it — they
+  // only see it once to hand to the employee verbally. Sets password_reset_required
+  // so the employee is forced to change it on next login.
+
+  if (action === 'reset-password') {
+    if (!username) return json(200, { ok: false, error: 'Username is required.' })
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    const bytes = new Uint8Array(12)
+    crypto.getRandomValues(bytes)
+    const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('')
+
+    const passwordHash = await deriveStaffKey(tempPassword, username.trim())
+
+    const { error } = await supabase
+      .from('staff_accounts')
+      .update({ password_hash: passwordHash, password_reset_required: true })
+      .eq('username', username.trim())
+
+    if (error) return json(500, { ok: false, error: 'Failed to reset password.' })
+    return json(200, { ok: true, tempPassword })
   }
 
   // ── List ─────────────────────────────────────────────────────────────────────

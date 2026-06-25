@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
 
   const { data: account } = await supabase
     .from('staff_accounts')
-    .select('password_hash, name')
+    .select('password_hash, name, password_reset_required')
     .eq('username', normalizedUsername)
     .maybeSingle()
 
@@ -84,5 +84,9 @@ Deno.serve(async (req) => {
 
   await updateRateLimit(kv, kvKey, record, ok, now)
 
-  return json(200, { ok, name: ok ? (account?.name ?? null) : undefined })
+  return json(200, {
+    ok,
+    name:              ok ? (account?.name ?? null)                     : undefined,
+    mustChangePassword: ok ? (account?.password_reset_required ?? false) : undefined,
+  })
 })

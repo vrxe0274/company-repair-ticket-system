@@ -18,7 +18,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { format } from 'date-fns'
 import {
   Plus, Trash2, X, Lock, Eye, EyeOff, Search,
-  ShieldCheck, Shield, Wrench,
+  ShieldCheck, Shield, Wrench, KeyRound, Copy, Check,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
@@ -82,6 +82,14 @@ export default function AccountsPage() {
   const [deleteTechConfirm, setDeleteTechConfirm] = useState('')
   const [deletingTech,      setDeletingTech]      = useState(false)
   const [deleteTechError,   setDeleteTechError]   = useState('')
+
+  // ── Reset password state ──────────────────────────────────────────────────
+  // resetTarget: { username, type: 'staff' | 'tech' }
+  const [resetTarget,   setResetTarget]   = useState(null)
+  const [resetting,     setResetting]     = useState(false)
+  const [resetError,    setResetError]    = useState('')
+  const [tempPassword,  setTempPassword]  = useState('')  // shown once after reset
+  const [copied,        setCopied]        = useState(false)
 
   // ── Search ────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('')
@@ -240,6 +248,33 @@ export default function AccountsPage() {
     finally { setDeletingTech(false) }
   }
 
+  // ── Reset password ────────────────────────────────────────────────────────
+  function openReset(username, type) {
+    setResetTarget({ username, type })
+    setResetError('')
+    setTempPassword('')
+    setCopied(false)
+  }
+  function closeReset() { setResetTarget(null); setTempPassword(''); setResetError(''); setCopied(false) }
+
+  async function handleReset() {
+    setResetting(true); setResetError('')
+    try {
+      const fn     = resetTarget.type === 'tech' ? callTechManage : callStaffManage
+      const result = await fn({ action: 'reset-password', adminPassword, username: resetTarget.username })
+      setTempPassword(result.tempPassword)
+    } catch (err) { setResetError(err.message) }
+    finally { setResetting(false) }
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(tempPassword)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard denied */ }
+  }
+
   // ── Render — locked ───────────────────────────────────────────────────────
 
   if (!adminPassword) {
@@ -384,6 +419,13 @@ export default function AccountsPage() {
                   {format(new Date(acc.created_at), 'MMM d, yyyy')}
                 </p>
                 <button
+                  onClick={() => openReset(acc.username, 'staff')}
+                  className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-amber-500 transition-colors shrink-0"
+                  aria-label={`Reset password for ${acc.username}`}
+                >
+                  <KeyRound className="w-4 h-4" />
+                </button>
+                <button
                   onClick={() => openDelete(acc.username)}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
                   aria-label={`Delete ${acc.username}`}
@@ -452,6 +494,13 @@ export default function AccountsPage() {
                 <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
                   {format(new Date(acc.created_at), 'MMM d, yyyy')}
                 </p>
+                <button
+                  onClick={() => openReset(acc.username, 'tech')}
+                  className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-amber-500 transition-colors shrink-0"
+                  aria-label={`Reset password for ${acc.username}`}
+                >
+                  <KeyRound className="w-4 h-4" />
+                </button>
                 <button
                   onClick={() => openDeleteTech(acc.username)}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
@@ -722,6 +771,67 @@ export default function AccountsPage() {
                 }
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reset Password modal ── */}
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <KeyRound className="w-4 h-4 text-amber-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Reset Password</h2>
+              </div>
+              <button onClick={closeReset} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {!tempPassword ? (
+              <>
+                <p className="text-sm font-body text-gray-600 leading-relaxed">
+                  Generate a temporary password for{' '}
+                  <span className="font-semibold font-mono text-gray-900">{resetTarget.username}</span>.
+                  They will be required to change it on next login.
+                </p>
+                {resetError && <p className="text-xs text-red-500 font-sans">{resetError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={closeReset} disabled={resetting} className="btn-secondary flex-1 justify-center">Cancel</button>
+                  <button
+                    onClick={handleReset}
+                    disabled={resetting}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {resetting
+                      ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <><KeyRound className="w-3.5 h-3.5" /> Generate</>
+                    }
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 space-y-2">
+                  <p className="text-xs font-sans font-semibold text-amber-700 uppercase tracking-wide">Temporary password — shown once</p>
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 font-mono text-lg font-bold text-gray-900 tracking-widest break-all">{tempPassword}</span>
+                    <button
+                      onClick={handleCopy}
+                      className="shrink-0 p-2 rounded-lg bg-white border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors"
+                      aria-label="Copy"
+                    >
+                      {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs font-body text-amber-600">Share this with {resetTarget.username} verbally. It won't be shown again.</p>
+                </div>
+                <button onClick={closeReset} className="btn-primary w-full justify-center">Done</button>
+              </>
+            )}
           </div>
         </div>
       )}
