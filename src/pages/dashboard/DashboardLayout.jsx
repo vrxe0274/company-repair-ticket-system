@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2,
+  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -42,10 +42,11 @@ import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
 const NAV = [
   { to: '/',             label: 'Overview',      icon: LayoutDashboard, exact: true },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
-  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList, id: 'tasks' },
-  { to: 'notifications', label: 'Notifications', icon: Bell, id: 'notifications' },
-  { to: 'analytics',     label: 'Analytics',     icon: BarChart2, adminOnly: true },
-  { to: 'accounts',      label: 'Accounts',      icon: Users,     adminOnly: true },
+  { to: 'tasks',         label: 'Tasks',         icon: ClipboardList,  id: 'tasks' },
+  { to: 'notifications', label: 'Notifications', icon: Bell,           id: 'notifications' },
+  { to: 'earnings',      label: 'Earnings',      icon: TrendingUp,     staffOrTech: true },
+  { to: 'analytics',     label: 'Analytics',     icon: BarChart2,      adminOnly: true },
+  { to: 'accounts',      label: 'Accounts',      icon: Users,          adminOnly: true },
   { to: 'settings',      label: 'Settings',      icon: Settings },
 ]
 
@@ -60,7 +61,7 @@ const NOTIFICATION_BADGE_MAX = 99
 /** DashboardLayout — the persistent shell rendered for all dashboard routes. */
 export default function DashboardLayout() {
   const { logout }               = useAuth()
-  const { role, clearRole, getAllowedTransitions, isAdmin, isStaff, staffUsername, staffName, setStaffName } = useRole()
+  const { role, clearRole, getAllowedTransitions, isAdmin, isStaff, isTechnician, staffUsername, staffName, setStaffName } = useRole()
   const { unseenCount }          = useNotifications()
   const [taskCount, setTaskCount] = useState(0)
   const location                 = useLocation()
@@ -184,7 +185,11 @@ export default function DashboardLayout() {
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.filter(item => !item.adminOnly || isAdmin).map(({ to, label, icon: Icon, exact, id }) => (
+        {NAV.filter(item => {
+          if (item.adminOnly) return isAdmin
+          if (item.staffOrTech) return isStaff || isTechnician || isAdmin
+          return true
+        }).map(({ to, label, icon: Icon, exact, id }) => (
           <Link
             key={to}
             to={to}

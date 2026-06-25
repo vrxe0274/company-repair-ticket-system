@@ -19,7 +19,7 @@ import { useParams, Link }       from 'react-router-dom'
 import { format }                from 'date-fns'
 import {
   ArrowLeft, Download, ExternalLink,
-  Eye, Wrench, CreditCard, Settings,
+  Eye, Wrench, CreditCard, Settings, UserCheck,
   AlertTriangle, Undo2, FileText, Receipt, MoreHorizontal,
 } from 'lucide-react'
 import { getTrackingUrl }        from '../../lib/utils'
@@ -29,7 +29,7 @@ import { downloadQuotationPDF }  from '../../lib/quotation'
 import StatusBadge               from '../../components/ui/StatusBadge.jsx'
 import { useTicket }             from './ticket-detail/useTicket'
 import { TabButton }             from './ticket-detail/components'
-import { OverviewTab, TechTab, QuotationTab, SettingsTab } from './ticket-detail/tabs'
+import { OverviewTab, TechTab, QuotationTab, AssignmentsTab, SettingsTab } from './ticket-detail/tabs'
 import { sumItems, discountAmount } from './ticket-detail/helpers'
 import { discountCapFor }           from '../../lib/utils'
 import { STATUS_GUIDANCE }       from './ticket-detail/constants'
@@ -62,10 +62,12 @@ export default function TicketDetailPage() {
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
     isManager, isTechnician, getAllowedTransitions,
-    updateStatus, undoStatus, saveNotesAndPricing,
+    updateStatus, undoStatus, saveNotesAndPricing, saveAssignment,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem, toggleDiagnosis,
+    technicianName, setTechnicianName,
+    assignedStaff, setAssignedStaff,
   } = useTicket(id)
 
   if (loading) {
@@ -202,14 +204,16 @@ export default function TicketDetailPage() {
             <option value="overview">Overview</option>
             <option value="tech">Technical Details</option>
             <option value="admin">Quotation &amp; Payment</option>
+            <option value="assignments">Assignments</option>
             <option value="settings">Settings</option>
           </select>
         </div>
         <div className="hidden md:flex gap-1 -mb-px">
-          <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={Eye}        label="Overview" />
-          <TabButton active={activeTab === 'tech'}     onClick={() => setActiveTab('tech')}     icon={Wrench}     label="Technical Details" />
-          <TabButton active={activeTab === 'admin'}    onClick={() => setActiveTab('admin')}    icon={CreditCard} label="Quotation & Payment" />
-          <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings}   label="Settings" />
+          <TabButton active={activeTab === 'overview'}     onClick={() => setActiveTab('overview')}     icon={Eye}        label="Overview" />
+          <TabButton active={activeTab === 'tech'}         onClick={() => setActiveTab('tech')}         icon={Wrench}     label="Technical Details" />
+          <TabButton active={activeTab === 'admin'}        onClick={() => setActiveTab('admin')}        icon={CreditCard} label="Quotation & Payment" />
+          <TabButton active={activeTab === 'assignments'}  onClick={() => setActiveTab('assignments')}  icon={UserCheck}  label="Assignments" />
+          <TabButton active={activeTab === 'settings'}     onClick={() => setActiveTab('settings')}     icon={Settings}   label="Settings" />
         </div>
       </div>
 
@@ -260,6 +264,15 @@ export default function TicketDetailPage() {
           onUpdatePartsItem={(itemId, f, v) => updateItem(setPartsItems, itemId, f, v)}
           onAddPartsItem={() => addItem(setPartsItems)}
           onRemovePartsItem={itemId => removeItem(setPartsItems, itemId)}
+        />
+      )}
+
+      {activeTab === 'assignments' && (
+        <AssignmentsTab
+          isManager={isManager}
+          technicianName={technicianName} setTechnicianName={setTechnicianName}
+          saving={saving}                 saveMsg={saveMsg}
+          onSave={saveAssignment}
         />
       )}
 

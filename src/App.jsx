@@ -31,6 +31,7 @@ const NotificationsPage = lazy(() => import('./pages/dashboard/NotificationsPage
 const SettingsPage      = lazy(() => import('./pages/dashboard/SettingsPage.jsx'))
 const AccountsPage      = lazy(() => import('./pages/dashboard/AccountsPage.jsx'))
 const AnalyticsPage     = lazy(() => import('./pages/dashboard/AnalyticsPage.jsx'))
+const EarningsPage      = lazy(() => import('./pages/dashboard/EarningsPage.jsx'))
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 import ProtectedRoute from './components/ui/ProtectedRoute.jsx'
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="tickets/:id"      element={<TicketDetailPage />} />
         <Route path="notifications"    element={<NotificationsPage />} />
         <Route path="analytics"        element={<AnalyticsPage />} />
+        <Route path="earnings"         element={<EarningsPage />} />
         <Route path="settings"         element={<SettingsPage />} />
         <Route
           path="accounts"

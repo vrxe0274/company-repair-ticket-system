@@ -101,6 +101,19 @@ Deno.serve(async (req) => {
     return json(200, { ok: true })
   }
 
+  // ── List names (no password required — display names only, no credentials) ──────
+
+  if (action === 'list-names') {
+    const { data, error } = await supabase
+      .from('staff_accounts')
+      .select('username, name')
+      .not('name', 'is', null)
+      .order('name', { ascending: true })
+
+    if (error) return json(500, { ok: false, error: 'Failed to fetch staff names.' })
+    return json(200, { ok: true, staff: data ?? [] })
+  }
+
   // ── All other actions require admin password ───────────────────────────────────
 
   if (!adminPassword) {

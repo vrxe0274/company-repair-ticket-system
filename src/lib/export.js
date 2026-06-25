@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs'
 import { format } from 'date-fns'
+import { laborFee, technicianCommission, staffCommission } from './commission'
+import { supabase } from './supabase'
 
 /**
  * Build the export file name from the month(s)/year covered by the data:
@@ -59,9 +61,8 @@ const GROUP_COLORS = {
   last_updated:         { bg: 'FF4527A0', fg: 'FFFFFFFF' }, // indigo — Timestamps
 }
 
-// ── Column definitions ────────────────────────────────────────────────────────
-// Columns marked blank:true are always empty — for manual staff use only
-const COLUMNS = [
+// ── Static column definitions ─────────────────────────────────────────────────
+const STATIC_COLUMNS = [
   { header: 'Ticket ID',           key: 'ticket_id',           width: 15 },
   { header: 'Submitted',           key: 'submitted',            width: 15 },
   { header: 'Status',              key: 'status',               width: 15 },
@@ -87,44 +88,91 @@ const COLUMNS = [
   { header: 'Final Price (₱)',     key: 'final_price',          width: 15 },
   { header: 'Paid At',             key: 'paid_at',              width: 15 },
   { header: 'Last Updated',        key: 'last_updated',         width: 15 },
-  // ── Staff-only columns (always blank in export) ──────────────────────────
-  { header: 'Repair Commission for the Technician', key: '_commission',          width: 15, blank: true },
-  { header: 'Amount of Commission Released',        key: '_commission_released', width: 15, blank: true },
-  { header: 'Remarks',                              key: '_remarks',             width: 15, blank: true },
 ]
 
+// Commission column header color (gold)
+const COMMISSION_COLOR = { bg: 'FF7B5E08', fg: 'FFFFFFFF' }
+
+/**
+ * Build commission column definitions from the full staff account list.
+ * One column per staff member (every staff earns commission on every repair)
+ * plus one generic technician commission column.
+ *
+ * @param {Array<{username: string, name: string}>} staffAccounts
+ */
+function buildCommissionColumns(staffAccounts) {
+  const techCol = {
+    header: 'Technician Commission',
+    key:    '_tech_commission',
+    width:  24,
+    isCommission: true,
+  }
+
+  const staffCols = staffAccounts.map(({ username, name }) => ({
+    header: `Staff ${name} Commission`,
+    key:    `_staff_${username}`,
+    width:  24,
+    isCommission: true,
+    staffName: name,
+  }))
+
+  // Fallback: if no staff accounts exist yet, keep a generic staff column
+  if (staffCols.length === 0) {
+    staffCols.push({
+      header: 'Staff Commission',
+      key:    '_staff_generic',
+      width:  24,
+      isCommission: true,
+      staffName: null,
+    })
+  }
+
+  return [techCol, ...staffCols]
+}
+
 /** Populate one worksheet with headers + styled data rows for the given tickets. */
-function buildSheet(sheet, tickets) {
-  sheet.columns = COLUMNS.map(({ blank: _blank, ...col }) => col)
+function buildSheet(sheet, tickets, commCols) {
+  const allCols = [...STATIC_COLUMNS, ...commCols]
+
+  sheet.columns = allCols.map(({ isCommission: _c, staffName: _s, ...col }) => col)
 
   // ── Style header row ──────────────────────────────────────────────────────
   const headerRow = sheet.getRow(1)
   headerRow.eachCell((cell, colNum) => {
-    const col       = COLUMNS[colNum - 1]
-    const isBlankCol = col?.blank
+    const col        = allCols[colNum - 1]
+    const isCommCol  = col?.isCommission
     const groupColor = GROUP_COLORS[col?.key]
-    const bgArgb = isBlankCol ? 'FF2D2D45' : (groupColor?.bg ?? 'FF7317E8')
-    const fgArgb = isBlankCol ? 'FFAAAACC' : (groupColor?.fg ?? 'FFFFFFFF')
+    const bgArgb = isCommCol ? COMMISSION_COLOR.bg : (groupColor?.bg ?? 'FF7317E8')
+    const fgArgb = isCommCol ? COMMISSION_COLOR.fg : (groupColor?.fg ?? 'FFFFFFFF')
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } }
     cell.font = { bold: true, color: { argb: fgArgb }, size: 10, name: 'Calibri' }
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false }
-    cell.border = {
-      bottom: { style: 'thin', color: { argb: isBlankCol ? 'FF444466' : 'FF000000' } },
-    }
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } }
   })
   headerRow.height = 22
 
   // ── Add data rows ─────────────────────────────────────────────────────────
   tickets.forEach((t, index) => {
-    const isEven = index % 2 === 0
+    const isEven  = index % 2 === 0
     const rowFill = {
       type: 'pattern', pattern: 'solid',
       fgColor: { argb: isEven ? 'FFFFFFFF' : 'FFF8F5FF' },
     }
-    const blankFill = {
+    const commFill = {
       type: 'pattern', pattern: 'solid',
-      fgColor: { argb: isEven ? 'FFF5F5F8' : 'FFEFEFF5' },
+      fgColor: { argb: isEven ? 'FFFFF8E1' : 'FFFFF3CC' },
     }
+
+    const fee        = laborFee(t)
+    const commValues = {}
+    commCols.forEach(col => {
+      if (col.key === '_tech_commission') {
+        commValues[col.key] = fee > 0 ? technicianCommission(fee) : ''
+      } else {
+        // Every staff member earns commission on every repair
+        commValues[col.key] = fee > 0 ? staffCommission(fee) : ''
+      }
+    })
 
     const row = sheet.addRow({
       ticket_id:            t.ticket_id,
@@ -152,15 +200,12 @@ function buildSheet(sheet, tickets) {
       final_price:          t.final_price != null ? Number(t.final_price) : '',
       paid_at:              t.paid_at ? format(new Date(t.paid_at), 'yyyy-MM-dd HH:mm') : '',
       last_updated:         format(new Date(t.updated_at), 'yyyy-MM-dd HH:mm'),
-      _commission:           '',
-      _commission_released:  '',
-      _remarks:              '',
+      ...commValues,
     })
 
     row.eachCell({ includeEmpty: true }, (cell, colNum) => {
-      const isBlankCol = COLUMNS[colNum - 1]?.blank
-      cell.fill  = isBlankCol ? blankFill : rowFill
-      cell.font  = { size: 10, name: 'Calibri', color: isBlankCol ? { argb: 'FFAAAAAA' } : undefined }
+      cell.fill      = allCols[colNum - 1]?.isCommission ? commFill : rowFill
+      cell.font      = { size: 10, name: 'Calibri' }
       cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
     })
 
@@ -168,7 +213,15 @@ function buildSheet(sheet, tickets) {
     currencyCols.forEach(key => {
       const cell = row.getCell(key)
       if (cell.value !== '') {
-        cell.numFmt = '₱#,##0.00'
+        cell.numFmt    = '₱#,##0.00'
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      }
+    })
+
+    commCols.forEach(col => {
+      const cell = row.getCell(col.key)
+      if (cell.value !== '') {
+        cell.numFmt    = '₱#,##0.00'
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
       }
     })
@@ -178,6 +231,19 @@ function buildSheet(sheet, tickets) {
 }
 
 export async function exportTicketsToXLSX(tickets) {
+  // Fetch all staff accounts so every staff member gets their own commission column
+  let staffAccounts = []
+  try {
+    const { data } = await supabase.functions.invoke('staff-manage', {
+      body: { action: 'list-names' },
+    })
+    if (data?.ok) staffAccounts = data.staff ?? []
+  } catch {
+    // Non-fatal — falls back to a generic staff column
+  }
+
+  const commCols = buildCommissionColumns(staffAccounts)
+
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'VRXE Repair Services'
   workbook.created = new Date()
@@ -191,7 +257,6 @@ export async function exportTicketsToXLSX(tickets) {
     byMonth.get(key).push(t)
   })
 
-  // Sort map keys chronologically (parse "MMMM yyyy" → Date for comparison)
   const sorted = [...byMonth.entries()].sort(([a], [b]) => {
     if (a === 'Unknown') return 1
     if (b === 'Unknown') return -1
@@ -202,7 +267,7 @@ export async function exportTicketsToXLSX(tickets) {
     const sheet = workbook.addWorksheet(monthName, {
       views: [{ state: 'frozen', ySplit: 1 }],
     })
-    buildSheet(sheet, monthTickets)
+    buildSheet(sheet, monthTickets, commCols)
   }
 
   // ── Download ──────────────────────────────────────────────────────────────

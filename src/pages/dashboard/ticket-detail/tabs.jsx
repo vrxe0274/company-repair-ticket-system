@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import {
   User, Package, FileText, Wrench,
   Image as ImageIcon, Upload, ExternalLink, X, Save, CheckCircle,
-  DollarSign, Plus, Trash2, Settings,
+  DollarSign, Plus, Trash2, Settings, UserCheck,
 } from 'lucide-react'
 import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine } from './components'
 import { peso } from './helpers'
@@ -492,6 +492,66 @@ export function QuotationTab({
       ) : (
         <div className="card p-5 flex-1 flex items-center justify-center">
           <LockedSection message="Pricing details are hidden until the ticket is approved." />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function AssignmentsTab({
+  isManager,
+  technicianName, setTechnicianName,
+  saving, saveMsg, onSave,
+}) {
+  return (
+    <div className="space-y-5">
+      {isManager ? (
+        <div className="card p-5 space-y-5">
+          <p className="section-title flex items-center gap-2 mb-0">
+            <UserCheck className="w-3.5 h-3.5" /> Job Assignments
+          </p>
+          <p className="text-xs font-body text-gray-500">
+            Record the technician who worked on this job. All staff members automatically earn commission on every repair.
+          </p>
+
+          <div className="space-y-1.5">
+            <label className="label">Technician Name</label>
+            <input
+              type="text"
+              value={technicianName}
+              onChange={e => setTechnicianName(e.target.value)}
+              className="input-field"
+              placeholder="e.g. Juan dela Cruz"
+              maxLength={80}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <button onClick={onSave} disabled={saving} className="btn-primary text-sm">
+              {saving
+                ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Save className="w-3.5 h-3.5" />
+              }
+              Save
+            </button>
+            {saveMsg === 'Assignments saved!' && (
+              <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
+                <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="card p-5 space-y-3">
+          <p className="section-title flex items-center gap-2 mb-0">
+            <UserCheck className="w-3.5 h-3.5" /> Job Assignments
+          </p>
+          <div>
+            <p className="label mb-1">Technician</p>
+            <p className="text-sm font-body text-gray-700">
+              {technicianName || <span className="italic text-gray-400">Not assigned</span>}
+            </p>
+          </div>
         </div>
       )}
     </div>
