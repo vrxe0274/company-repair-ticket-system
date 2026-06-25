@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
-  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp,
+  Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp, Banknote,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -43,10 +43,11 @@ const NAV = [
   { to: '/',             label: 'Overview',      icon: LayoutDashboard, exact: true },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'tasks',         label: 'Tasks',         icon: ClipboardList,  id: 'tasks' },
-  { to: 'notifications', label: 'Notifications', icon: Bell,           id: 'notifications' },
-  { to: 'earnings',      label: 'Earnings',      icon: TrendingUp,     staffOrTech: true },
   { to: 'analytics',     label: 'Analytics',     icon: BarChart2,      adminOnly: true },
+  { to: 'payroll',       label: 'Payroll',       icon: Banknote,       adminOnly: true },
   { to: 'accounts',      label: 'Accounts',      icon: Users,          adminOnly: true },
+  { to: 'earnings',      label: 'Earnings',      icon: TrendingUp,     staffOrTech: true },
+  { to: 'notifications', label: 'Notifications', icon: Bell,           id: 'notifications' },
   { to: 'settings',      label: 'Settings',      icon: Settings },
 ]
 
@@ -187,7 +188,7 @@ export default function DashboardLayout() {
       <nav className="flex-1 p-3 space-y-1">
         {NAV.filter(item => {
           if (item.adminOnly) return isAdmin
-          if (item.staffOrTech) return isStaff || isTechnician || isAdmin
+          if (item.staffOrTech) return isStaff || isTechnician
           return true
         }).map(({ to, label, icon: Icon, exact, id }) => (
           <Link

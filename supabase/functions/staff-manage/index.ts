@@ -107,7 +107,6 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from('staff_accounts')
       .select('username, name')
-      .not('name', 'is', null)
       .order('name', { ascending: true })
 
     if (error) return json(500, { ok: false, error: 'Failed to fetch staff names.' })

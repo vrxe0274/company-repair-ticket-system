@@ -13,9 +13,9 @@ CREATE TABLE notifications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
 
-  -- Who should see this notification: 'Admin' or 'Technician'
+  -- Who should see this notification: 'Admin', 'Staff', or 'Technician'
   recipient_role TEXT NOT NULL
-    CHECK (recipient_role IN ('Admin', 'Technician')),
+    CHECK (recipient_role IN ('Admin', 'Staff', 'Technician')),
 
   -- The notification text shown in the UI
   message TEXT NOT NULL,

@@ -13,7 +13,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
-import { CheckCheck, Inbox, ChevronRight } from 'lucide-react'
+import { CheckCheck, Inbox, ChevronRight, Wrench, Shield } from 'lucide-react'
 import { useRole }          from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { STATUS_COLORS }    from '../../lib/utils'
@@ -41,7 +41,7 @@ function cleanMessage(message) {
 /** NotificationsPage — role-scoped notification inbox. */
 export default function NotificationsPage() {
   const navigate = useNavigate()
-  const { role } = useRole()
+  const { role, isAdmin } = useRole()
   const { notifications, unseenCount, loading, markAllSeen, markSeen } = useNotifications()
 
   /**
@@ -117,7 +117,7 @@ export default function NotificationsPage() {
                     {cleanMessage(n.message)}
                   </p>
 
-                  {/* Meta row: time · status · ticket ID chip */}
+                  {/* Meta row: time · status · ticket ID chip · role badge (admin only) */}
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span className="text-xs font-body text-gray-400">
                       {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
@@ -130,6 +130,16 @@ export default function NotificationsPage() {
                     {n.ticket_human_id && (
                       <span className="hidden sm:inline font-mono text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md leading-tight">
                         {n.ticket_human_id}
+                      </span>
+                    )}
+                    {isAdmin && n.recipient_role === 'Technician' && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent-50 text-accent-600 text-[10px] font-sans font-semibold leading-tight">
+                        <Wrench className="w-2.5 h-2.5" /> Technician
+                      </span>
+                    )}
+                    {isAdmin && n.recipient_role === 'Staff' && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-sans font-semibold leading-tight">
+                        <Shield className="w-2.5 h-2.5" /> Staff
                       </span>
                     )}
                   </div>

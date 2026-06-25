@@ -7,7 +7,7 @@ import { useRole } from '../../hooks/useRole.jsx'
  * - Unauthenticated → /login
  * - Authenticated but wrong role (when requiredRole is given) → /
  */
-export default function ProtectedRoute({ children, requiredRole }) {
+export default function ProtectedRoute({ children, requiredRole, blockedRole }) {
   const { authenticated, loading } = useAuth()
   const { role } = useRole()
 
@@ -24,6 +24,10 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
 
   if (requiredRole && role !== requiredRole) {
+    return <Navigate to="/" replace />
+  }
+
+  if (blockedRole && role === blockedRole) {
     return <Navigate to="/" replace />
   }
 
