@@ -9,8 +9,7 @@
  *
  * Actions:
  *   list        — Returns all accounts (id, username, name, created_at, created_by).
- *                 Requires adminPassword.
- *   list-names  — Returns all staff usernames and names. Requires adminPassword.
+ *   list-names  — Returns all staff usernames and names.
  *   create      — Creates a new staff account. Requires adminPassword.
  *   delete      — Deletes a staff account by username. Requires adminPassword.
  *
@@ -213,18 +212,7 @@ Deno.serve(async (req) => {
     return json(200, { ok: true })
   }
 
-  // ── All other actions require admin password ───────────────────────────────────
-
-  if (!adminPassword) {
-    return json(200, { ok: false, error: 'Admin password is required.' })
-  }
-
-  const adminOk = await verifyAdminPassword(adminPassword, supabase)
-  if (!adminOk) {
-    return json(200, { ok: false, error: 'Incorrect admin password.' })
-  }
-
-  // ── List names ────────────────────────────────────────────────────────────────
+  // ── List names (no password required) ────────────────────────────────────────
 
   if (action === 'list-names') {
     const { data, error } = await supabase
@@ -236,7 +224,7 @@ Deno.serve(async (req) => {
     return json(200, { ok: true, staff: data ?? [] })
   }
 
-  // ── List ──────────────────────────────────────────────────────────────────────
+  // ── List (no password required) ───────────────────────────────────────────────
 
   if (action === 'list') {
     const { data, error } = await supabase
@@ -246,6 +234,17 @@ Deno.serve(async (req) => {
 
     if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
     return json(200, { ok: true, accounts: data ?? [] })
+  }
+
+  // ── All other actions require admin password ───────────────────────────────────
+
+  if (!adminPassword) {
+    return json(200, { ok: false, error: 'Admin password is required.' })
+  }
+
+  const adminOk = await verifyAdminPassword(adminPassword, supabase)
+  if (!adminOk) {
+    return json(200, { ok: false, error: 'Incorrect admin password.' })
   }
 
   // ── Reset password (admin-initiated) ─────────────────────────────────────────
@@ -276,7 +275,10 @@ Deno.serve(async (req) => {
       .update({ password_hash: passwordHash, password_reset_required: true })
       .eq('username', username.trim())
 
-    if (error) return json(500, { ok: false, error: 'Failed to reset password.' })
+    if (error) {
+      console.error('staff reset-password failed:', JSON.stringify(error))
+      return json(500, { ok: false, error: `Failed to reset password: ${error.message ?? error.code ?? 'unknown'}` })
+    }
     return json(200, { ok: true, tempPassword })
   }
 
@@ -306,7 +308,8 @@ Deno.serve(async (req) => {
       if (error.code === '23505') {
         return json(200, { ok: false, error: 'That username is already taken.' })
       }
-      return json(500, { ok: false, error: 'Failed to create account.' })
+      console.error('staff create insert failed:', JSON.stringify(error))
+      return json(500, { ok: false, error: `Failed to create account: ${error.message ?? error.code ?? 'unknown'}` })
     }
 
     return json(200, { ok: true })
@@ -336,7 +339,8 @@ Deno.serve(async (req) => {
       if (error.code === '23503') {
         return json(200, { ok: false, error: 'Cannot delete account — it is still referenced by existing records.' })
       }
-      return json(200, { ok: false, error: 'Failed to delete account.' })
+      console.error('staff delete failed:', JSON.stringify(error))
+      return json(200, { ok: false, error: `Failed to delete account: ${error.message ?? error.code ?? 'unknown'}` })
     }
     return json(200, { ok: true })
   }

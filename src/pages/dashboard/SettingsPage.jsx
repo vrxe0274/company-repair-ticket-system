@@ -17,7 +17,7 @@ import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
 import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '../../lib/terms'
 import { changePassword } from '../../lib/changePassword'
-import { supabase } from '../../lib/supabase'
+import { supabase, fnErrorMessage } from '../../lib/supabase'
 
 /** How long the "flushed" success toast stays up. */
 const FLUSH_SUCCESS_MS = 4000
@@ -106,7 +106,7 @@ export default function SettingsPage() {
           newPassword:     personalPwNew,
         },
       })
-      if (error) throw new Error('Connection error. Check your network and try again.')
+      if (error) throw new Error(await fnErrorMessage(error))
       if (!data?.ok) throw new Error(data?.error || 'Failed to change password.')
       setPersonalPwDone(true)
       closePersonalPw()
@@ -172,7 +172,8 @@ export default function SettingsPage() {
       const { data, error } = await supabase.functions.invoke(fn, {
         body: { action: 'change-username', username: staffUsername, newUsername: newUsernameInput.trim().toLowerCase(), currentPassword: usernamePwInput },
       })
-      if (error || !data?.ok) throw new Error(data?.error || 'Failed to update username.')
+      if (error) throw new Error(await fnErrorMessage(error))
+      if (!data?.ok) throw new Error(data?.error || 'Failed to update username.')
       setStaffUsername(newUsernameInput.trim().toLowerCase())
       setUsernameDone(true)
       closeEditUsername()
