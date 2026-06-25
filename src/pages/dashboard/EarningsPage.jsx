@@ -140,7 +140,7 @@ export default function EarningsPage() {
               </div>
             </div>
 
-            <p className="text-6xl font-display font-bold leading-none tracking-tight">
+            <p className="text-6xl font-display font-bold leading-none tracking-tight bg-gradient-to-r from-brand-400 to-accent-400 bg-clip-text text-transparent">
               {PESO(totalCommission)}
             </p>
             <p className="text-brand-300 text-sm font-body mt-3">
@@ -236,7 +236,7 @@ export default function EarningsPage() {
                 <td colSpan={4} className="px-4 py-3.5 text-xs font-sans font-semibold text-gray-500 uppercase tracking-wider text-right">
                   Total Commission
                 </td>
-                <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">
+                <td className="px-4 py-3.5 text-right font-mono text-sm font-bold bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-transparent">
                   {PESO(totalCommission)}
                 </td>
               </tr>
