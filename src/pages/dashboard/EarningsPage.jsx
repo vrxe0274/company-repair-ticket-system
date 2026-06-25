@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
-import { TrendingUp, Calendar, Wrench, Shield } from 'lucide-react'
+import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check } from 'lucide-react'
 import { supabase }            from '../../lib/supabase'
 import { useRole }             from '../../hooks/useRole.jsx'
 import { laborFee, technicianCommission, staffCommission } from '../../lib/commission'
@@ -8,7 +8,7 @@ import { laborFee, technicianCommission, staffCommission } from '../../lib/commi
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const COLUMNS = [
-  'id', 'ticket_id', 'created_at', 'paid_at', 'status',
+  'id', 'ticket_id', 'created_at',
   'client_name', 'unit_brand', 'unit_model',
   'labor_items',
 ].join(', ')
@@ -19,6 +19,17 @@ export default function EarningsPage() {
   const [tickets,       setTickets]       = useState([])
   const [loading,       setLoading]       = useState(true)
   const [selectedMonth, setSelectedMonth] = useState('all')
+  const [filterOpen,    setFilterOpen]    = useState(false)
+  const filterRef = useRef(null)
+
+  useEffect(() => {
+    if (!filterOpen) return
+    function handleClickOutside(e) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [filterOpen])
 
   useEffect(() => {
     async function load() {
@@ -54,9 +65,7 @@ export default function EarningsPage() {
     return isTechnician ? technicianCommission(fee) : staffCommission(fee)
   }
 
-  const totalCommission   = filteredTickets.reduce((sum, t) => sum + myCommission(t), 0)
-  const paidCommission    = filteredTickets.filter(t => t.status === 'Paid').reduce((sum, t) => sum + myCommission(t), 0)
-  const pendingCommission = totalCommission - paidCommission
+  const totalCommission = filteredTickets.reduce((sum, t) => sum + myCommission(t), 0)
 
   const monthLabel = selectedMonth === 'all'
     ? 'All Time'
@@ -75,49 +84,87 @@ export default function EarningsPage() {
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
 
-      {/* Title row + month picker */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-brand-500" />
-          <h1 className="text-xl font-display font-bold text-gray-900">Earnings</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            className="input-field text-sm py-1.5"
-          >
-            <option value="all">All Time</option>
-            {monthOptions.map(m => (
-              <option key={m} value={m}>
-                {format(new Date(m + '-01'), 'MMMM yyyy')}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Title row */}
+      <div className="flex items-center gap-2">
+        <TrendingUp className="w-5 h-5 text-brand-500" />
+        <h1 className="text-xl font-display font-bold text-gray-900">Earnings</h1>
       </div>
 
-      {/* ── Earnings statement ── */}
-      <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 px-6 py-7 text-white">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+      {/* ── Earnings banner ── */}
+      <div className="rounded-2xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 text-white overflow-hidden">
+        <div className="flex flex-col sm:flex-row">
 
-          {/* Total */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-3">
-              <RoleIcon className="w-3.5 h-3.5 text-brand-300" />
-              <p className="text-brand-200 text-xs font-sans font-semibold uppercase tracking-widest">
-                {isTechnician ? 'Technician' : 'Staff'} Commission · {monthLabel}
-              </p>
+          {/* Left — total */}
+          <div className="flex-1 px-7 py-8">
+            {/* Month filter — top-right inside banner */}
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-center gap-1.5">
+                <RoleIcon className="w-3 h-3 text-brand-300" />
+                <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-widest">
+                  {isTechnician ? 'Technician' : 'Staff'} Commission
+                </p>
+              </div>
+
+              {/* Filter button — same pattern as All Tickets */}
+              <div className="relative shrink-0" ref={filterRef}>
+                <button
+                  onClick={() => setFilterOpen(o => !o)}
+                  aria-expanded={filterOpen}
+                  className="btn-secondary text-sm"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{monthLabel}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filterOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {filterOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 animate-fade-in">
+                    {['all', ...monthOptions].map(m => {
+                      const label = m === 'all' ? 'All Time' : format(new Date(m + '-01'), 'MMMM yyyy')
+                      const active = selectedMonth === m
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => { setSelectedMonth(m); setFilterOpen(false) }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-left transition-colors
+                            ${active ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          <Calendar className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                          <span className="flex-1">{label}</span>
+                          {active && <Check className="w-3.5 h-3.5 text-brand-500 shrink-0" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-5xl font-display font-bold leading-none tracking-tight">
+
+            <p className="text-6xl font-display font-bold leading-none tracking-tight">
               {PESO(totalCommission)}
             </p>
-            <p className="text-brand-300 text-sm font-body mt-2">
-              {isTechnician ? '20% of labor fee' : '5% of net labor fee'}
-              {' · '}
+            <p className="text-brand-300 text-xs font-body mt-4">
               {filteredTickets.length} job{filteredTickets.length !== 1 ? 's' : ''}
             </p>
+          </div>
+
+          {/* Divider */}
+          <div className="hidden sm:block w-px bg-white/10 my-6" />
+          <div className="block sm:hidden h-px bg-white/10 mx-7" />
+
+          {/* Right — commission rate info */}
+          <div className="sm:w-64 px-7 py-8 flex flex-col justify-center gap-3">
+            <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-widest">How it's calculated</p>
+            <div>
+              <p className="text-3xl font-display font-bold leading-none">
+                {isTechnician ? '20%' : '5%'}
+              </p>
+              <p className="text-brand-200 text-xs font-body mt-2 leading-relaxed">
+                {isTechnician
+                  ? 'of the labor fee on each completed job'
+                  : 'of the net labor fee (after technician cut) on each job'}
+              </p>
+            </div>
           </div>
 
         </div>
@@ -157,15 +204,16 @@ export default function EarningsPage() {
                 <th className="px-4 py-2.5 text-left text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Client / Unit</th>
                 <th className="px-4 py-2.5 text-left text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Date</th>
                 <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Labor Fee</th>
-                <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Your Cut</th>
+                <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">
+                  <span>Your Cut</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredTickets.map(t => {
                 const fee        = laborFee(t)
                 const commission = myCommission(t)
-                const isPaid     = t.status === 'Paid'
-                return (
+return (
                   <tr key={t.id} className="hover:bg-gray-50/70 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-500 truncate">
                       {t.ticket_id}
@@ -178,10 +226,8 @@ export default function EarningsPage() {
                       {format(new Date(t.created_at), 'MMM d, yyyy')}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-xs text-gray-500">{PESO(fee)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`font-mono text-xs font-bold ${isPaid ? 'text-emerald-600' : 'text-brand-600'}`}>
-                        {PESO(commission)}
-                      </span>
+                    <td className="px-4 py-3 text-right font-mono text-xs font-bold text-gray-900">
+                      {PESO(commission)}
                     </td>
                   </tr>
                 )
@@ -189,8 +235,8 @@ export default function EarningsPage() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50">
-                <td colSpan={4} className="px-4 py-3 text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">
-                  Total
+                <td colSpan={4} className="px-4 py-3 text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide text-right pr-4">
+                  Total Commission
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-sm font-bold text-brand-700">
                   {PESO(totalCommission)}
@@ -198,6 +244,7 @@ export default function EarningsPage() {
               </tr>
             </tfoot>
           </table>
+
         </div>
       )}
     </div>
