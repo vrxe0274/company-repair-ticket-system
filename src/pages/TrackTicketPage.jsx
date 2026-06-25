@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file TrackTicketPage.jsx
  * @description Public ticket tracking page. No auth required.
  *
@@ -81,6 +81,7 @@ export default function TrackTicketPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState(null)
   const [savingPlan, setSavingPlan] = useState(false)
+  const [savingPaymentMode, setSavingPaymentMode] = useState(false)
   const intervalRef    = useRef(null)
   const ticketLoadedRef = useRef(false)
 
@@ -105,6 +106,22 @@ export default function TrackTicketPage() {
       alert('Could not save your payment plan. Please try again.')
     }
     setSavingPlan(false)
+  }
+
+  async function choosePaymentMode(value) {
+    if (savingPaymentMode || ticket?.payment_mode) return
+    setSavingPaymentMode(true)
+    const prev = ticket?.payment_mode ?? null
+    setTicket(t => ({ ...t, payment_mode: value }))
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update({ payment_mode: value })
+      .eq('tracking_token', token)
+    if (updateError) {
+      setTicket(t => ({ ...t, payment_mode: prev }))
+      alert('Could not save your payment mode. Please try again.')
+    }
+    setSavingPaymentMode(false)
   }
 
   /**
@@ -201,6 +218,8 @@ export default function TrackTicketPage() {
   // Payment-plan chooser appears once the workflow reaches "Inspection & Quote"
   // (the inspection/quotation stage) and stays until the ticket is paid.
   const quoteStageReached = !isDenied && currentStep >= STATUS_ORDER.indexOf('Inspection & Quote')
+  // Mode of payment appears once a quotation amount has been set.
+  const paymentModeAvailable = quoteStageReached && ticket.quotation_amount != null && !isPaid
   // No payment plan choice for diagnosis/cleaning-only tickets — client pays full price.
   const filledLabor = (ticket.labor_items || []).filter(i => i.description || i.amount)
   const filledParts = (ticket.parts_items || []).filter(i => i.description || i.amount)
@@ -223,6 +242,14 @@ export default function TrackTicketPage() {
           {/* Hero header — brand-aligned dark palette */}
           <div className="bg-dark-900 relative overflow-hidden px-4 pt-7 pb-6">
             <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 10% 70%, rgba(115,23,232,0.25) 0%, transparent 55%), radial-gradient(ellipse at 90% 20%, rgba(212,0,127,0.15) 0%, transparent 50%)' }} />
+            {isPaid && (
+              <div className="absolute top-3 right-3 pointer-events-none select-none z-10">
+                <div className="flex flex-col items-center justify-center w-16 h-16 rounded-full border-[3px] border-emerald-400/70 bg-emerald-500/10 rotate-12">
+                  <CheckCircle className="w-6 h-6 text-emerald-400" />
+                  <span className="text-[8px] font-sans font-black text-emerald-400 tracking-widest uppercase leading-none mt-0.5">PAID</span>
+                </div>
+              </div>
+            )}
             <div className="relative flex items-start gap-4">
               {/* Client initial avatar */}
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-600/50 to-accent-600/40 border border-white/20 flex items-center justify-center shrink-0 mt-0.5 text-white font-bold text-lg select-none">
@@ -336,7 +363,7 @@ export default function TrackTicketPage() {
                                   ✓ Done
                                 </span>
                               )}
-                              {isCurrent && (
+                              {isCurrent && !isPaid && (
                                 <span className="text-[10px] font-sans font-bold text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded-full shrink-0">
                                   In Progress
                                 </span>
@@ -511,66 +538,121 @@ export default function TrackTicketPage() {
               </div>
             )}
 
-            {/* Payment plan — client chooses once the workflow reaches the
-                inspection/quotation stage, until the ticket is paid. */}
-            {quoteStageReached && !isPaid && !isDiagCleanOnly && (
-              <div className="p-5">
-                <SectionHeader icon={DollarSign} label="Choose Your Payment Plan" iconBg="bg-accent-50" iconColor="text-accent-600" />
-                <p className="text-sm font-body text-gray-500 mb-3">
-                  How you choose to pay determines the discount you’re eligible for.
-                  Your selection is final and can’t be changed once submitted.
-                </p>
-                <div className="space-y-2">
-                  {PAYMENT_OPTIONS.map(opt => {
-                    const fullCap = ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT
-                    const halfCap = ticket.payment_partial_low_pct  ?? DEFAULT_PARTIAL_LOW_PCT
-                    const checked = ticket.payment_option === opt.value
-                    const cap     = discountCapFor(opt.value, fullCap, halfCap)
-                    return (
-                      <div
-                        key={opt.value}
-                        className={`flex items-center gap-3 p-3 rounded-xl border transition-colors
-                          ${checked ? 'bg-accent-50 border-accent-300 ring-1 ring-accent-200' : 'bg-white border-gray-200'}`}
-                      >
-                        <span className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                          ${checked ? 'border-accent-500' : 'border-gray-300'}`}>
-                          {checked && <span className="w-2 h-2 rounded-full bg-accent-500" />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-sans font-semibold text-gray-800">
-                            {paymentPlanLabel(opt.value, fullCap, halfCap)}
-                          </p>
-                          <p className="text-xs font-body text-gray-500 mt-0.5">
-                            {cap > 0
-                              ? `Eligible for up to ${cap}% off your repair quotation.`
-                              : 'No discount — pay the full quotation on completion.'}
-                          </p>
-                        </div>
-                        {/* Once a plan is chosen, only the selected option keeps
-                            its button ("Selected"); the others show none. */}
-                        {checked ? (
-                          <span className="shrink-0 text-xs font-sans font-semibold px-4 py-2 rounded-lg bg-accent-100 text-accent-700">
-                            Selected
-                          </span>
-                        ) : !ticket.payment_option && (
-                          <button
-                            type="button"
-                            onClick={() => choosePaymentPlan(opt.value)}
-                            disabled={savingPlan}
-                            className="shrink-0 text-xs font-sans font-semibold px-4 py-2 rounded-lg bg-accent-600 hover:bg-accent-700 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            {/* Payment plan + Mode of Payment — shown once quotation stage is reached */}
+            {quoteStageReached && !isPaid && (
+              <div className="p-5 space-y-5">
+
+                {/* Payment plan */}
+                {!isDiagCleanOnly && (
+                  <div>
+                    <SectionHeader icon={DollarSign} label="Choose Your Payment Plan" iconBg="bg-accent-50" iconColor="text-accent-600" />
+                    <p className="text-sm font-body text-gray-500 mb-3">
+                      How you choose to pay determines the discount you're eligible for.
+                      Your selection is final and can't be changed once submitted.
+                    </p>
+                    <div className="space-y-2">
+                      {PAYMENT_OPTIONS.map(opt => {
+                        const fullCap = ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT
+                        const halfCap = ticket.payment_partial_low_pct  ?? DEFAULT_PARTIAL_LOW_PCT
+                        const checked = ticket.payment_option === opt.value
+                        const cap     = discountCapFor(opt.value, fullCap, halfCap)
+                        return (
+                          <div
+                            key={opt.value}
+                            className={`flex items-center gap-3 p-3 rounded-xl border transition-colors
+                              ${checked ? 'bg-accent-50 border-accent-300 ring-1 ring-accent-200' : 'bg-white border-gray-200'}`}
                           >
-                            Select
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                {ticket.payment_option && !isDiagCleanOnly && (
-                  <p className="text-xs font-body text-emerald-600 font-semibold mt-3">
-                    ✓ You chose: {paymentPlanLabel(ticket.payment_option, ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT, ticket.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)}
-                  </p>
+                            <span className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
+                              ${checked ? 'border-accent-500' : 'border-gray-300'}`}>
+                              {checked && <span className="w-2 h-2 rounded-full bg-accent-500" />}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-sans font-semibold text-gray-800">
+                                {paymentPlanLabel(opt.value, fullCap, halfCap)}
+                              </p>
+                              <p className="text-xs font-body text-gray-500 mt-0.5">
+                                {cap > 0
+                                  ? `Eligible for up to ${cap}% off your repair quotation.`
+                                  : 'No discount — pay the full quotation on completion.'}
+                              </p>
+                            </div>
+                            {checked ? (
+                              <span className="shrink-0 text-xs font-sans font-semibold px-4 py-2 rounded-lg bg-accent-100 text-accent-700">
+                                Selected
+                              </span>
+                            ) : !ticket.payment_option && (
+                              <button
+                                type="button"
+                                onClick={() => choosePaymentPlan(opt.value)}
+                                disabled={savingPlan}
+                                className="shrink-0 text-xs font-sans font-semibold px-4 py-2 rounded-lg bg-accent-600 hover:bg-accent-700 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                Select
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {ticket.payment_option && !isDiagCleanOnly && (
+                      <p className="text-xs font-body text-emerald-600 font-semibold mt-3">
+                        ✓ You chose: {paymentPlanLabel(ticket.payment_option, ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT, ticket.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)}
+                      </p>
+                    )}
+                  </div>
                 )}
+
+                {/* Mode of Payment — available once quotation amount is set */}
+                {paymentModeAvailable && (
+                  <div className={!isDiagCleanOnly ? 'pt-4 border-t border-gray-100' : ''}>
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                        <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+                      </div>
+                      <p className="text-xs font-sans font-bold text-gray-700 uppercase tracking-[0.1em]">Mode of Payment</p>
+                    </div>
+                    <p className="text-sm font-body text-gray-500 mb-3">
+                      How will you settle your payment? Choose your preferred method.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['Cash', 'GCash', 'Bank Transfer'].map(mode => {
+                        const selected = ticket.payment_mode === mode
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            disabled={!!ticket.payment_mode || savingPaymentMode}
+                            onClick={() => choosePaymentMode(mode)}
+                            className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center
+                              ${selected
+                                ? 'bg-emerald-50 border-emerald-400 ring-1 ring-emerald-200'
+                                : ticket.payment_mode
+                                  ? 'bg-gray-50 border-gray-100 opacity-40 cursor-not-allowed'
+                                  : 'bg-white border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 cursor-pointer'}`}
+                          >
+                            <span className="text-lg leading-none">
+                              {mode === 'Cash' ? '💵' : mode === 'GCash' ? '📱' : '🏦'}
+                            </span>
+                            <span className={`text-xs font-sans font-semibold leading-tight ${selected ? 'text-emerald-700' : 'text-gray-700'}`}>
+                              {mode}
+                            </span>
+                            {selected && (
+                              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                <CheckCircle className="w-3 h-3 text-white" />
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {ticket.payment_mode && (
+                      <p className="text-xs font-body text-emerald-600 font-semibold mt-3">
+                        ✓ Payment via {ticket.payment_mode} confirmed.
+                      </p>
+                    )}
+                  </div>
+                )}
+
               </div>
             )}
 

@@ -132,7 +132,7 @@ export function Step4Appointment({ form, errors, handleChange }) {
           {MODES_OF_SERVICE.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
       </Field>
-      {form.mode_of_service === 'Courier' && (
+      {form.mode_of_service === 'Delivery via courier' && (
         <Field label="Specify Courier *" error={errors.mode_courier}>
           <input className="input-field" name="mode_courier" value={form.mode_courier} onChange={handleChange} placeholder="e.g. J&T, LBC, Grab" />
         </Field>

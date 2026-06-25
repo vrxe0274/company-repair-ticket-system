@@ -83,7 +83,7 @@ export default function SubmitTicketPage() {
       const trackingToken = generateTrackingToken()
       const resolvedBrand = form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand
       const resolvedType  = form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type
-      const resolvedMode  = form.mode_of_service === 'Courier' ? `Courier - ${form.mode_courier}` : form.mode_of_service === 'Others' ? form.mode_custom : form.mode_of_service
+      const resolvedMode  = form.mode_of_service === 'Delivery via courier' ? `Delivery via courier - ${form.mode_courier}` : form.mode_of_service === 'Others' ? form.mode_custom : form.mode_of_service
       const payload = {
         client_name:          form.client_name,
         contact_number:       form.contact_number,

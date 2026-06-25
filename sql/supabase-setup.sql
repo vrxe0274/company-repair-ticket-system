@@ -74,6 +74,10 @@ CREATE TABLE tickets (
   payment_partial_high_pct NUMERIC(5,2) DEFAULT 40,
   payment_partial_low_pct  NUMERIC(5,2) DEFAULT 20,
 
+  -- Mode of payment chosen by the client on the tracker page (Cash, GCash, Bank Transfer)
+  payment_mode TEXT
+    CHECK (payment_mode IS NULL OR payment_mode IN ('Cash', 'GCash', 'Bank Transfer')),
+
   -- Receipt number (auto-generated when marked Paid)
   receipt_number TEXT,
 

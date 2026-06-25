@@ -84,17 +84,17 @@ describe('validateStep — step 3 (unit info)', () => {
   })
 
   it('resolves unit_brand "Others" to unit_brand_custom', () => {
-    const form = { ...FORM_INITIAL, unit_brand: 'Others', unit_brand_custom: '', unit_model: 'X', unit_type: 'Phone', unit_condition: 'Brand new' }
+    const form = { ...FORM_INITIAL, unit_brand: 'Others', unit_brand_custom: '', unit_model: 'X', unit_type: 'Phone', unit_condition: 'First Owner' }
     expect(validateStep(form, 3)).toHaveProperty('unit_brand', 'Required')
   })
 
   it('passes when unit_brand is Others and custom is filled', () => {
-    const form = { ...FORM_INITIAL, unit_brand: 'Others', unit_brand_custom: 'Acme', unit_model: 'X1', unit_type: 'Phone', unit_condition: 'Brand new' }
+    const form = { ...FORM_INITIAL, unit_brand: 'Others', unit_brand_custom: 'Acme', unit_model: 'X1', unit_type: 'Phone', unit_condition: 'First Owner' }
     expect(validateStep(form, 3)).toEqual({})
   })
 
   it('resolves unit_type "Others" to unit_type_custom', () => {
-    const form = { ...FORM_INITIAL, unit_brand: 'Apple', unit_model: 'X', unit_type: 'Others', unit_type_custom: '', unit_condition: 'Brand new' }
+    const form = { ...FORM_INITIAL, unit_brand: 'Apple', unit_model: 'X', unit_type: 'Others', unit_type_custom: '', unit_condition: 'First Owner' }
     expect(validateStep(form, 3)).toHaveProperty('unit_type', 'Required')
   })
 
@@ -129,13 +129,13 @@ describe('validateStep — step 5 (appointment)', () => {
     expect(validateStep(form, 5)).toEqual({})
   })
 
-  it('resolves Courier mode to mode_courier', () => {
-    const form = { ...FORM_INITIAL, mode_of_service: 'Courier', mode_courier: '' }
+  it('resolves courier delivery mode to mode_courier', () => {
+    const form = { ...FORM_INITIAL, mode_of_service: 'Delivery via courier', mode_courier: '' }
     expect(validateStep(form, 5)).toHaveProperty('mode_of_service', 'Required')
   })
 
-  it('passes when Courier mode has a courier value', () => {
-    const form = { ...FORM_INITIAL, mode_of_service: 'Courier', mode_courier: 'LBC' }
+  it('passes when courier delivery mode has a courier value', () => {
+    const form = { ...FORM_INITIAL, mode_of_service: 'Delivery via courier', mode_courier: 'LBC' }
     expect(validateStep(form, 5)).toEqual({})
   })
 

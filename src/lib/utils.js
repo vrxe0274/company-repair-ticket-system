@@ -194,12 +194,11 @@ export const VR_ISSUES = [
   'Others',
 ]
 
-export const MODES_OF_SERVICE = ['Drop-off', 'Courier', 'Others']
+export const MODES_OF_SERVICE = ['Walk-in or Drop-Off', 'Delivery via courier', 'Others']
 
 /** Condition the unit is in when brought to us — collected on the Unit step. */
 export const UNIT_CONDITIONS = [
-  'Brand new',
-  'Opened by other technician',
+  'First Owner',
   'Second-hand',
 ]
 

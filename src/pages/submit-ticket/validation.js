@@ -19,7 +19,7 @@ export function validateStep(form, s) {
         : field === 'unit_type'
           ? (form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type)
           : field === 'mode_of_service'
-            ? (form.mode_of_service === 'Courier'
+            ? (form.mode_of_service === 'Delivery via courier'
                 ? form.mode_courier
                 : form.mode_of_service === 'Others'
                   ? form.mode_custom
