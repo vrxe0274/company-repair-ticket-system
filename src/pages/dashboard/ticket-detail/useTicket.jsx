@@ -2,10 +2,6 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate }                   from 'react-router-dom'
 import { supabase }                      from '../../../lib/supabase'
 import { adminDeleteTicket }             from '../../../lib/adminDelete'
-import { formatClientUnitLabel }         from '../../../lib/utils'
-import {
-  createNotification, buildStatusNotification,
-} from '../../../lib/notifications'
 import { sendGlobalPush }    from '../../../lib/push'
 import { downloadTicketPDF } from '../../../lib/pdf'
 import { generateReceiptNumber, downloadReceiptPDF } from '../../../lib/receipt'
@@ -163,21 +159,6 @@ export function useTicket(id) {
       alert(`Status update failed: ${error.message}`)
     } else {
       hydrate(data)
-      const note = buildStatusNotification({ actorRole: role, newStatus, ticketLabel: formatClientUnitLabel(data) })
-      if (note) {
-        try {
-          await createNotification({
-            recipientRole: note.recipientRole,
-            message:       note.message,
-            type:          'status_change',
-            status:        newStatus,
-            ticketUuid:    data.id,
-            ticketHumanId: data.ticket_id,
-          })
-        } catch (err) {
-          console.error('Notification failed:', err)
-        }
-      }
       if (newStatus === 'Paid') {
         // Global push milestone — broadcast to all devices regardless of role
         // (the role-scoped in-app notification above is unchanged).
@@ -211,21 +192,6 @@ export function useTicket(id) {
       alert(`Undo failed: ${error.message}`)
     } else {
       hydrate(data)
-      // Notify the "other side": a technician's change pings the staff queue,
-      // a staff/admin change pings the technician.
-      const other = isTechnician ? 'Staff' : 'Technician'
-      try {
-        await createNotification({
-          recipientRole: other,
-          message:       `Reverted to ${data.status}: ${formatClientUnitLabel(data)}`,
-          type:          'status_change',
-          status:        data.status,
-          ticketUuid:    data.id,
-          ticketHumanId: data.ticket_id,
-        })
-      } catch (err) {
-        console.error('Notification failed:', err)
-      }
     }
     setUndoConfirm(false)
     setStatusUpdating(false)

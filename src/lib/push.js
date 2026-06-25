@@ -6,15 +6,19 @@
  *   subscribeToPush(role)
  *     → Notification.requestPermission()
  *     → registration.pushManager.subscribe() with the VAPID public key
- *     → upsert row in push_subscriptions (keyed by endpoint)
+ *     → upsert row in push_subscriptions via manage-push Edge Function
  *
  * Sending goes through the `send-push` Supabase Edge Function, which holds
  * the VAPID private key and broadcasts to ALL active subscriptions
  * regardless of role ("global push"). Role-scoped in-app notifications
  * (lib/notifications.js) are intentionally untouched and separate.
  *
+ * DB writes (subscribe/unsubscribe) go through the manage-push Edge Function
+ * so the anon client never writes to push_subscriptions directly.
+ * See sql/push-lockdown.sql.
+ *
  * Everything here fails softly (logs only) so push problems never block
- * the underlying action — same convention as createNotification().
+ * the underlying action.
  */
 
 import { supabase } from './supabase'
@@ -82,20 +86,18 @@ export async function subscribeToPush(role = null) {
     }
 
     const { keys } = subscription.toJSON()
-    const { error } = await supabase.from('push_subscriptions').upsert(
-      {
-        endpoint:     subscription.endpoint,
-        p256dh:       keys.p256dh,
-        auth:         keys.auth,
-        role:         role || null,
-        user_agent:   navigator.userAgent.slice(0, 500),
-        active:       true,
-        last_seen_at: new Date().toISOString(),
+    const { data, error } = await supabase.functions.invoke('manage-push', {
+      body: {
+        action:    'subscribe',
+        endpoint:  subscription.endpoint,
+        p256dh:    keys.p256dh,
+        auth:      keys.auth,
+        role:      role || null,
+        userAgent: navigator.userAgent.slice(0, 500),
       },
-      { onConflict: 'endpoint' },
-    )
-    if (error) {
-      softFail('subscribeToPush', error)
+    })
+    if (error || !data?.ok) {
+      softFail('subscribeToPush', error ?? new Error(data?.error ?? 'unknown'))
       return { ok: false, reason: 'store-failed' }
     }
     return { ok: true }
@@ -116,7 +118,9 @@ export async function unsubscribeFromPush() {
     const registration = await navigator.serviceWorker.getRegistration()
     const subscription = await registration?.pushManager.getSubscription()
     if (!subscription) return
-    await supabase.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint)
+    await supabase.functions.invoke('manage-push', {
+      body: { action: 'unsubscribe', endpoint: subscription.endpoint },
+    })
     await subscription.unsubscribe()
   } catch (err) {
     softFail('unsubscribeFromPush', err)

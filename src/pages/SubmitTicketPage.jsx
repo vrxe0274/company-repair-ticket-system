@@ -17,7 +17,6 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Send, CheckCircle } from 'lucide-react'
 import { supabase }              from '../lib/supabase'
 import { sendGlobalPush }        from '../lib/push'
-import { createNotification, NOTIFY_ROLES } from '../lib/notifications'
 import {
   generateTicketId, generateTrackingToken, getTrackingUrl,
   formatUnitLabel, formatClientUnitLabel,
@@ -107,16 +106,6 @@ export default function SubmitTicketPage() {
       }
       const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
       if (error) throw error
-      // In-app notification for the Staff queue (the role that reviews Pending
-      // tickets; Admin reads this stream too) — fire-and-forget, fails softly.
-      createNotification({
-        recipientRole: NOTIFY_ROLES.STAFF,
-        message:       `New ticket: ${formatClientUnitLabel(data)}`,
-        type:          'new_ticket',
-        status:        'Pending',
-        ticketUuid:    data.id,
-        ticketHumanId: data.ticket_id,
-      })
       // Global push (all subscribed staff devices) — fire-and-forget, fails softly.
       // Creation events show the ticket (unit) name only — no client name.
       sendGlobalPush({
@@ -130,6 +119,51 @@ export default function SubmitTicketPage() {
     } catch (err) {
       console.error('[SubmitTicketPage] handleSubmit failed:', err)
       alert('Submission failed: ' + (err.message || 'Unknown error'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function devQuickSubmit() {
+    setSubmitting(true)
+    try {
+      const ticketId      = await generateTicketId(supabase)
+      const trackingToken = generateTrackingToken()
+      const payload = {
+        client_name:          'Dev Tester',
+        contact_number:       '09171234567',
+        email:                'dev@vrxe.local',
+        address:              '123 Test Street, Quezon City, Metro Manila',
+        platform:             'Facebook',
+        unit_brand:           'Meta',
+        unit_model:           'Quest 3',
+        unit_type:            'VR Headset',
+        unit_condition:       'First Owner',
+        accessories_included: 'Charging cable, carry case',
+        issue_description:    'Display not working / black screen',
+        preferred_date:       '2026-07-01',
+        preferred_time:       '10:00',
+        mode_of_service:      'Walk-in or Drop-Off',
+        ticket_id:            ticketId,
+        tracking_token:       trackingToken,
+        status:               'Pending',
+        labor_items:          [],
+        quotation_amount:     null,
+      }
+      const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
+      if (error) throw error
+      sendGlobalPush({
+        title: 'New repair ticket',
+        body:  `New ticket: ${formatUnitLabel(data)}.`,
+        url:   `/tickets/${data.id}`,
+      })
+      setSubmitted(data)
+      setForm(FORM_INITIAL)
+      setStep(1)
+      setTermsAccepted(false)
+    } catch (err) {
+      console.error('[DEV] devQuickSubmit failed:', err)
+      alert('Dev submit failed: ' + (err.message || 'Unknown error'))
     } finally {
       setSubmitting(false)
     }
@@ -279,6 +313,19 @@ export default function SubmitTicketPage() {
           <p className="text-center text-xs text-gray-400 font-body mt-4">
             By submitting, you agree to be contacted regarding your repair request.
           </p>
+
+          {import.meta.env.DEV && step === 1 && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={devQuickSubmit}
+                disabled={submitting}
+                className="text-xs font-mono px-4 py-2 rounded border border-dashed border-yellow-400 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? '⏳ Submitting…' : '[DEV] Quick Submit Test Ticket'}
+              </button>
+            </div>
+          )}
         </form>
       </main>
     </div>
