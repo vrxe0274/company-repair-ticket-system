@@ -15,6 +15,7 @@ const COLUMNS = ['id', 'ticket_id', 'created_at', 'labor_items'].join(', ')
 export default function PayrollPage() {
   const [tickets,       setTickets]       = useState([])
   const [staff,         setStaff]         = useState([])
+  const [techs,         setTechs]         = useState([])
   const [rateHistory,   setRateHistory]   = useState([])
   const [loading,       setLoading]       = useState(true)
   const [selectedMonth, setSelectedMonth] = useState('all')
@@ -39,13 +40,15 @@ export default function PayrollPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [ticketRes, staffRes, rates] = await Promise.all([
+      const [ticketRes, staffRes, techRes, rates] = await Promise.all([
         supabase.from('tickets').select(COLUMNS).order('created_at', { ascending: false }),
         supabase.functions.invoke('staff-manage', { body: { action: 'list-names' } }),
+        supabase.functions.invoke('tech-manage',  { body: { action: 'list-names' } }),
         getCommissionRates(),
       ])
       setTickets(ticketRes.data ?? [])
       setStaff(staffRes.data?.staff ?? [])
+      setTechs(techRes.data?.staff ?? [])
       setRateHistory(rates)
       setLoading(false)
     }
@@ -96,7 +99,9 @@ export default function PayrollPage() {
     ? 'All Time'
     : format(new Date(selectedMonth + '-01'), 'MMMM yyyy')
 
-  const payeeCount = 1 + staff.length
+  const techCount  = techs.length || 1  // avoid div-by-zero; fallback shows one "Technician" row
+  const perTech    = techTotal / techCount
+  const payeeCount = techCount + staff.length
 
   function openEditModal() {
     setEditTech((currentRate.technician_pct * 100).toString())
@@ -222,13 +227,23 @@ export default function PayrollPage() {
           <div className="sm:w-64 px-7 py-8 flex flex-col justify-center gap-4">
             <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">Breakdown</p>
             <div className="space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Wrench className="w-3.5 h-3.5 text-accent-400 shrink-0" />
-                  <span className="text-brand-200 text-sm font-body truncate">Technician</span>
+              {techs.length === 0 ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Wrench className="w-3.5 h-3.5 text-accent-400 shrink-0" />
+                    <span className="text-brand-200 text-sm font-body truncate">Technician</span>
+                  </div>
+                  <span className="font-mono text-sm text-white shrink-0">{PESO(techTotal)}</span>
                 </div>
-                <span className="font-mono text-sm text-white shrink-0">{PESO(techTotal)}</span>
-              </div>
+              ) : techs.map(t => (
+                <div key={t.username} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Wrench className="w-3.5 h-3.5 text-accent-400 shrink-0" />
+                    <span className="text-brand-200 text-sm font-body truncate">{t.name || t.username}</span>
+                  </div>
+                  <span className="font-mono text-sm text-white shrink-0">{PESO(perTech)}</span>
+                </div>
+              ))}
               {staff.map(s => (
                 <div key={s.username} className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -279,27 +294,53 @@ export default function PayrollPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
 
-              {/* Technician row */}
-              <tr className="hover:bg-gray-50/70 transition-colors">
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-accent-50 flex items-center justify-center shrink-0">
-                      <Wrench className="w-3.5 h-3.5 text-accent-500" />
+              {/* Technician rows — one per individual account, or a single fallback row */}
+              {techs.length === 0 ? (
+                <tr className="hover:bg-gray-50/70 transition-colors">
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-accent-50 flex items-center justify-center shrink-0">
+                        <Wrench className="w-3.5 h-3.5 text-accent-500" />
+                      </div>
+                      <span className="text-sm font-sans font-semibold text-gray-800">Technician</span>
                     </div>
-                    <span className="text-sm font-sans font-semibold text-gray-800">Technician</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3.5">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-sans font-semibold bg-accent-50 text-accent-600">
-                    Technician
-                  </span>
-                </td>
-                <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{filteredTickets.length}</td>
-                <td className="px-4 py-3.5 text-right text-xs font-sans text-gray-500">
-                  {fmtPct(currentRate.technician_pct)} <span className="text-gray-400">of labor fee</span>
-                </td>
-                <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(techTotal)}</td>
-              </tr>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-sans font-semibold bg-accent-50 text-accent-600">
+                      Technician
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{filteredTickets.length}</td>
+                  <td className="px-4 py-3.5 text-right text-xs font-sans text-gray-500">
+                    {fmtPct(currentRate.technician_pct)} <span className="text-gray-400">of labor fee</span>
+                  </td>
+                  <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(techTotal)}</td>
+                </tr>
+              ) : techs.map(t => (
+                <tr key={t.username} className="hover:bg-gray-50/70 transition-colors">
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-accent-50 flex items-center justify-center shrink-0">
+                        <Wrench className="w-3.5 h-3.5 text-accent-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-sans font-semibold text-gray-800 truncate">{t.name || t.username}</p>
+                        {t.name && <p className="text-xs font-mono text-gray-400 truncate mt-0.5">{t.username}</p>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-sans font-semibold bg-accent-50 text-accent-600">
+                      Technician
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{filteredTickets.length}</td>
+                  <td className="px-4 py-3.5 text-right text-xs font-sans text-gray-500">
+                    {fmtPct(currentRate.technician_pct)} <span className="text-gray-400">of labor fee ÷ {techs.length}</span>
+                  </td>
+                  <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(perTech)}</td>
+                </tr>
+              ))}
 
               {/* Staff rows */}
               {staff.map(s => (

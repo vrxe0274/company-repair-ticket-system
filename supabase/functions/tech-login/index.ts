@@ -1,0 +1,88 @@
+/**
+ * tech-login — Supabase Edge Function
+ *
+ * Server-side verification for individual Technician accounts (username + password).
+ * Mirrors staff-login but checks against the technician_accounts table.
+ *
+ * Deploy:
+ *   supabase functions deploy tech-login --no-verify-jwt
+ *
+ * Request:  POST { username: string, password: string }
+ * Response: { ok: boolean, name?: string | null }
+ *           | { ok: false, rateLimited: true, retryAfter: number }
+ *
+ * Brute-force protection (Deno KV, keyed by IP + username):
+ *   5 failed attempts within 15 minutes → 15-minute lockout.
+ *   Successful login clears the counter immediately.
+ *
+ * Password derivation: PBKDF2-SHA256, 100k iterations.
+ * Salt: vrxe-tech-<username>-pw-v1 (must match tech-manage).
+ */
+
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  corsHeaders, json, timingSafeEqual, getClientIp,
+  deriveTechKey, checkRateLimit, updateRateLimit,
+} from '../_shared/auth.ts'
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+)
+
+// deno-lint-ignore no-explicit-any
+let kv: any = null
+try { kv = await Deno.openKv() } catch { /* local runtime without KV support */ }
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method !== 'POST') return json(405, { ok: false, error: 'Method not allowed' })
+
+  let body: { username?: string; password?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return json(400, { ok: false, error: 'Invalid JSON body' })
+  }
+
+  const { username, password } = body
+
+  if (!username || typeof username !== 'string' || !password) {
+    return json(200, { ok: false })
+  }
+
+  const normalizedUsername = username.trim()
+
+  // ── Brute-force check (keyed by IP + username) ────────────────────────────
+
+  const ip    = getClientIp(req)
+  const kvKey = ['tech_login', ip, normalizedUsername]
+  const now   = Date.now()
+
+  const rateCheck = await checkRateLimit(kv, kvKey, now)
+  if (rateCheck.limited) {
+    return json(200, { ok: false, rateLimited: true, retryAfter: rateCheck.retryAfter })
+  }
+  const { record } = rateCheck
+
+  // ── Verify against technician_accounts table ──────────────────────────────
+
+  const { data: account } = await supabase
+    .from('technician_accounts')
+    .select('password_hash, name')
+    .eq('username', normalizedUsername)
+    .maybeSingle()
+
+  let ok = false
+
+  if (account?.password_hash) {
+    const inputHash = await deriveTechKey(password, normalizedUsername)
+    ok = timingSafeEqual(inputHash, account.password_hash)
+  }
+
+  // ── Update attempt record ─────────────────────────────────────────────────
+
+  await updateRateLimit(kv, kvKey, record, ok, now)
+
+  return json(200, { ok, name: ok ? (account?.name ?? null) : undefined })
+})

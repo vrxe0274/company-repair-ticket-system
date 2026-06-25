@@ -104,6 +104,34 @@ export function AuthProvider({ children }) {
   }
 
   /**
+   * loginAsTechnician — verifies an individual Technician account's username +
+   * password via the tech-login Edge Function. Mirrors loginAsStaff exactly
+   * but targets the technician_accounts table via a separate edge function.
+   *
+   * @param {string} username
+   * @param {string} password
+   * @param {{rememberMe?: boolean}} opts
+   * @returns {Promise<boolean>} true on success, false on wrong credentials.
+   * @throws {Error} if the Edge Function is unreachable.
+   */
+  async function loginAsTechnician(username, password, { rememberMe = false } = {}) {
+    const { data, error } = await supabase.functions.invoke('tech-login', {
+      body: { username: username.trim(), password },
+    })
+
+    if (error) throw new Error('Connection error. Check your network and try again.')
+    if (data?.rateLimited) {
+      const mins = Math.ceil(data.retryAfter / 60)
+      throw new Error(`Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.`)
+    }
+    if (!data?.ok) return false
+
+    saveSession('Technician', { persistent: rememberMe, username: username.trim(), name: data.name ?? null })
+    setAuthenticated(true)
+    return true
+  }
+
+  /**
    * Explicit logout: invalidate the session everywhere and remove this
    * device's push subscription so it stops receiving global pushes.
    */
@@ -114,7 +142,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, loginAsStaff, logout }}>
+    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, loginAsStaff, loginAsTechnician, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -110,7 +110,7 @@ function RoleButton({ icon: Icon, label, description, color, onClick }) {
  * Redirects immediately to '/' if the session is already authenticated.
  */
 export default function LoginPage() {
-  const { loginWithRole, loginAsStaff, authenticated } = useAuth()
+  const { loginWithRole, loginAsStaff, loginAsTechnician, authenticated } = useAuth()
   const { setRole }                                    = useRole()
   const navigate                                       = useNavigate()
 
@@ -151,8 +151,10 @@ export default function LoginPage() {
     e?.preventDefault()
 
     const isStaffRole = selectedRole === ROLES.STAFF
+    const isTechRole  = selectedRole === ROLES.TECHNICIAN
+    const needsUsername = isStaffRole || isTechRole
 
-    if (isStaffRole && !username.trim()) {
+    if (needsUsername && !username.trim()) {
       setError('Please enter your username.')
       return
     }
@@ -168,6 +170,8 @@ export default function LoginPage() {
       let ok
       if (isStaffRole) {
         ok = await loginAsStaff(username, password, { rememberMe: standalone || rememberMe })
+      } else if (isTechRole) {
+        ok = await loginAsTechnician(username, password, { rememberMe: standalone || rememberMe })
       } else {
         ok = await loginWithRole(password, selectedRole, { rememberMe: standalone || rememberMe })
       }
@@ -177,7 +181,7 @@ export default function LoginPage() {
         navigate('/', { replace: true })
       } else {
         setError(
-          isStaffRole
+          needsUsername
             ? 'Incorrect username or password.'
             : `Incorrect password for ${selectedRole}.`
         )
@@ -291,8 +295,8 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleLogin}>
-                {/* Username field — Staff accounts only */}
-                {selectedRole === ROLES.STAFF && (
+                {/* Username field — Staff and Technician individual accounts */}
+                {(selectedRole === ROLES.STAFF || selectedRole === ROLES.TECHNICIAN) && (
                   <div className="mb-4">
                     <label className="label">Username</label>
                     <div className="relative">
@@ -322,7 +326,7 @@ export default function LoginPage() {
                       onChange={e => { setPassword(e.target.value); setError('') }}
                       className="input-field pl-10 pr-10"
                       placeholder="Enter your password"
-                      autoFocus={selectedRole !== ROLES.STAFF}
+                      autoFocus={selectedRole !== ROLES.STAFF && selectedRole !== ROLES.TECHNICIAN}
                       autoComplete="current-password"
                     />
                     <button
@@ -364,7 +368,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || !password || (selectedRole === ROLES.STAFF && !username.trim())}
+                  disabled={loading || !password || ((selectedRole === ROLES.STAFF || selectedRole === ROLES.TECHNICIAN) && !username.trim())}
                   className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {loading

@@ -17,12 +17,13 @@ import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
 import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '../../lib/terms'
 import { changePassword } from '../../lib/changePassword'
+import { supabase } from '../../lib/supabase'
 
 /** How long the "flushed" success toast stays up. */
 const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
-  const { isAdmin, isManager, isTechnician, role } = useRole()
+  const { isAdmin, isManager, isStaff, isTechnician, role, staffUsername } = useRole()
   const { isDark, toggleTheme } = useTheme()
 
   // Flush DB state (admin only)
@@ -33,7 +34,7 @@ export default function SettingsPage() {
   const [flushing,     setFlushing]     = useState(false)
   const [flushDone,    setFlushDone]    = useState(false)
 
-  // Change password state (admin + technician)
+  // Change password state — Admin shared role password
   const [showChangePw,    setShowChangePw]    = useState(false)
   const [pwCurrent,       setPwCurrent]       = useState('')
   const [pwNew,           setPwNew]           = useState('')
@@ -66,6 +67,54 @@ export default function SettingsPage() {
       setPwError(err.message)
     } finally {
       setPwSaving(false)
+    }
+  }
+
+  // Change personal password — Staff / Technician individual accounts
+  const [showPersonalPw,    setShowPersonalPw]    = useState(false)
+  const [personalPwCurrent, setPersonalPwCurrent] = useState('')
+  const [personalPwNew,     setPersonalPwNew]     = useState('')
+  const [personalPwConfirm, setPersonalPwConfirm] = useState('')
+  const [personalPwError,   setPersonalPwError]   = useState('')
+  const [personalPwSaving,  setPersonalPwSaving]  = useState(false)
+  const [personalPwDone,    setPersonalPwDone]    = useState(false)
+  const [personalPwShowC,   setPersonalPwShowC]   = useState(false)
+  const [personalPwShowN,   setPersonalPwShowN]   = useState(false)
+  const [personalPwShowCf,  setPersonalPwShowCf]  = useState(false)
+
+  function closePersonalPw() {
+    setShowPersonalPw(false)
+    setPersonalPwCurrent(''); setPersonalPwNew(''); setPersonalPwConfirm('')
+    setPersonalPwError('')
+    setPersonalPwShowC(false); setPersonalPwShowN(false); setPersonalPwShowCf(false)
+  }
+
+  async function handlePersonalPw() {
+    if (!personalPwCurrent)                        { setPersonalPwError('Enter your current password.'); return }
+    if (personalPwNew.length < 8)                  { setPersonalPwError('New password must be at least 8 characters.'); return }
+    if (personalPwNew !== personalPwConfirm)        { setPersonalPwError('Passwords do not match.'); return }
+    if (personalPwNew === personalPwCurrent)        { setPersonalPwError('New password must differ from current.'); return }
+
+    setPersonalPwSaving(true); setPersonalPwError('')
+    try {
+      const fn = isTechnician ? 'tech-manage' : 'staff-manage'
+      const { data, error } = await supabase.functions.invoke(fn, {
+        body: {
+          action:          'change-password',
+          username:        staffUsername,
+          currentPassword: personalPwCurrent,
+          newPassword:     personalPwNew,
+        },
+      })
+      if (error) throw new Error('Connection error. Check your network and try again.')
+      if (!data?.ok) throw new Error(data?.error || 'Failed to change password.')
+      setPersonalPwDone(true)
+      closePersonalPw()
+      setTimeout(() => setPersonalPwDone(false), 4000)
+    } catch (err) {
+      setPersonalPwError(err.message)
+    } finally {
+      setPersonalPwSaving(false)
     }
   }
 
@@ -187,17 +236,30 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Change password — admin + technician */}
-        {(isAdmin || isTechnician) && (
+        {/* Change shared role password — Admin only */}
+        {isAdmin && (
           <div className="card p-5">
             <p className="section-title flex items-center gap-2 mb-3">
               <Lock className="w-3.5 h-3.5" /> Password
             </p>
             <p className="text-sm font-body text-gray-500 mb-4">
-              Change the shared password for the <span className="font-semibold text-gray-700">{role}</span> role.
-              All {role} logins use this password.
+              Change the shared password for the <span className="font-semibold text-gray-700">Admin</span> role.
+              All Admin logins use this password.
             </p>
             <button onClick={() => setShowChangePw(true)} className="btn-primary text-sm">
+              <Lock className="w-3.5 h-3.5" /> Change Password
+            </button>
+          </div>
+        )}
+
+        {/* Change personal password — Staff / Technician individual accounts */}
+        {(isStaff || isTechnician) && (
+          <div className="card p-5">
+            <p className="section-title flex items-center gap-2 mb-3">
+              <Lock className="w-3.5 h-3.5" /> Password
+            </p>
+            <p className="text-sm font-body text-gray-500 mb-4">Change your personal password.</p>
+            <button onClick={() => setShowPersonalPw(true)} className="btn-primary text-sm">
               <Lock className="w-3.5 h-3.5" /> Change Password
             </button>
           </div>
@@ -236,8 +298,15 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Password changed toast */}
+      {/* Password changed toast — Admin shared */}
       {pwDone && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> Password changed successfully
+        </div>
+      )}
+
+      {/* Personal password changed toast — Staff / Technician */}
+      {personalPwDone && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> Password changed successfully
         </div>
@@ -257,7 +326,108 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Change password modal */}
+      {/* Personal password modal — Staff / Technician */}
+      {showPersonalPw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4 text-brand-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Change Password</h2>
+              </div>
+              <button onClick={closePersonalPw} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-sm font-body text-gray-700">Your password only.</p>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Current password</label>
+                <div className="relative">
+                  <input
+                    type={personalPwShowC ? 'text' : 'password'}
+                    value={personalPwCurrent}
+                    onChange={e => { setPersonalPwCurrent(e.target.value); setPersonalPwError('') }}
+                    className="input-field pr-9"
+                    placeholder="Enter current password"
+                    autoFocus
+                    autoComplete="current-password"
+                  />
+                  <button type="button" onClick={() => setPersonalPwShowC(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={personalPwShowC ? 'Hide' : 'Show'}
+                  >
+                    {personalPwShowC ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">New password</label>
+                <div className="relative">
+                  <input
+                    type={personalPwShowN ? 'text' : 'password'}
+                    value={personalPwNew}
+                    onChange={e => { setPersonalPwNew(e.target.value); setPersonalPwError('') }}
+                    className="input-field pr-9"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setPersonalPwShowN(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={personalPwShowN ? 'Hide' : 'Show'}
+                  >
+                    {personalPwShowN ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm new password</label>
+                <div className="relative">
+                  <input
+                    type={personalPwShowCf ? 'text' : 'password'}
+                    value={personalPwConfirm}
+                    onChange={e => { setPersonalPwConfirm(e.target.value); setPersonalPwError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !personalPwSaving) handlePersonalPw() }}
+                    className="input-field pr-9"
+                    placeholder="Repeat new password"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setPersonalPwShowCf(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={personalPwShowCf ? 'Hide' : 'Show'}
+                  >
+                    {personalPwShowCf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {personalPwError && <p className="text-xs text-red-500 font-sans">{personalPwError}</p>}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={closePersonalPw} disabled={personalPwSaving} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handlePersonalPw}
+                disabled={personalPwSaving || !personalPwCurrent || !personalPwNew || !personalPwConfirm}
+                className="btn-primary flex-1 justify-center"
+              >
+                {personalPwSaving
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Lock className="w-3.5 h-3.5" /> Save</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change password modal — Admin shared role */}
       {showChangePw && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="card w-full max-w-sm p-6 space-y-4">

@@ -1,33 +1,31 @@
 /**
- * staff-manage — Supabase Edge Function
+ * tech-manage — Supabase Edge Function
  *
- * Admin-only staff account management: list, create, and delete individual
- * Staff accounts stored in the staff_accounts table.
+ * Admin-only technician account management: list, create, and delete individual
+ * technician accounts stored in the technician_accounts table.
  *
  * Deploy:
- *   supabase functions deploy staff-manage --no-verify-jwt
+ *   supabase functions deploy tech-manage --no-verify-jwt
  *
  * Actions:
- *   list   — Returns all accounts (id, username, name, created_at, created_by).
- *             Requires adminPassword — usernames are not public data.
- *   create — Creates a new staff account. Requires adminPassword.
- *   delete — Deletes a staff account by username. Requires adminPassword.
+ *   list       — Returns all accounts (id, username, name, created_at, created_by).
+ *                Requires adminPassword.
+ *   create     — Creates a new technician account. Requires adminPassword.
+ *   delete     — Deletes a technician account by username. Requires adminPassword.
+ *   set-name   — Updates the display name for a technician account (no password needed).
+ *   list-names — Returns only username + name pairs (no password needed).
  *
- * Request:  POST { action, adminPassword, username?, password? }
- * Response: { ok: boolean, accounts?: [...], error?: string }
+ * Request:  POST { action, adminPassword?, username?, password?, name? }
+ * Response: { ok: boolean, accounts?: [...], staff?: [...], error?: string }
  *
- * Admin password verification mirrors verify-login:
- *   1. PBKDF2 hash in role_passwords table (if Admin has changed their password)
- *   2. ADMIN_PASSWORD env secret (plain-text constant-time compare)
- *
- * Password derivation for staff accounts: PBKDF2-SHA256, 100k iterations.
- * Salt: vrxe-staff-<username>-pw-v1 (must match staff-login).
+ * Password derivation: PBKDF2-SHA256, 100k iterations.
+ * Salt: vrxe-tech-<username>-pw-v1 (must match tech-login).
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual,
-  deriveRoleKey, deriveStaffKey,
+  deriveRoleKey, deriveTechKey,
 } from '../_shared/auth.ts'
 
 const MIN_PASSWORD_LENGTH = 8
@@ -79,7 +77,6 @@ Deno.serve(async (req) => {
   )
 
   // ── Change own password (no admin involvement) ────────────────────────────────
-  // The staff member verifies their own current password then sets a new one.
 
   if (action === 'change-password') {
     const { currentPassword, newPassword } = body
@@ -93,21 +90,21 @@ Deno.serve(async (req) => {
     }
 
     const { data: row } = await supabase
-      .from('staff_accounts')
+      .from('technician_accounts')
       .select('password_hash')
       .eq('username', username.trim())
       .maybeSingle()
 
     if (!row) return json(200, { ok: false, error: 'Account not found.' })
 
-    const currentHash = await deriveStaffKey(currentPassword, username.trim())
+    const currentHash = await deriveTechKey(currentPassword, username.trim())
     if (!timingSafeEqual(currentHash, row.password_hash)) {
       return json(200, { ok: false, error: 'Current password is incorrect.' })
     }
 
-    const newHash = await deriveStaffKey(newPassword, username.trim())
+    const newHash = await deriveTechKey(newPassword, username.trim())
     const { error } = await supabase
-      .from('staff_accounts')
+      .from('technician_accounts')
       .update({ password_hash: newHash })
       .eq('username', username.trim())
 
@@ -116,9 +113,6 @@ Deno.serve(async (req) => {
   }
 
   // ── Set name ──────────────────────────────────────────────────────────────────
-  // Called on first login; no password required since the staff member just
-  // authenticated via staff-login. Worst-case abuse: someone overwrites a
-  // display name — not a security issue for this system.
 
   if (action === 'set-name') {
     const targetUsername = body.username
@@ -132,7 +126,7 @@ Deno.serve(async (req) => {
     }
 
     const { error } = await supabase
-      .from('staff_accounts')
+      .from('technician_accounts')
       .update({ name: displayName.trim() })
       .eq('username', targetUsername.trim())
 
@@ -140,15 +134,15 @@ Deno.serve(async (req) => {
     return json(200, { ok: true })
   }
 
-  // ── List names (no password required — display names only, no credentials) ──────
+  // ── List names (no password required) ────────────────────────────────────────
 
   if (action === 'list-names') {
     const { data, error } = await supabase
-      .from('staff_accounts')
+      .from('technician_accounts')
       .select('username, name')
       .order('name', { ascending: true })
 
-    if (error) return json(500, { ok: false, error: 'Failed to fetch staff names.' })
+    if (error) return json(500, { ok: false, error: 'Failed to fetch technician names.' })
     return json(200, { ok: true, staff: data ?? [] })
   }
 
@@ -167,7 +161,7 @@ Deno.serve(async (req) => {
 
   if (action === 'list') {
     const { data, error } = await supabase
-      .from('staff_accounts')
+      .from('technician_accounts')
       .select('id, username, name, created_at, created_by')
       .order('created_at', { ascending: false })
 
@@ -182,16 +176,16 @@ Deno.serve(async (req) => {
     if (!normalizedUsername || !USERNAME_RE.test(normalizedUsername)) {
       return json(200, {
         ok: false,
-        error: 'Username must be 3–30 characters (lowercase letters, digits, underscores only).',
+        error: 'Username must be 3–30 characters (letters, digits, underscores only).',
       })
     }
     if (!password || password.length < MIN_PASSWORD_LENGTH) {
       return json(200, { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` })
     }
 
-    const passwordHash = await deriveStaffKey(password, normalizedUsername)
+    const passwordHash = await deriveTechKey(password, normalizedUsername)
 
-    const { error } = await supabase.from('staff_accounts').insert({
+    const { error } = await supabase.from('technician_accounts').insert({
       username:      normalizedUsername,
       password_hash: passwordHash,
       created_by:    'admin',
@@ -215,7 +209,7 @@ Deno.serve(async (req) => {
     }
 
     const { error } = await supabase
-      .from('staff_accounts')
+      .from('technician_accounts')
       .delete()
       .eq('username', username.trim())
 

@@ -71,6 +71,22 @@ export async function deriveStaffKey(password: string, username: string): Promis
   return btoa(String.fromCharCode(...new Uint8Array(bits)))
 }
 
+/**
+ * PBKDF2-SHA256 derivation with a per-username salt for technician accounts.
+ * Salt format: vrxe-tech-<username>-pw-v1
+ * Used by: tech-login, tech-manage (account creation)
+ */
+export async function deriveTechKey(password: string, username: string): Promise<string> {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'],
+  )
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(`vrxe-tech-${username}-pw-v1`), iterations: 100_000, hash: 'SHA-256' },
+    keyMaterial, 256,
+  )
+  return btoa(String.fromCharCode(...new Uint8Array(bits)))
+}
+
 // ── Client IP ─────────────────────────────────────────────────────────────────
 
 export function getClientIp(req: Request): string {

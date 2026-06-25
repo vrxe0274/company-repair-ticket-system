@@ -70,8 +70,8 @@ export default function DashboardLayout() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // First-login name setup — shown when a Staff account has no display name yet.
-  const needsName = isStaff && staffUsername && !staffName
+  // First-login name setup — shown when a Staff or Technician account has no display name yet.
+  const needsName = (isStaff || isTechnician) && staffUsername && !staffName
   const [nameInput,  setNameInput]  = useState('')
   const [nameError,  setNameError]  = useState('')
   const [nameSaving, setNameSaving] = useState(false)
@@ -83,7 +83,8 @@ export default function DashboardLayout() {
     if (trimmed.length > 80) { setNameError('Name must be 80 characters or fewer.'); return }
     setNameSaving(true); setNameError('')
     try {
-      const { data, error } = await supabase.functions.invoke('staff-manage', {
+      const fn = isTechnician ? 'tech-manage' : 'staff-manage'
+      const { data, error } = await supabase.functions.invoke(fn, {
         body: { action: 'set-name', username: staffUsername, name: trimmed },
       })
       if (error || !data?.ok) throw new Error(data?.error || 'Failed to save name.')

@@ -1,23 +1,25 @@
 /**
  * @file AccountsPage.jsx
- * @description Admin-only page for managing individual Staff accounts.
+ * @description Admin-only page for managing individual Staff and Technician accounts.
  *
  * Admins can:
- *   - View all staff accounts (username + creation date)
- *   - Create a new staff account (username + password)
- *   - Delete a staff account
+ *   - View all staff and technician accounts
+ *   - Create new staff / technician accounts (username + password)
+ *   - Delete accounts
+ *     Staff:      simple confirm modal (Cancel / Delete)
+ *     Technician: type-to-confirm modal (must type username to enable Delete)
  *
  * The page requires the admin password once on load (unlock gate). That
  * password is stored in component state for the session and reused for all
- * subsequent list refreshes, creates, and deletes — no re-entry needed.
- *
- * Route guard: ProtectedRoute requiredRole="Admin" in App.jsx redirects
- * any non-Admin before this component mounts.
+ * subsequent operations — no re-entry needed.
  */
 
 import { useState, useCallback, useMemo } from 'react'
 import { format } from 'date-fns'
-import { Users, Plus, Trash2, X, Lock, Eye, EyeOff, Search, ShieldCheck } from 'lucide-react'
+import {
+  Plus, Trash2, X, Lock, Eye, EyeOff, Search,
+  ShieldCheck, Shield, Wrench,
+} from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -29,22 +31,28 @@ async function callStaffManage(body) {
   return data
 }
 
+async function callTechManage(body) {
+  const { data, error } = await supabase.functions.invoke('tech-manage', { body })
+  if (error) throw new Error('Connection error. Check your network and try again.')
+  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
+  return data
+}
+
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function AccountsPage() {
-  // ── Unlock state (password entered once per session) ──────────────────────
-  const [adminPassword,   setAdminPassword]   = useState('')   // '' = locked
-  const [pwInput,         setPwInput]         = useState('')
-  const [showPwInput,     setShowPwInput]     = useState(false)
-  const [unlocking,       setUnlocking]       = useState(false)
-  const [unlockError,     setUnlockError]     = useState('')
+  // ── Unlock state ──────────────────────────────────────────────────────────
+  const [adminPassword, setAdminPassword] = useState('')
+  const [pwInput,       setPwInput]       = useState('')
+  const [showPwInput,   setShowPwInput]   = useState(false)
+  const [unlocking,     setUnlocking]     = useState(false)
+  const [unlockError,   setUnlockError]   = useState('')
 
-  // ── Account list state ────────────────────────────────────────────────────
+  // ── Staff state ───────────────────────────────────────────────────────────
   const [accounts,     setAccounts]     = useState([])
   const [listLoading,  setListLoading]  = useState(false)
   const [listError,    setListError]    = useState('')
 
-  // ── Create modal state ────────────────────────────────────────────────────
   const [showCreate,   setShowCreate]   = useState(false)
   const [newUsername,  setNewUsername]  = useState('')
   const [newPassword,  setNewPassword]  = useState('')
@@ -53,55 +61,81 @@ export default function AccountsPage() {
   const [creating,     setCreating]     = useState(false)
   const [createError,  setCreateError]  = useState('')
 
-  // ── Delete modal state ────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
   const [deleteError,  setDeleteError]  = useState('')
 
+  // ── Technician state ──────────────────────────────────────────────────────
+  const [techAccounts,    setTechAccounts]    = useState([])
+  const [techListLoading, setTechListLoading] = useState(false)
+  const [techListError,   setTechListError]   = useState('')
+
+  const [showCreateTech,   setShowCreateTech]   = useState(false)
+  const [newTechUsername,  setNewTechUsername]  = useState('')
+  const [newTechPassword,  setNewTechPassword]  = useState('')
+  const [newTechPwConfirm, setNewTechPwConfirm] = useState('')
+  const [showNewTechPw,    setShowNewTechPw]    = useState(false)
+  const [creatingTech,     setCreatingTech]     = useState(false)
+  const [createTechError,  setCreateTechError]  = useState('')
+
+  const [deleteTechTarget,  setDeleteTechTarget]  = useState(null)
+  const [deleteTechConfirm, setDeleteTechConfirm] = useState('')
+  const [deletingTech,      setDeletingTech]      = useState(false)
+  const [deleteTechError,   setDeleteTechError]   = useState('')
+
   // ── Search ────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('')
 
-  const filtered = useMemo(() => {
+  const filteredStaff = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return accounts
-    return accounts.filter(acc =>
-      acc.username.toLowerCase().includes(q) ||
-      (acc.name ?? '').toLowerCase().includes(q)
+    return accounts.filter(a =>
+      a.username.toLowerCase().includes(q) || (a.name ?? '').toLowerCase().includes(q)
     )
   }, [accounts, query])
 
+  const filteredTech = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return techAccounts
+    return techAccounts.filter(a =>
+      a.username.toLowerCase().includes(q) || (a.name ?? '').toLowerCase().includes(q)
+    )
+  }, [techAccounts, query])
+
   // ── Toast ─────────────────────────────────────────────────────────────────
   const [toast, setToast] = useState('')
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3500) }
 
-  const showToast = (msg) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 3500)
-  }
-
-  // ── Load accounts (requires unlocked adminPassword) ───────────────────────
-  const loadAccounts = useCallback(async (pw) => {
-    setListLoading(true)
-    setListError('')
+  // ── Load helpers ──────────────────────────────────────────────────────────
+  const loadStaff = useCallback(async (pw) => {
+    setListLoading(true); setListError('')
     try {
       const { accounts: data } = await callStaffManage({ action: 'list', adminPassword: pw })
       setAccounts(data ?? [])
-    } catch (err) {
-      setListError(err.message)
-    } finally {
-      setListLoading(false)
-    }
+    } catch (err) { setListError(err.message) }
+    finally { setListLoading(false) }
+  }, [])
+
+  const loadTech = useCallback(async (pw) => {
+    setTechListLoading(true); setTechListError('')
+    try {
+      const { accounts: data } = await callTechManage({ action: 'list', adminPassword: pw })
+      setTechAccounts(data ?? [])
+    } catch (err) { setTechListError(err.message) }
+    finally { setTechListLoading(false) }
   }, [])
 
   // ── Unlock ────────────────────────────────────────────────────────────────
   async function handleUnlock() {
     if (!pwInput) return
-    setUnlocking(true)
-    setUnlockError('')
+    setUnlocking(true); setUnlockError('')
     try {
-      const { accounts: data } = await callStaffManage({ action: 'list', adminPassword: pwInput })
-      setAccounts(data ?? [])
+      // Staff list is the auth gate — if it succeeds, password is valid.
+      const { accounts: staffData } = await callStaffManage({ action: 'list', adminPassword: pwInput })
+      setAccounts(staffData ?? [])
       setAdminPassword(pwInput)
       setPwInput('')
+      loadTech(pwInput)
     } catch (err) {
       setUnlockError(err.message)
     } finally {
@@ -109,13 +143,12 @@ export default function AccountsPage() {
     }
   }
 
-  // ── Create ────────────────────────────────────────────────────────────────
+  // ── Staff create ──────────────────────────────────────────────────────────
   function openCreate() {
     setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
     setShowNewPw(false); setCreateError('')
     setShowCreate(true)
   }
-
   function closeCreate() { setShowCreate(false) }
 
   async function handleCreate() {
@@ -124,57 +157,90 @@ export default function AccountsPage() {
       setCreateError('Username: 3–30 chars, letters, digits, underscores only.')
       return
     }
-    if (newPassword.length < 8)         { setCreateError('Password must be at least 8 characters.'); return }
-    if (newPassword !== newPwConfirm)   { setCreateError('Passwords do not match.'); return }
+    if (newPassword.length < 8)       { setCreateError('Password must be at least 8 characters.'); return }
+    if (newPassword !== newPwConfirm) { setCreateError('Passwords do not match.'); return }
 
     setCreating(true); setCreateError('')
     try {
       await callStaffManage({
-        action:        'create',
-        adminPassword,
-        username:      newUsername.trim().toLowerCase(),
-        password:      newPassword,
+        action: 'create', adminPassword,
+        username: newUsername.trim().toLowerCase(),
+        password: newPassword,
       })
       closeCreate()
-      showToast(`Account "${newUsername.trim().toLowerCase()}" created.`)
-      loadAccounts(adminPassword)
-    } catch (err) {
-      setCreateError(err.message)
-    } finally {
-      setCreating(false)
-    }
+      showToast(`Staff account "${newUsername.trim().toLowerCase()}" created.`)
+      loadStaff(adminPassword)
+    } catch (err) { setCreateError(err.message) }
+    finally { setCreating(false) }
   }
 
-  // ── Delete ────────────────────────────────────────────────────────────────
-  function openDelete(username) {
-    setDeleteTarget(username)
-    setDeleteError('')
-  }
-
-  function closeDelete() {
-    setDeleteTarget(null)
-    setDeleteError('')
-  }
+  // ── Staff delete ──────────────────────────────────────────────────────────
+  function openDelete(username) { setDeleteTarget(username); setDeleteError('') }
+  function closeDelete()        { setDeleteTarget(null); setDeleteError('') }
 
   async function handleDelete() {
     setDeleting(true); setDeleteError('')
     try {
-      await callStaffManage({
-        action:        'delete',
-        adminPassword,
-        username:      deleteTarget,
-      })
+      await callStaffManage({ action: 'delete', adminPassword, username: deleteTarget })
       closeDelete()
-      showToast(`Account "${deleteTarget}" deleted.`)
-      loadAccounts(adminPassword)
-    } catch (err) {
-      setDeleteError(err.message)
-    } finally {
-      setDeleting(false)
-    }
+      showToast(`Staff account "${deleteTarget}" deleted.`)
+      loadStaff(adminPassword)
+    } catch (err) { setDeleteError(err.message) }
+    finally { setDeleting(false) }
   }
 
-  // ── Render — locked state ─────────────────────────────────────────────────
+  // ── Tech create ───────────────────────────────────────────────────────────
+  function openCreateTech() {
+    setNewTechUsername(''); setNewTechPassword(''); setNewTechPwConfirm('')
+    setShowNewTechPw(false); setCreateTechError('')
+    setShowCreateTech(true)
+  }
+  function closeCreateTech() { setShowCreateTech(false) }
+
+  async function handleCreateTech() {
+    if (!newTechUsername.trim()) { setCreateTechError('Username is required.'); return }
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(newTechUsername.trim())) {
+      setCreateTechError('Username: 3–30 chars, letters, digits, underscores only.')
+      return
+    }
+    if (newTechPassword.length < 8)           { setCreateTechError('Password must be at least 8 characters.'); return }
+    if (newTechPassword !== newTechPwConfirm) { setCreateTechError('Passwords do not match.'); return }
+
+    setCreatingTech(true); setCreateTechError('')
+    try {
+      await callTechManage({
+        action: 'create', adminPassword,
+        username: newTechUsername.trim().toLowerCase(),
+        password: newTechPassword,
+      })
+      closeCreateTech()
+      showToast(`Technician account "${newTechUsername.trim().toLowerCase()}" created.`)
+      loadTech(adminPassword)
+    } catch (err) { setCreateTechError(err.message) }
+    finally { setCreatingTech(false) }
+  }
+
+  // ── Tech delete (type-to-confirm) ─────────────────────────────────────────
+  function openDeleteTech(username) {
+    setDeleteTechTarget(username)
+    setDeleteTechConfirm('')
+    setDeleteTechError('')
+  }
+  function closeDeleteTech() { setDeleteTechTarget(null); setDeleteTechConfirm(''); setDeleteTechError('') }
+
+  async function handleDeleteTech() {
+    if (deleteTechConfirm !== deleteTechTarget) return
+    setDeletingTech(true); setDeleteTechError('')
+    try {
+      await callTechManage({ action: 'delete', adminPassword, username: deleteTechTarget })
+      closeDeleteTech()
+      showToast(`Technician account "${deleteTechTarget}" deleted.`)
+      loadTech(adminPassword)
+    } catch (err) { setDeleteTechError(err.message) }
+    finally { setDeletingTech(false) }
+  }
+
+  // ── Render — locked ───────────────────────────────────────────────────────
 
   if (!adminPassword) {
     return (
@@ -231,7 +297,7 @@ export default function AccountsPage() {
     )
   }
 
-  // ── Render — unlocked state ───────────────────────────────────────────────
+  // ── Render — unlocked ─────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -239,82 +305,72 @@ export default function AccountsPage() {
       {/* Header */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
         <div className="h-0.5 bg-gradient-to-r from-brand-500 to-accent-500" />
-        <div className="px-5 lg:px-7 py-5 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">ACCOUNTS</h1>
-            <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
-          </div>
-          <button onClick={openCreate} className="btn-primary text-sm shrink-0">
-            <Plus className="w-4 h-4" /> Add Account
-          </button>
+        <div className="px-5 lg:px-7 py-5">
+          <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">ACCOUNTS</h1>
+          <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
         </div>
       </div>
 
-      <div className="card overflow-hidden max-w-2xl mx-auto w-full">
+      {/* Shared search */}
+      <div className="max-w-2xl mx-auto w-full">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search by name or username…"
+            className="input-field pl-9 py-2 text-sm"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+      </div>
 
-        {/* Search */}
-        <div className="px-5 py-3 border-b border-gray-100">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search by name or username…"
-              className="input-field pl-9 py-2 text-sm"
-              autoComplete="off"
-              spellCheck={false}
-            />
+      {/* ── Staff Section ── */}
+      <div className="card overflow-hidden max-w-2xl mx-auto w-full">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-emerald-500" />
+            <p className="text-sm font-sans font-semibold text-gray-700">Staff</p>
+            <span className="text-xs font-mono text-gray-400">({accounts.length})</span>
           </div>
+          <button onClick={openCreate} className="btn-primary text-xs py-1.5 px-3">
+            <Plus className="w-3.5 h-3.5" /> Add Staff
+          </button>
         </div>
 
         {listLoading && (
-          <div className="flex items-center justify-center py-14">
-            <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-10">
+            <span className="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
-
         {listError && !listLoading && (
           <p className="text-sm text-red-500 font-body py-8 text-center px-5">{listError}</p>
         )}
-
         {!listLoading && !listError && accounts.length === 0 && (
-          <div className="text-center py-14 px-5">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-              <Users className="w-6 h-6 text-gray-400" />
-            </div>
+          <div className="text-center py-10 px-5">
             <p className="text-sm font-sans font-semibold text-gray-700">No staff accounts yet</p>
             <p className="text-xs font-body text-gray-400 mt-1">Add the first one using the button above.</p>
           </div>
         )}
-
-        {!listLoading && !listError && accounts.length > 0 && filtered.length === 0 && (
-          <div className="text-center py-14 px-5">
+        {!listLoading && !listError && accounts.length > 0 && filteredStaff.length === 0 && (
+          <div className="text-center py-10 px-5">
             <p className="text-sm font-sans font-semibold text-gray-700">No results for "{query}"</p>
-            <p className="text-xs font-body text-gray-400 mt-1">Try a different name or username.</p>
           </div>
         )}
-
-        {!listLoading && !listError && filtered.length > 0 && (
+        {!listLoading && !listError && filteredStaff.length > 0 && (
           <ul className="divide-y divide-gray-100">
-            {filtered.map(acc => (
-              <li
-                key={acc.id}
-                className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/70 transition-colors"
-              >
-                {/* Avatar */}
+            {filteredStaff.map(acc => (
+              <li key={acc.id} className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/70 transition-colors">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
                   <span className="text-sm font-sans font-bold text-emerald-700 uppercase leading-none">
                     {(acc.name ?? acc.username).charAt(0)}
                   </span>
                 </div>
-
-                {/* Identity */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-sans font-semibold text-gray-900 truncate">
-                      {acc.name ?? acc.username}
-                    </p>
+                    <p className="text-sm font-sans font-semibold text-gray-900 truncate">{acc.name ?? acc.username}</p>
                     {!acc.name && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-sans font-semibold text-amber-700 leading-none shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
@@ -324,13 +380,9 @@ export default function AccountsPage() {
                   </div>
                   <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{acc.username}</p>
                 </div>
-
-                {/* Date — hidden on very small screens */}
                 <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
                   {format(new Date(acc.created_at), 'MMM d, yyyy')}
                 </p>
-
-                {/* Delete */}
                 <button
                   onClick={() => openDelete(acc.username)}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
@@ -344,7 +396,76 @@ export default function AccountsPage() {
         )}
       </div>
 
-      {/* ── Create account modal ── */}
+      {/* ── Technician Section ── */}
+      <div className="card overflow-hidden max-w-2xl mx-auto w-full">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-accent-500" />
+            <p className="text-sm font-sans font-semibold text-gray-700">Technicians</p>
+            <span className="text-xs font-mono text-gray-400">({techAccounts.length})</span>
+          </div>
+          <button onClick={openCreateTech} className="btn-primary text-xs py-1.5 px-3">
+            <Plus className="w-3.5 h-3.5" /> Add Technician
+          </button>
+        </div>
+
+        {techListLoading && (
+          <div className="flex items-center justify-center py-10">
+            <span className="w-5 h-5 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {techListError && !techListLoading && (
+          <p className="text-sm text-red-500 font-body py-8 text-center px-5">{techListError}</p>
+        )}
+        {!techListLoading && !techListError && techAccounts.length === 0 && (
+          <div className="text-center py-10 px-5">
+            <p className="text-sm font-sans font-semibold text-gray-700">No technician accounts yet</p>
+            <p className="text-xs font-body text-gray-400 mt-1">Add the first one using the button above.</p>
+          </div>
+        )}
+        {!techListLoading && !techListError && techAccounts.length > 0 && filteredTech.length === 0 && (
+          <div className="text-center py-10 px-5">
+            <p className="text-sm font-sans font-semibold text-gray-700">No results for "{query}"</p>
+          </div>
+        )}
+        {!techListLoading && !techListError && filteredTech.length > 0 && (
+          <ul className="divide-y divide-gray-100">
+            {filteredTech.map(acc => (
+              <li key={acc.id} className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/70 transition-colors">
+                <div className="w-10 h-10 rounded-xl bg-accent-100 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-sans font-bold text-accent-700 uppercase leading-none">
+                    {(acc.name ?? acc.username).charAt(0)}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-sans font-semibold text-gray-900 truncate">{acc.name ?? acc.username}</p>
+                    {!acc.name && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-sans font-semibold text-amber-700 leading-none shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                        Setup pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{acc.username}</p>
+                </div>
+                <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
+                  {format(new Date(acc.created_at), 'MMM d, yyyy')}
+                </p>
+                <button
+                  onClick={() => openDeleteTech(acc.username)}
+                  className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
+                  aria-label={`Delete ${acc.username}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* ── Create Staff modal ── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="card w-full max-w-sm p-6 space-y-4">
@@ -361,7 +482,6 @@ export default function AccountsPage() {
             </div>
 
             <div className="space-y-3">
-              {/* Username */}
               <div className="space-y-1.5">
                 <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Username</label>
                 <input
@@ -370,14 +490,10 @@ export default function AccountsPage() {
                   onChange={e => { setNewUsername(e.target.value); setCreateError('') }}
                   className="input-field font-mono"
                   placeholder="e.g. juan_dela_cruz"
-                  autoFocus
-                  autoComplete="off"
-                  spellCheck={false}
+                  autoFocus autoComplete="off" spellCheck={false}
                 />
                 <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
               </div>
-
-              {/* Password */}
               <div className="space-y-1.5">
                 <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Password</label>
                 <div className="relative">
@@ -397,8 +513,6 @@ export default function AccountsPage() {
                   </button>
                 </div>
               </div>
-
-              {/* Confirm password */}
               <div className="space-y-1.5">
                 <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm Password</label>
                 <input
@@ -411,7 +525,6 @@ export default function AccountsPage() {
                   onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
                 />
               </div>
-
               {createError && <p className="text-xs text-red-500 font-sans">{createError}</p>}
             </div>
 
@@ -432,7 +545,87 @@ export default function AccountsPage() {
         </div>
       )}
 
-      {/* ── Delete confirmation modal ── */}
+      {/* ── Create Technician modal ── */}
+      {showCreateTech && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-accent-50 flex items-center justify-center shrink-0">
+                  <Plus className="w-4 h-4 text-accent-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">New Technician Account</h2>
+              </div>
+              <button onClick={closeCreateTech} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Username</label>
+                <input
+                  type="text"
+                  value={newTechUsername}
+                  onChange={e => { setNewTechUsername(e.target.value); setCreateTechError('') }}
+                  className="input-field font-mono"
+                  placeholder="e.g. pedro_reyes"
+                  autoFocus autoComplete="off" spellCheck={false}
+                />
+                <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Password</label>
+                <div className="relative">
+                  <input
+                    type={showNewTechPw ? 'text' : 'password'}
+                    value={newTechPassword}
+                    onChange={e => { setNewTechPassword(e.target.value); setCreateTechError('') }}
+                    className="input-field pr-9"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setShowNewTechPw(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showNewTechPw ? 'Hide' : 'Show'}
+                  >
+                    {showNewTechPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm Password</label>
+                <input
+                  type="password"
+                  value={newTechPwConfirm}
+                  onChange={e => { setNewTechPwConfirm(e.target.value); setCreateTechError('') }}
+                  className="input-field"
+                  placeholder="Repeat password"
+                  autoComplete="new-password"
+                  onKeyDown={e => { if (e.key === 'Enter' && !creatingTech) handleCreateTech() }}
+                />
+              </div>
+              {createTechError && <p className="text-xs text-red-500 font-sans">{createTechError}</p>}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={closeCreateTech} disabled={creatingTech} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handleCreateTech}
+                disabled={creatingTech || !newTechUsername.trim() || !newTechPassword || !newTechPwConfirm}
+                className="btn-primary flex-1 justify-center"
+              >
+                {creatingTech
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Plus className="w-3.5 h-3.5" /> Create</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Staff modal (simple confirm) ── */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="card w-full max-w-sm p-6 space-y-4">
@@ -464,6 +657,66 @@ export default function AccountsPage() {
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
               >
                 {deleting
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Technician modal (type-to-confirm) ── */}
+      {deleteTechTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </div>
+                <h2 className="font-sans font-bold text-gray-900">Delete Technician</h2>
+              </div>
+              <button onClick={closeDeleteTech} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-sm font-body text-gray-600 leading-relaxed">
+              This will permanently delete technician account{' '}
+              <span className="font-semibold font-mono text-gray-900">{deleteTechTarget}</span>{' '}
+              and cannot be undone. They will immediately lose access to the dashboard.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
+                Type <span className="font-mono text-red-600">{deleteTechTarget}</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteTechConfirm}
+                onChange={e => { setDeleteTechConfirm(e.target.value); setDeleteTechError('') }}
+                className="input-field font-mono"
+                placeholder={deleteTechTarget}
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && deleteTechConfirm === deleteTechTarget && !deletingTech) handleDeleteTech()
+                }}
+              />
+            </div>
+
+            {deleteTechError && <p className="text-xs text-red-500 font-sans">{deleteTechError}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={closeDeleteTech} disabled={deletingTech} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handleDeleteTech}
+                disabled={deletingTech || deleteTechConfirm !== deleteTechTarget}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {deletingTech
                   ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
                 }
