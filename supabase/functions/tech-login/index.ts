@@ -35,6 +35,19 @@ let kv: any = null
 try { kv = await Deno.openKv() } catch { /* local runtime without KV support */ }
 
 Deno.serve(async (req) => {
+  try {
+    return await handleRequest(req)
+  } catch (err) {
+    // An uncaught throw here would otherwise surface as the edge runtime's
+    // default 500 — emitted WITHOUT our CORS headers, so the browser blocks it
+    // and supabase-js reports only a generic "Connection error". Routing it back
+    // through json() keeps CORS and surfaces the real reason to the caller.
+    console.error('tech-login unhandled error:', err)
+    return json(500, { ok: false, error: err instanceof Error ? err.message : 'Unexpected server error.' })
+  }
+})
+
+async function handleRequest(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json(405, { ok: false, error: 'Method not allowed' })
 
@@ -89,4 +102,4 @@ Deno.serve(async (req) => {
     name:              ok ? (account?.name ?? null)                     : undefined,
     mustChangePassword: ok ? (account?.password_reset_required ?? false) : undefined,
   })
-})
+}

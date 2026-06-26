@@ -4,7 +4,8 @@
  *
  * Admins can:
  *   - View all staff and technician accounts
- *   - Create new staff / technician accounts (username + password)
+ *   - Create new staff / technician accounts (username only — assigned a generic
+ *     default password the admin can later reset)
  *   - Delete accounts
  *     Staff:      simple confirm modal (Cancel / Delete)
  *     Technician: type-to-confirm modal (must type username to enable Delete)
@@ -17,12 +18,16 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import {
-  Plus, Trash2, X, Eye, EyeOff, Search,
+  Plus, Trash2, X, Search,
   Shield, Wrench, KeyRound, Copy, Check,
 } from 'lucide-react'
 import { supabase, fnErrorMessage } from '../../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+// New staff/technician accounts are created with this generic password. The admin
+// can change it afterwards via the Reset Password action — no one else can.
+const DEFAULT_PASSWORD = 'VRXE12345'
 
 async function callStaffManage(body) {
   const { data, error } = await supabase.functions.invoke('staff-manage', { body })
@@ -48,9 +53,6 @@ export default function AccountsPage() {
 
   const [showCreate,   setShowCreate]   = useState(false)
   const [newUsername,  setNewUsername]  = useState('')
-  const [newPassword,  setNewPassword]  = useState('')
-  const [newPwConfirm, setNewPwConfirm] = useState('')
-  const [showNewPw,    setShowNewPw]    = useState(false)
   const [creating,     setCreating]     = useState(false)
   const [createError,  setCreateError]  = useState('')
 
@@ -65,9 +67,6 @@ export default function AccountsPage() {
 
   const [showCreateTech,   setShowCreateTech]   = useState(false)
   const [newTechUsername,  setNewTechUsername]  = useState('')
-  const [newTechPassword,  setNewTechPassword]  = useState('')
-  const [newTechPwConfirm, setNewTechPwConfirm] = useState('')
-  const [showNewTechPw,    setShowNewTechPw]    = useState(false)
   const [creatingTech,     setCreatingTech]     = useState(false)
   const [createTechError,  setCreateTechError]  = useState('')
 
@@ -129,8 +128,7 @@ export default function AccountsPage() {
 
   // ── Staff create ──────────────────────────────────────────────────────────
   function openCreate() {
-    setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
-    setShowNewPw(false); setCreateError('')
+    setNewUsername(''); setCreateError('')
     setShowCreate(true)
   }
   function closeCreate() { setShowCreate(false) }
@@ -141,15 +139,13 @@ export default function AccountsPage() {
       setCreateError('Username: 3–30 chars, letters, digits, underscores only.')
       return
     }
-    if (newPassword.length < 8)       { setCreateError('Password must be at least 8 characters.'); return }
-    if (newPassword !== newPwConfirm) { setCreateError('Passwords do not match.'); return }
 
     setCreating(true); setCreateError('')
     try {
       await callStaffManage({
         action: 'create',
         username: newUsername.trim().toLowerCase(),
-        password: newPassword,
+        password: DEFAULT_PASSWORD,
       })
       closeCreate()
       showToast(`Staff account "${newUsername.trim().toLowerCase()}" created.`)
@@ -181,8 +177,7 @@ export default function AccountsPage() {
 
   // ── Tech create ───────────────────────────────────────────────────────────
   function openCreateTech() {
-    setNewTechUsername(''); setNewTechPassword(''); setNewTechPwConfirm('')
-    setShowNewTechPw(false); setCreateTechError('')
+    setNewTechUsername(''); setCreateTechError('')
     setShowCreateTech(true)
   }
   function closeCreateTech() { setShowCreateTech(false) }
@@ -193,15 +188,13 @@ export default function AccountsPage() {
       setCreateTechError('Username: 3–30 chars, letters, digits, underscores only.')
       return
     }
-    if (newTechPassword.length < 8)           { setCreateTechError('Password must be at least 8 characters.'); return }
-    if (newTechPassword !== newTechPwConfirm) { setCreateTechError('Passwords do not match.'); return }
 
     setCreatingTech(true); setCreateTechError('')
     try {
       await callTechManage({
         action: 'create',
         username: newTechUsername.trim().toLowerCase(),
-        password: newTechPassword,
+        password: DEFAULT_PASSWORD,
       })
       closeCreateTech()
       showToast(`Technician account "${newTechUsername.trim().toLowerCase()}" created.`)
@@ -468,39 +461,17 @@ export default function AccountsPage() {
                   className="input-field font-mono"
                   placeholder="e.g. juan_dela_cruz"
                   autoFocus autoComplete="off" spellCheck={false}
+                  onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
                 />
                 <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Password</label>
-                <div className="relative">
-                  <input
-                    type={showNewPw ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={e => { setNewPassword(e.target.value); setCreateError('') }}
-                    className="input-field pr-9"
-                    placeholder="At least 8 characters"
-                    autoComplete="new-password"
-                  />
-                  <button type="button" onClick={() => setShowNewPw(v => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    aria-label={showNewPw ? 'Hide' : 'Show'}
-                  >
-                    {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Default Password</label>
+                <div className="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+                  <KeyRound className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="font-mono text-sm font-semibold text-gray-900 tracking-wide">{DEFAULT_PASSWORD}</span>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm Password</label>
-                <input
-                  type="password"
-                  value={newPwConfirm}
-                  onChange={e => { setNewPwConfirm(e.target.value); setCreateError('') }}
-                  className="input-field"
-                  placeholder="Repeat password"
-                  autoComplete="new-password"
-                  onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
-                />
+                <p className="text-xs font-body text-gray-400">Assigned automatically · reset it later from the accounts list.</p>
               </div>
               {createError && <p className="text-xs text-red-500 font-sans">{createError}</p>}
             </div>
@@ -509,7 +480,7 @@ export default function AccountsPage() {
               <button onClick={closeCreate} disabled={creating} className="btn-secondary flex-1 justify-center">Cancel</button>
               <button
                 onClick={handleCreate}
-                disabled={creating || !newUsername.trim() || !newPassword || !newPwConfirm}
+                disabled={creating || !newUsername.trim()}
                 className="btn-primary flex-1 justify-center"
               >
                 {creating
@@ -548,39 +519,17 @@ export default function AccountsPage() {
                   className="input-field font-mono"
                   placeholder="e.g. pedro_reyes"
                   autoFocus autoComplete="off" spellCheck={false}
+                  onKeyDown={e => { if (e.key === 'Enter' && !creatingTech) handleCreateTech() }}
                 />
                 <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Password</label>
-                <div className="relative">
-                  <input
-                    type={showNewTechPw ? 'text' : 'password'}
-                    value={newTechPassword}
-                    onChange={e => { setNewTechPassword(e.target.value); setCreateTechError('') }}
-                    className="input-field pr-9"
-                    placeholder="At least 8 characters"
-                    autoComplete="new-password"
-                  />
-                  <button type="button" onClick={() => setShowNewTechPw(v => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    aria-label={showNewTechPw ? 'Hide' : 'Show'}
-                  >
-                    {showNewTechPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Default Password</label>
+                <div className="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+                  <KeyRound className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="font-mono text-sm font-semibold text-gray-900 tracking-wide">{DEFAULT_PASSWORD}</span>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Confirm Password</label>
-                <input
-                  type="password"
-                  value={newTechPwConfirm}
-                  onChange={e => { setNewTechPwConfirm(e.target.value); setCreateTechError('') }}
-                  className="input-field"
-                  placeholder="Repeat password"
-                  autoComplete="new-password"
-                  onKeyDown={e => { if (e.key === 'Enter' && !creatingTech) handleCreateTech() }}
-                />
+                <p className="text-xs font-body text-gray-400">Assigned automatically · reset it later from the accounts list.</p>
               </div>
               {createTechError && <p className="text-xs text-red-500 font-sans">{createTechError}</p>}
             </div>
@@ -589,7 +538,7 @@ export default function AccountsPage() {
               <button onClick={closeCreateTech} disabled={creatingTech} className="btn-secondary flex-1 justify-center">Cancel</button>
               <button
                 onClick={handleCreateTech}
-                disabled={creatingTech || !newTechUsername.trim() || !newTechPassword || !newTechPwConfirm}
+                disabled={creatingTech || !newTechUsername.trim()}
                 className="btn-primary flex-1 justify-center"
               >
                 {creatingTech

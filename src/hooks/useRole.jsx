@@ -62,6 +62,13 @@ export function RoleProvider({ children }) {
     if (VALID_ROLES.has(r)) {
       updateSessionRole(r)
       setRoleState(r)
+      // Hydrate identity from the session that login just wrote, so dependent UI
+      // (e.g. the first-login name prompt) reacts immediately instead of waiting
+      // for a reload to re-run the mount effect below. Admin sessions carry no
+      // username/name, so these reset to null — which is correct for that role.
+      const session = getSession()
+      setStaffUsernameState(session?.username ?? null)
+      setStaffNameState(session?.name ?? null)
     }
   }
 
