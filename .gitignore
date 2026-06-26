@@ -6,6 +6,7 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
+dev-dist/
 build/
 
 # Environment variables — NEVER commit real secrets
@@ -39,6 +40,9 @@ lerna-debug.log*
 
 # Testing
 coverage/
+
+# Supabase
+supabase/.temp/
 
 # Misc
 *.pem
