@@ -14,10 +14,10 @@
  * subsequent operations — no re-entry needed.
  */
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import {
-  Plus, Trash2, X, Lock, Eye, EyeOff, Search,
+  Plus, Trash2, X, Eye, EyeOff, Search,
   Shield, Wrench, KeyRound, Copy, Check,
 } from 'lucide-react'
 import { supabase, fnErrorMessage } from '../../lib/supabase'
@@ -41,29 +41,6 @@ async function callTechManage(body) {
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function AccountsPage() {
-  // ── Admin password — lazily entered on first write op ────────────────────
-  const [adminPassword,    setAdminPassword]    = useState('')
-  const [showAdminGate,    setShowAdminGate]    = useState(false)
-  const [adminGateInput,   setAdminGateInput]   = useState('')
-  const [adminGateShowPw,  setAdminGateShowPw]  = useState(false)
-  const pendingWriteRef = useRef(null) // callback to run after password is confirmed
-
-  function withAdminPw(cb) {
-    if (adminPassword) { cb(adminPassword); return }
-    pendingWriteRef.current = cb
-    setAdminGateInput('')
-    setAdminGateShowPw(false)
-    setShowAdminGate(true)
-  }
-
-  function confirmAdminGate() {
-    if (!adminGateInput) return
-    setAdminPassword(adminGateInput)
-    setShowAdminGate(false)
-    pendingWriteRef.current?.(adminGateInput)
-    pendingWriteRef.current = null
-  }
-
   // ── Staff state ───────────────────────────────────────────────────────────
   const [accounts,     setAccounts]     = useState([])
   const [listLoading,  setListLoading]  = useState(false)
@@ -95,7 +72,6 @@ export default function AccountsPage() {
   const [createTechError,  setCreateTechError]  = useState('')
 
   const [deleteTechTarget,  setDeleteTechTarget]  = useState(null)
-  const [deleteTechConfirm, setDeleteTechConfirm] = useState('')
   const [deletingTech,      setDeletingTech]      = useState(false)
   const [deleteTechError,   setDeleteTechError]   = useState('')
 
@@ -153,15 +129,13 @@ export default function AccountsPage() {
 
   // ── Staff create ──────────────────────────────────────────────────────────
   function openCreate() {
-    withAdminPw(() => {
-      setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
-      setShowNewPw(false); setCreateError('')
-      setShowCreate(true)
-    })
+    setNewUsername(''); setNewPassword(''); setNewPwConfirm('')
+    setShowNewPw(false); setCreateError('')
+    setShowCreate(true)
   }
   function closeCreate() { setShowCreate(false) }
 
-  async function handleCreate(pw = adminPassword) {
+  async function handleCreate() {
     if (!newUsername.trim()) { setCreateError('Username is required.'); return }
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(newUsername.trim())) {
       setCreateError('Username: 3–30 chars, letters, digits, underscores only.')
@@ -173,7 +147,7 @@ export default function AccountsPage() {
     setCreating(true); setCreateError('')
     try {
       await callStaffManage({
-        action: 'create', adminPassword: pw,
+        action: 'create',
         username: newUsername.trim().toLowerCase(),
         password: newPassword,
       })
@@ -181,43 +155,39 @@ export default function AccountsPage() {
       showToast(`Staff account "${newUsername.trim().toLowerCase()}" created.`)
       loadStaff()
     } catch (err) {
-      if (err.message.includes('admin password')) { setAdminPassword(''); setCreateError(err.message) }
-      else setCreateError(err.message)
+      setCreateError(err.message)
     }
     finally { setCreating(false) }
   }
 
   // ── Staff delete ──────────────────────────────────────────────────────────
   function openDelete(username) {
-    withAdminPw(() => { setDeleteTarget(username); setDeleteError('') })
+    setDeleteTarget(username); setDeleteError('')
   }
   function closeDelete() { setDeleteTarget(null); setDeleteError('') }
 
-  async function handleDelete(pw = adminPassword) {
+  async function handleDelete() {
     setDeleting(true); setDeleteError('')
     try {
-      await callStaffManage({ action: 'delete', adminPassword: pw, username: deleteTarget })
+      await callStaffManage({ action: 'delete', username: deleteTarget })
       closeDelete()
       showToast(`Staff account "${deleteTarget}" deleted.`)
       loadStaff()
     } catch (err) {
-      if (err.message.includes('admin password')) { setAdminPassword(''); setDeleteError(err.message) }
-      else setDeleteError(err.message)
+      setDeleteError(err.message)
     }
     finally { setDeleting(false) }
   }
 
   // ── Tech create ───────────────────────────────────────────────────────────
   function openCreateTech() {
-    withAdminPw(() => {
-      setNewTechUsername(''); setNewTechPassword(''); setNewTechPwConfirm('')
-      setShowNewTechPw(false); setCreateTechError('')
-      setShowCreateTech(true)
-    })
+    setNewTechUsername(''); setNewTechPassword(''); setNewTechPwConfirm('')
+    setShowNewTechPw(false); setCreateTechError('')
+    setShowCreateTech(true)
   }
   function closeCreateTech() { setShowCreateTech(false) }
 
-  async function handleCreateTech(pw = adminPassword) {
+  async function handleCreateTech() {
     if (!newTechUsername.trim()) { setCreateTechError('Username is required.'); return }
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(newTechUsername.trim())) {
       setCreateTechError('Username: 3–30 chars, letters, digits, underscores only.')
@@ -229,7 +199,7 @@ export default function AccountsPage() {
     setCreatingTech(true); setCreateTechError('')
     try {
       await callTechManage({
-        action: 'create', adminPassword: pw,
+        action: 'create',
         username: newTechUsername.trim().toLowerCase(),
         password: newTechPassword,
       })
@@ -237,53 +207,47 @@ export default function AccountsPage() {
       showToast(`Technician account "${newTechUsername.trim().toLowerCase()}" created.`)
       loadTech()
     } catch (err) {
-      if (err.message.includes('admin password')) { setAdminPassword(''); setCreateTechError(err.message) }
-      else setCreateTechError(err.message)
+      setCreateTechError(err.message)
     }
     finally { setCreatingTech(false) }
   }
 
-  // ── Tech delete (type-to-confirm) ─────────────────────────────────────────
+  // ── Tech delete ───────────────────────────────────────────────────────────
   function openDeleteTech(username) {
-    withAdminPw(() => { setDeleteTechTarget(username); setDeleteTechConfirm(''); setDeleteTechError('') })
+    setDeleteTechTarget(username); setDeleteTechError('')
   }
-  function closeDeleteTech() { setDeleteTechTarget(null); setDeleteTechConfirm(''); setDeleteTechError('') }
+  function closeDeleteTech() { setDeleteTechTarget(null); setDeleteTechError('') }
 
-  async function handleDeleteTech(pw = adminPassword) {
-    if (deleteTechConfirm !== deleteTechTarget) return
+  async function handleDeleteTech() {
     setDeletingTech(true); setDeleteTechError('')
     try {
-      await callTechManage({ action: 'delete', adminPassword: pw, username: deleteTechTarget })
+      await callTechManage({ action: 'delete', username: deleteTechTarget })
       closeDeleteTech()
       showToast(`Technician account "${deleteTechTarget}" deleted.`)
       loadTech()
     } catch (err) {
-      if (err.message.includes('admin password')) { setAdminPassword(''); setDeleteTechError(err.message) }
-      else setDeleteTechError(err.message)
+      setDeleteTechError(err.message)
     }
     finally { setDeletingTech(false) }
   }
 
   // ── Reset password ────────────────────────────────────────────────────────
   function openReset(username, type) {
-    withAdminPw(() => {
-      setResetTarget({ username, type })
-      setResetError('')
-      setTempPassword('')
-      setCopied(false)
-    })
+    setResetTarget({ username, type })
+    setResetError('')
+    setTempPassword('')
+    setCopied(false)
   }
   function closeReset() { setResetTarget(null); setTempPassword(''); setResetError(''); setCopied(false) }
 
-  async function handleReset(pw = adminPassword) {
+  async function handleReset() {
     setResetting(true); setResetError('')
     try {
       const fn     = resetTarget.type === 'tech' ? callTechManage : callStaffManage
-      const result = await fn({ action: 'reset-password', adminPassword: pw, username: resetTarget.username })
+      const result = await fn({ action: 'reset-password', username: resetTarget.username })
       setTempPassword(result.tempPassword)
     } catch (err) {
-      if (err.message.includes('admin password')) { setAdminPassword(''); setResetError(err.message) }
-      else setResetError(err.message)
+      setResetError(err.message)
     }
     finally { setResetting(false) }
   }
@@ -696,29 +660,10 @@ export default function AccountsPage() {
             </div>
 
             <p className="text-sm font-body text-gray-600 leading-relaxed">
-              This will permanently delete technician account{' '}
-              <span className="font-semibold font-mono text-gray-900">{deleteTechTarget}</span>{' '}
-              and cannot be undone. They will immediately lose access to the dashboard.
+              Delete technician account{' '}
+              <span className="font-semibold font-mono text-gray-900">{deleteTechTarget}</span>?
+              This immediately revokes their access and cannot be undone.
             </p>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
-                Type <span className="font-mono text-red-600">{deleteTechTarget}</span> to confirm
-              </label>
-              <input
-                type="text"
-                value={deleteTechConfirm}
-                onChange={e => { setDeleteTechConfirm(e.target.value); setDeleteTechError('') }}
-                className="input-field font-mono"
-                placeholder={deleteTechTarget}
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && deleteTechConfirm === deleteTechTarget && !deletingTech) handleDeleteTech()
-                }}
-              />
-            </div>
 
             {deleteTechError && <p className="text-xs text-red-500 font-sans">{deleteTechError}</p>}
 
@@ -726,50 +671,14 @@ export default function AccountsPage() {
               <button onClick={closeDeleteTech} disabled={deletingTech} className="btn-secondary flex-1 justify-center">Cancel</button>
               <button
                 onClick={handleDeleteTech}
-                disabled={deletingTech || deleteTechConfirm !== deleteTechTarget}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                disabled={deletingTech}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
               >
                 {deletingTech
                   ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
                 }
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Admin password gate (shown before first write op) ── */}
-      {showAdminGate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-xs p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
-                <Lock className="w-4 h-4 text-brand-600" />
-              </div>
-              <h2 className="font-sans font-bold text-gray-900">Admin password</h2>
-            </div>
-            <div className="relative">
-              <input
-                type={adminGateShowPw ? 'text' : 'password'}
-                value={adminGateInput}
-                onChange={e => setAdminGateInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') confirmAdminGate() }}
-                className="input-field pr-9"
-                placeholder="Enter admin password"
-                autoFocus
-                autoComplete="current-password"
-              />
-              <button type="button" onClick={() => setAdminGateShowPw(v => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                aria-label={adminGateShowPw ? 'Hide' : 'Show'}
-              >
-                {adminGateShowPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => { setShowAdminGate(false); pendingWriteRef.current = null }} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button onClick={confirmAdminGate} disabled={!adminGateInput} className="btn-primary flex-1 justify-center">Confirm</button>
             </div>
           </div>
         </div>

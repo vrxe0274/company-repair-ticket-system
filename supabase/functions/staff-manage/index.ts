@@ -1,8 +1,8 @@
 /**
  * staff-manage — Supabase Edge Function
  *
- * Admin-only staff account management: list, create, and delete individual
- * Staff accounts stored in the staff_accounts table.
+ * Staff account management: list, create, and delete individual Staff accounts
+ * stored in the staff_accounts table.
  *
  * Deploy:
  *   supabase functions deploy staff-manage --no-verify-jwt
@@ -10,15 +10,16 @@
  * Actions:
  *   list        — Returns all accounts (id, username, name, created_at, created_by).
  *   list-names  — Returns all staff usernames and names.
- *   create      — Creates a new staff account. Requires adminPassword.
- *   delete      — Deletes a staff account by username. Requires adminPassword.
+ *   create      — Creates a new staff account.
+ *   delete      — Deletes a staff account by username.
  *
- * Request:  POST { action, adminPassword, username?, password? }
+ * Request:  POST { action, username?, password? }
  * Response: { ok: boolean, accounts?: [...], error?: string }
  *
- * Admin password verification mirrors verify-login:
- *   1. PBKDF2 hash in role_passwords table (if Admin has changed their password)
- *   2. ADMIN_PASSWORD env secret (plain-text constant-time compare)
+ * SECURITY: create/delete/reset-password have NO server-side authorization. This
+ * function is deployed --no-verify-jwt, so they are callable by anyone with the
+ * (public) anon key. The Accounts page is admin-only in the UI only — add real
+ * auth (verify-jwt or a shared secret) before treating these as protected.
  *
  * Password derivation for staff accounts: PBKDF2-SHA256, 100k iterations.
  * Salt: vrxe-staff-<username>-pw-v1 (must match staff-login).
@@ -27,39 +28,33 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual,
-  deriveRoleKey, deriveStaffKey,
+  deriveStaffKey,
   checkRateLimit, updateRateLimit,
 } from '../_shared/auth.ts'
 
 const MIN_PASSWORD_LENGTH = 8
 const USERNAME_RE         = /^[a-z0-9_]{3,30}$/
 
-// deno-lint-ignore no-explicit-any
-async function verifyAdminPassword(adminPassword: string, supabase: any): Promise<boolean> {
-  const adminSecret = Deno.env.get('ADMIN_PASSWORD')
-  if (!adminSecret) return false
-
-  const { data: row } = await supabase
-    .from('role_passwords')
-    .select('password_hash')
-    .eq('role', 'Admin')
-    .maybeSingle()
-
-  if (row?.password_hash) {
-    const inputHash = await deriveRoleKey(adminPassword, 'Admin')
-    return timingSafeEqual(inputHash, row.password_hash)
-  }
-
-  return timingSafeEqual(adminPassword, adminSecret)
-}
-
 Deno.serve(async (req) => {
+  try {
+    return await handleRequest(req)
+  } catch (err) {
+    // An uncaught throw here would otherwise bubble up as the edge runtime's
+    // default 500 — which is emitted WITHOUT our CORS headers, so the browser
+    // blocks the response and supabase-js reports only a generic
+    // FunctionsFetchError ("Connection error"). Routing it back through json()
+    // keeps the CORS headers and surfaces the real reason to the caller.
+    console.error('staff-manage unhandled error:', err)
+    return json(500, { ok: false, error: err instanceof Error ? err.message : 'Unexpected server error.' })
+  }
+})
+
+async function handleRequest(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json(405, { ok: false, error: 'Method not allowed' })
 
   let body: {
     action?: string
-    adminPassword?: string
     username?: string
     password?: string
     currentPassword?: string
@@ -73,7 +68,7 @@ Deno.serve(async (req) => {
     return json(400, { ok: false, error: 'Invalid JSON body' })
   }
 
-  const { action, adminPassword, username, password } = body
+  const { action, username, password } = body
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -236,17 +231,6 @@ Deno.serve(async (req) => {
     return json(200, { ok: true, accounts: data ?? [] })
   }
 
-  // ── All other actions require admin password ───────────────────────────────────
-
-  if (!adminPassword) {
-    return json(200, { ok: false, error: 'Admin password is required.' })
-  }
-
-  const adminOk = await verifyAdminPassword(adminPassword, supabase)
-  if (!adminOk) {
-    return json(200, { ok: false, error: 'Incorrect admin password.' })
-  }
-
   // ── Reset password (admin-initiated) ─────────────────────────────────────────
   // Generates a server-side random temp password. Admin never chooses it — they
   // only see it once to hand to the employee verbally. Sets password_reset_required
@@ -346,4 +330,4 @@ Deno.serve(async (req) => {
   }
 
   return json(400, { ok: false, error: 'Invalid action.' })
-})
+}

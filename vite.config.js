@@ -22,9 +22,13 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
-      // Register the SW during `npm run dev` too, so push can be tested locally
+      // Dev SW disabled: the injectManifest dev worker (dev-sw.js) was failing to
+      // evaluate, and a stale registered SW kept serving an old precached app
+      // bundle — which made create/delete look like a "Connection error" in local
+      // dev even though the backend was healthy. Production is unaffected (it uses
+      // the real built sw.js). Flip back to true only to test Web Push locally.
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module',
       },
     }),
