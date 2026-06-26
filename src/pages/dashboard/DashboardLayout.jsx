@@ -23,7 +23,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
   Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp, Banknote,
-  Lock, Eye, EyeOff,
+  Lock, Eye, EyeOff, LayoutGrid,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -265,6 +265,15 @@ export default function DashboardLayout() {
           >
             <ExternalLink className="w-4 h-4 shrink-0" />
             Public Form
+          </a>
+          <a
+            href="https://vrxe0274.github.io/company-suite/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-all"
+          >
+            <LayoutGrid className="w-4 h-4 shrink-0" />
+            VRXE Company Suite
           </a>
         </div>
       </nav>
