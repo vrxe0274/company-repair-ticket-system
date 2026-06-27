@@ -27,10 +27,13 @@ const JSZip = require('jszip')
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC_DIR = join(__dirname, '..', 'docs')
 const target = process.argv.find(a => a.endsWith('.md')) || 'CREDENTIALS_HANDOVER.md'
+// Credentials handover is laid out one category (## section) per page; other
+// docs flow normally.
+const PAGE_PER_SECTION = target === 'CREDENTIALS_HANDOVER.md'
 
 // ── XML helpers ───────────────────────────────────────────────────────────────
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const stripInline = (s) => s.replace(/\*\*/g, '').replace(/`/g, '')
+const stripInline = (s) => s.replace(/<br\s*\/?>/gi, ' ').replace(/\*\*/g, '').replace(/`/g, '')
   .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
 
 /** One run with optional formatting. rPr children must follow schema order. */
@@ -47,9 +50,16 @@ function run(text, o = {}) {
   return `<w:r>${rPr}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`
 }
 
+/** Inline markdown → runs, with <br> as a hard line break inside a cell/para. */
+function runs(text, base = {}) {
+  return String(text).split(/<br\s*\/?>/i)
+    .map(seg => inlineRuns(seg, base))
+    .join('<w:r><w:br/></w:r>')
+}
+
 /** Inline markdown → runs. (Single-underscore italics intentionally ignored so
  *  fill-in blanks like ____ stay literal.) */
-function runs(text, base = {}) {
+function inlineRuns(text, base = {}) {
   const re = /(\*\*([^*]+)\*\*)|(`([^`]+)`)|(\[([^\]]+)\]\(([^)]+)\))/g
   let out = '', last = 0, m
   while ((m = re.exec(text))) {
@@ -69,27 +79,38 @@ const para = (text, { shade, style } = {}) => {
   if (shade) ppr += '<w:shd w:val="clear" w:color="auto" w:fill="FDECEF"/>'
   return `<w:p>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ''}${runs(text)}</w:p>`
 }
-const heading = (level, text) => `<w:p><w:pPr><w:pStyle w:val="Heading${level}"/></w:pPr>${runs(text)}</w:p>`
+const heading = (level, text) => {
+  const brk = PAGE_PER_SECTION && level === 2 ? '<w:pageBreakBefore/>' : ''
+  return `<w:p><w:pPr><w:pStyle w:val="Heading${level}"/>${brk}</w:pPr>${runs(text)}</w:p>`
+}
 const hr = () => '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="CCCCCC"/></w:pBdr></w:pPr></w:p>'
 
 function table(headers, aligns, rows) {
-  const ncol = headers.length
   const totalW = 9360
-  const colW = Math.floor(totalW / ncol)
-  const grid = headers.map(() => `<w:gridCol w:w="${colW}"/>`).join('')
+  // Proportional column widths from content length (capped so one very long
+  // value — e.g. a JWT anon key — widens its own column instead of forcing all
+  // columns equal and overflowing). Fixed layout makes Word honour the grid and
+  // wrap long values inside their cell.
+  const len = (s) => stripInline(String(s)).length
+  const weights = headers.map((h, c) =>
+    Math.min(rows.reduce((m, r) => Math.max(m, len(r[c] || '')), len(h)), 90) + 8)
+  const wsum = weights.reduce((a, b) => a + b, 0)
+  const colW = weights.map(w => Math.max(1100, Math.round(totalW * w / wsum)))
+  colW[colW.indexOf(Math.max(...colW))] += totalW - colW.reduce((a, b) => a + b, 0) // absorb rounding drift
+  const grid = colW.map(w => `<w:gridCol w:w="${w}"/>`).join('')
   const borders = '<w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
       .map(b => `<w:${b} w:val="single" w:sz="4" w:space="0" w:color="D9D9D9"/>`).join('') +
     '</w:tblBorders>'
   const cell = (content, c, header) => {
     const al = aligns[c] && aligns[c] !== 'left' ? `<w:jc w:val="${aligns[c] === 'right' ? 'right' : 'center'}"/>` : ''
-    const tcPr = `<w:tcPr><w:tcW w:w="${colW}" w:type="dxa"/>${header ? '<w:shd w:val="clear" w:color="auto" w:fill="7317E8"/>' : ''}</w:tcPr>`
+    const tcPr = `<w:tcPr><w:tcW w:w="${colW[c]}" w:type="dxa"/>${header ? '<w:shd w:val="clear" w:color="auto" w:fill="7317E8"/>' : ''}</w:tcPr>`
     const body = header
       ? `<w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/></w:rPr><w:t xml:space="preserve">${xmlEsc(stripInline(content))}</w:t></w:r>`
       : runs(content)
     return `<w:tc>${tcPr}<w:p>${al ? `<w:pPr>${al}</w:pPr>` : ''}${body}</w:p></w:tc>`
   }
-  let xml = `<w:tbl><w:tblPr><w:tblW w:w="${totalW}" w:type="dxa"/>${borders}</w:tblPr><w:tblGrid>${grid}</w:tblGrid>`
+  let xml = `<w:tbl><w:tblPr><w:tblW w:w="${totalW}" w:type="dxa"/>${borders}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${grid}</w:tblGrid>`
   xml += `<w:tr>${headers.map((h, c) => cell(h, c, true)).join('')}</w:tr>`
   for (const r of rows) xml += `<w:tr>${headers.map((_, c) => cell(r[c] || '', c, false)).join('')}</w:tr>`
   return xml + '</w:tbl><w:p/>'

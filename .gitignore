@@ -47,11 +47,5 @@ supabase/.temp/
 # Misc
 *.pem
 
-# Generated PDF bundle — regenerate with: npm run docs:pdf
-docs/pdf/
-
-# Confidential handover credentials — NEVER commit (any location under docs/)
-docs/**/CREDENTIALS_HANDOVER.md
-docs/**/CREDENTIALS_HANDOVER.docx
-docs/CREDENTIALS_HANDOVER.md
-docs/CREDENTIALS_HANDOVER.docx
+# Handover documentation — kept local, not committed (regenerate PDFs/docx as needed)
+docs/
