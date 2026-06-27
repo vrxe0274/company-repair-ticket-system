@@ -154,11 +154,14 @@ function CreateModal({ type, show, onClose, onCreated }) {
 }
 
 function DeleteModal({ target, onClose, onDeleted }) {
-  const [deleting, setDeleting] = useState(false)
-  const [error,    setError]    = useState('')
+  const [deleting,     setDeleting]     = useState(false)
+  const [error,        setError]        = useState('')
+  const [confirmText,  setConfirmText]  = useState('')
 
-  const callFn = target?.type === 'staff' ? callStaffManage : callTechManage
-  const label  = target?.type === 'staff' ? 'staff account' : 'technician account'
+  const isTech  = target?.type === 'tech'
+  const callFn  = isTech ? callTechManage : callStaffManage
+  const label   = isTech ? 'technician account' : 'staff account'
+  const canDelete = !isTech || confirmText === target?.username
 
   async function handleDelete() {
     setDeleting(true); setError('')
@@ -183,7 +186,7 @@ function DeleteModal({ target, onClose, onDeleted }) {
               <Trash2 className="w-4 h-4 text-red-600" />
             </div>
             <h2 className="font-sans font-bold text-gray-900">
-              {target.type === 'staff' ? 'Delete Account' : 'Delete Technician'}
+              {isTech ? 'Delete Technician' : 'Delete Account'}
             </h2>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
@@ -197,13 +200,30 @@ function DeleteModal({ target, onClose, onDeleted }) {
           This immediately revokes their access and cannot be undone.
         </p>
 
+        {isTech && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
+              Type <span className="font-mono text-gray-700">{target.username}</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              className="input-field font-mono"
+              placeholder={target.username}
+              autoFocus autoComplete="off" spellCheck={false}
+              onKeyDown={e => { if (e.key === 'Enter' && canDelete && !deleting) handleDelete() }}
+            />
+          </div>
+        )}
+
         {error && <p className="text-xs text-red-500 font-sans">{error}</p>}
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} disabled={deleting} className="btn-secondary flex-1 justify-center">Cancel</button>
           <button
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || !canDelete}
             className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
           >
             {deleting

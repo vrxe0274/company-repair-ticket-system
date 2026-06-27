@@ -28,7 +28,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual,
-  deriveTechKey,
+  deriveTechKey, generateTempPassword,
 } from '../_shared/auth.ts'
 
 const MIN_PASSWORD_LENGTH = 8
@@ -202,10 +202,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (action === 'reset-password') {
     if (!username) return json(200, { ok: false, error: 'Username is required.' })
 
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-    const bytes = new Uint8Array(12)
-    crypto.getRandomValues(bytes)
-    const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('')
+    const tempPassword = generateTempPassword()
 
     const passwordHash = await deriveTechKey(tempPassword, username.trim())
 
@@ -232,10 +229,7 @@ async function handleRequest(req: Request): Promise<Response> {
     // Generate a unique random temp password server-side (same charset as reset-password).
     // The client never supplies a password for new accounts — only the admin sees this
     // value once in the UI, then the employee must change it on first login.
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-    const bytes = new Uint8Array(12)
-    crypto.getRandomValues(bytes)
-    const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('')
+    const tempPassword = generateTempPassword()
 
     const passwordHash = await deriveTechKey(tempPassword, normalizedUsername)
 

@@ -28,7 +28,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual,
-  deriveStaffKey,
+  deriveStaffKey, generateTempPassword,
   checkRateLimit, updateRateLimit,
 } from '../_shared/auth.ts'
 
@@ -247,10 +247,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
     if (!existing) return json(200, { ok: false, error: 'Account not found.' })
 
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-    const bytes = new Uint8Array(12)
-    crypto.getRandomValues(bytes)
-    const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('')
+    const tempPassword = generateTempPassword()
 
     const passwordHash = await deriveStaffKey(tempPassword, username.trim())
 
@@ -280,10 +277,7 @@ async function handleRequest(req: Request): Promise<Response> {
     // Generate a unique random temp password server-side (same charset as reset-password).
     // The client never supplies a password for new accounts — only the admin sees this
     // value once in the UI, then the employee must change it on first login.
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-    const bytes = new Uint8Array(12)
-    crypto.getRandomValues(bytes)
-    const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('')
+    const tempPassword = generateTempPassword()
 
     const passwordHash = await deriveStaffKey(tempPassword, normalizedUsername)
 

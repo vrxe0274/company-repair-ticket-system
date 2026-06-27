@@ -62,8 +62,17 @@ export function RoleProvider({ children }) {
     if (VALID_ROLES.has(r)) {
       updateSessionRole(r)
       setRoleState(r)
-      setStaffUsernameState(username)
-      setStaffNameState(name)
+      // If caller supplies identity (login fast-path), use it directly.
+      // Otherwise fall back to session storage so callers that don't pass
+      // identity (future flows, tests) still hydrate correctly.
+      if (username !== null || name !== null) {
+        setStaffUsernameState(username)
+        setStaffNameState(name)
+      } else {
+        const session = getSession()
+        setStaffUsernameState(session?.username ?? null)
+        setStaffNameState(session?.name ?? null)
+      }
     }
   }
 

@@ -90,6 +90,17 @@ export async function deriveTechKey(password: string, username: string): Promise
   return btoa(String.fromCharCode(...new Uint8Array(bits)))
 }
 
+// ── Temp password generation ──────────────────────────────────────────────────
+
+const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+
+/** Generates a 12-character random temp password using a visually unambiguous charset. */
+export function generateTempPassword(): string {
+  const bytes = new Uint8Array(12)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => TEMP_PASSWORD_CHARS[b % TEMP_PASSWORD_CHARS.length]).join('')
+}
+
 // ── Client IP ─────────────────────────────────────────────────────────────────
 
 export function getClientIp(req: Request): string {
