@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "docs:pdf": "node scripts/build-turnover-pdfs.mjs",
+    "docs:docx": "node scripts/build-docx.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
