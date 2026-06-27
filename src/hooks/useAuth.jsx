@@ -98,9 +98,10 @@ export function AuthProvider({ children }) {
     }
     if (!data?.ok) return false
 
-    saveSession('Staff', { persistent: rememberMe, username: username.trim(), name: data.name ?? null, mustChangePassword: data.mustChangePassword ?? false })
+    const resolvedName = data.name ?? null
+    saveSession('Staff', { persistent: rememberMe, username: username.trim(), name: resolvedName, mustChangePassword: data.mustChangePassword ?? false })
     setAuthenticated(true)
-    return true
+    return { name: resolvedName }
   }
 
   /**
@@ -126,9 +127,10 @@ export function AuthProvider({ children }) {
     }
     if (!data?.ok) return false
 
-    saveSession('Technician', { persistent: rememberMe, username: username.trim(), name: data.name ?? null, mustChangePassword: data.mustChangePassword ?? false })
+    const resolvedName = data.name ?? null
+    saveSession('Technician', { persistent: rememberMe, username: username.trim(), name: resolvedName, mustChangePassword: data.mustChangePassword ?? false })
     setAuthenticated(true)
-    return true
+    return { name: resolvedName }
   }
 
   /**

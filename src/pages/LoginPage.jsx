@@ -177,7 +177,10 @@ export default function LoginPage() {
       }
 
       if (ok) {
-        setRole(selectedRole)
+        // Staff/Tech logins return { name } so identity flows straight into state
+        // without a storage round-trip. Admin ok is just `true` (no identity).
+        const identity = typeof ok === 'object' ? { username: username.trim(), name: ok.name } : {}
+        setRole(selectedRole, identity)
         navigate('/', { replace: true })
       } else {
         setError(

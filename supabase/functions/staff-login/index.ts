@@ -64,7 +64,7 @@ async function handleRequest(req: Request): Promise<Response> {
     return json(200, { ok: false })
   }
 
-  const normalizedUsername = username.trim()
+  const normalizedUsername = username.trim().toLowerCase()
 
   // ── Brute-force check (keyed by IP + username) ────────────────────────────
 

@@ -276,16 +276,22 @@ async function handleRequest(req: Request): Promise<Response> {
         error: 'Username must be 3–30 characters (lowercase letters, digits, underscores only).',
       })
     }
-    if (!password || password.length < MIN_PASSWORD_LENGTH) {
-      return json(200, { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` })
-    }
 
-    const passwordHash = await deriveStaffKey(password, normalizedUsername)
+    // Generate a unique random temp password server-side (same charset as reset-password).
+    // The client never supplies a password for new accounts — only the admin sees this
+    // value once in the UI, then the employee must change it on first login.
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    const bytes = new Uint8Array(12)
+    crypto.getRandomValues(bytes)
+    const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('')
+
+    const passwordHash = await deriveStaffKey(tempPassword, normalizedUsername)
 
     const { error } = await supabase.from('staff_accounts').insert({
-      username:      normalizedUsername,
-      password_hash: passwordHash,
-      created_by:    'admin',
+      username:                normalizedUsername,
+      password_hash:           passwordHash,
+      created_by:              'admin',
+      password_reset_required: true,
     })
 
     if (error) {
@@ -296,7 +302,7 @@ async function handleRequest(req: Request): Promise<Response> {
       return json(500, { ok: false, error: `Failed to create account: ${error.message ?? error.code ?? 'unknown'}` })
     }
 
-    return json(200, { ok: true })
+    return json(200, { ok: true, tempPassword })
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────────

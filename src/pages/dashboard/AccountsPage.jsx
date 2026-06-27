@@ -4,15 +4,10 @@
  *
  * Admins can:
  *   - View all staff and technician accounts
- *   - Create new staff / technician accounts (username only — assigned a generic
- *     default password the admin can later reset)
- *   - Delete accounts
- *     Staff:      simple confirm modal (Cancel / Delete)
- *     Technician: type-to-confirm modal (must type username to enable Delete)
- *
- * The page requires the admin password once on load (unlock gate). That
- * password is stored in component state for the session and reused for all
- * subsequent operations — no re-entry needed.
+ *   - Create new staff / technician accounts — the server generates a unique
+ *     temp password (shown once) and marks the account for forced reset on login
+ *   - Delete accounts (simple confirm modal)
+ *   - Reset passwords (generates a new server-side temp password, shown once)
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
@@ -24,10 +19,6 @@ import {
 import { supabase, fnErrorMessage } from '../../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-// New staff/technician accounts are created with this generic password. The admin
-// can change it afterwards via the Reset Password action — no one else can.
-const DEFAULT_PASSWORD = 'VRXE12345'
 
 async function callStaffManage(body) {
   const { data, error } = await supabase.functions.invoke('staff-manage', { body })
@@ -43,6 +34,189 @@ async function callTechManage(body) {
   return data
 }
 
+// ── Shared modal components ────────────────────────────────────────────────────
+
+function CreateModal({ type, show, onClose, onCreated }) {
+  const isStaff  = type === 'staff'
+  const callFn   = isStaff ? callStaffManage : callTechManage
+
+  const [username,     setUsername]     = useState('')
+  const [error,        setError]        = useState('')
+  const [creating,     setCreating]     = useState(false)
+  const [tempPassword, setTempPassword] = useState('')
+  const [copied,       setCopied]       = useState(false)
+
+  function handleClose() {
+    setUsername(''); setError(''); setTempPassword(''); setCopied(false)
+    onClose()
+  }
+
+  async function handleCreate() {
+    if (!username.trim()) { setError('Username is required.'); return }
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(username.trim())) {
+      setError('Username: 3–30 chars, letters, digits, underscores only.')
+      return
+    }
+    setCreating(true); setError('')
+    try {
+      const result = await callFn({ action: 'create', username: username.trim().toLowerCase() })
+      setTempPassword(result.tempPassword)
+      onCreated()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(tempPassword)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard denied */ }
+  }
+
+  if (!show) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="card w-full max-w-sm p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-full ${isStaff ? 'bg-emerald-50' : 'bg-accent-50'} flex items-center justify-center shrink-0`}>
+              <Plus className={`w-4 h-4 ${isStaff ? 'text-emerald-600' : 'text-accent-600'}`} />
+            </div>
+            <h2 className="font-sans font-bold text-gray-900">{isStaff ? 'New Staff Account' : 'New Technician Account'}</h2>
+          </div>
+          <button onClick={handleClose} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {!tempPassword ? (
+          <>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={e => { setUsername(e.target.value); setError('') }}
+                  className="input-field font-mono"
+                  placeholder={isStaff ? 'e.g. juan_dela_cruz' : 'e.g. pedro_reyes'}
+                  autoFocus autoComplete="off" spellCheck={false}
+                  onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
+                />
+                <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
+              </div>
+              {error && <p className="text-xs text-red-500 font-sans">{error}</p>}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={handleClose} disabled={creating} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button
+                onClick={handleCreate}
+                disabled={creating || !username.trim()}
+                className="btn-primary flex-1 justify-center"
+              >
+                {creating
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Plus className="w-3.5 h-3.5" /> Create</>
+                }
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 space-y-2">
+              <p className="text-xs font-sans font-semibold text-amber-700 uppercase tracking-wide">Temporary password — shown once</p>
+              <div className="flex items-center gap-2">
+                <span className="flex-1 font-mono text-lg font-bold text-gray-900 tracking-widest break-all">{tempPassword}</span>
+                <button
+                  onClick={handleCopy}
+                  className="shrink-0 p-2 rounded-lg bg-white border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors"
+                  aria-label="Copy"
+                >
+                  {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs font-body text-amber-600">
+                Share with <span className="font-mono font-semibold">{username.trim().toLowerCase()}</span> verbally.
+                They must change it on first login. It won't be shown again.
+              </p>
+            </div>
+            <button onClick={handleClose} className="btn-primary w-full justify-center">Done</button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DeleteModal({ target, onClose, onDeleted }) {
+  const [deleting, setDeleting] = useState(false)
+  const [error,    setError]    = useState('')
+
+  const callFn = target?.type === 'staff' ? callStaffManage : callTechManage
+  const label  = target?.type === 'staff' ? 'staff account' : 'technician account'
+
+  async function handleDelete() {
+    setDeleting(true); setError('')
+    try {
+      await callFn({ action: 'delete', username: target.username })
+      onDeleted()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (!target) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="card w-full max-w-sm p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <Trash2 className="w-4 h-4 text-red-600" />
+            </div>
+            <h2 className="font-sans font-bold text-gray-900">
+              {target.type === 'staff' ? 'Delete Account' : 'Delete Technician'}
+            </h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-sm font-body text-gray-600 leading-relaxed">
+          Delete {label}{' '}
+          <span className="font-semibold font-mono text-gray-900">{target.username}</span>?
+          This immediately revokes their access and cannot be undone.
+        </p>
+
+        {error && <p className="text-xs text-red-500 font-sans">{error}</p>}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} disabled={deleting} className="btn-secondary flex-1 justify-center">Cancel</button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
+          >
+            {deleting
+              ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function AccountsPage() {
@@ -51,30 +225,16 @@ export default function AccountsPage() {
   const [listLoading,  setListLoading]  = useState(false)
   const [listError,    setListError]    = useState('')
 
-  const [showCreate,   setShowCreate]   = useState(false)
-  const [newUsername,  setNewUsername]  = useState('')
-  const [creating,     setCreating]     = useState(false)
-  const [createError,  setCreateError]  = useState('')
-
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting,     setDeleting]     = useState(false)
-  const [deleteError,  setDeleteError]  = useState('')
-
   // ── Technician state ──────────────────────────────────────────────────────
   const [techAccounts,    setTechAccounts]    = useState([])
   const [techListLoading, setTechListLoading] = useState(false)
   const [techListError,   setTechListError]   = useState('')
 
-  const [showCreateTech,   setShowCreateTech]   = useState(false)
-  const [newTechUsername,  setNewTechUsername]  = useState('')
-  const [creatingTech,     setCreatingTech]     = useState(false)
-  const [createTechError,  setCreateTechError]  = useState('')
-
-  const [deleteTechTarget,  setDeleteTechTarget]  = useState(null)
-  const [deletingTech,      setDeletingTech]      = useState(false)
-  const [deleteTechError,   setDeleteTechError]   = useState('')
-
-  // ── Reset password state ──────────────────────────────────────────────────
+  // ── Shared modal state ────────────────────────────────────────────────────
+  // createType: null | 'staff' | 'tech'
+  const [createType,    setCreateType]    = useState(null)
+  // deleteTarget / resetTarget: null | { username, type: 'staff' | 'tech' }
+  const [deleteTarget,  setDeleteTarget]  = useState(null)
   // resetTarget: { username, type: 'staff' | 'tech' }
   const [resetTarget,   setResetTarget]   = useState(null)
   const [resetting,     setResetting]     = useState(false)
@@ -125,104 +285,6 @@ export default function AccountsPage() {
   }, [])
 
   useEffect(() => { loadStaff(); loadTech() }, [loadStaff, loadTech])
-
-  // ── Staff create ──────────────────────────────────────────────────────────
-  function openCreate() {
-    setNewUsername(''); setCreateError('')
-    setShowCreate(true)
-  }
-  function closeCreate() { setShowCreate(false) }
-
-  async function handleCreate() {
-    if (!newUsername.trim()) { setCreateError('Username is required.'); return }
-    if (!/^[a-zA-Z0-9_]{3,30}$/.test(newUsername.trim())) {
-      setCreateError('Username: 3–30 chars, letters, digits, underscores only.')
-      return
-    }
-
-    setCreating(true); setCreateError('')
-    try {
-      await callStaffManage({
-        action: 'create',
-        username: newUsername.trim().toLowerCase(),
-        password: DEFAULT_PASSWORD,
-      })
-      closeCreate()
-      showToast(`Staff account "${newUsername.trim().toLowerCase()}" created.`)
-      loadStaff()
-    } catch (err) {
-      setCreateError(err.message)
-    }
-    finally { setCreating(false) }
-  }
-
-  // ── Staff delete ──────────────────────────────────────────────────────────
-  function openDelete(username) {
-    setDeleteTarget(username); setDeleteError('')
-  }
-  function closeDelete() { setDeleteTarget(null); setDeleteError('') }
-
-  async function handleDelete() {
-    setDeleting(true); setDeleteError('')
-    try {
-      await callStaffManage({ action: 'delete', username: deleteTarget })
-      closeDelete()
-      showToast(`Staff account "${deleteTarget}" deleted.`)
-      loadStaff()
-    } catch (err) {
-      setDeleteError(err.message)
-    }
-    finally { setDeleting(false) }
-  }
-
-  // ── Tech create ───────────────────────────────────────────────────────────
-  function openCreateTech() {
-    setNewTechUsername(''); setCreateTechError('')
-    setShowCreateTech(true)
-  }
-  function closeCreateTech() { setShowCreateTech(false) }
-
-  async function handleCreateTech() {
-    if (!newTechUsername.trim()) { setCreateTechError('Username is required.'); return }
-    if (!/^[a-zA-Z0-9_]{3,30}$/.test(newTechUsername.trim())) {
-      setCreateTechError('Username: 3–30 chars, letters, digits, underscores only.')
-      return
-    }
-
-    setCreatingTech(true); setCreateTechError('')
-    try {
-      await callTechManage({
-        action: 'create',
-        username: newTechUsername.trim().toLowerCase(),
-        password: DEFAULT_PASSWORD,
-      })
-      closeCreateTech()
-      showToast(`Technician account "${newTechUsername.trim().toLowerCase()}" created.`)
-      loadTech()
-    } catch (err) {
-      setCreateTechError(err.message)
-    }
-    finally { setCreatingTech(false) }
-  }
-
-  // ── Tech delete ───────────────────────────────────────────────────────────
-  function openDeleteTech(username) {
-    setDeleteTechTarget(username); setDeleteTechError('')
-  }
-  function closeDeleteTech() { setDeleteTechTarget(null); setDeleteTechError('') }
-
-  async function handleDeleteTech() {
-    setDeletingTech(true); setDeleteTechError('')
-    try {
-      await callTechManage({ action: 'delete', username: deleteTechTarget })
-      closeDeleteTech()
-      showToast(`Technician account "${deleteTechTarget}" deleted.`)
-      loadTech()
-    } catch (err) {
-      setDeleteTechError(err.message)
-    }
-    finally { setDeletingTech(false) }
-  }
 
   // ── Reset password ────────────────────────────────────────────────────────
   function openReset(username, type) {
@@ -291,7 +353,7 @@ export default function AccountsPage() {
             <p className="text-sm font-sans font-semibold text-gray-700">Staff</p>
             <span className="text-xs font-mono text-gray-400">({accounts.length})</span>
           </div>
-          <button onClick={openCreate} className="btn-primary text-xs py-1.5 px-3">
+          <button onClick={() => setCreateType('staff')} className="btn-primary text-xs py-1.5 px-3">
             <Plus className="w-3.5 h-3.5" /> Add Staff
           </button>
         </div>
@@ -347,7 +409,7 @@ export default function AccountsPage() {
                   <KeyRound className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => openDelete(acc.username)}
+                  onClick={() => setDeleteTarget({ username: acc.username, type: 'staff' })}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
                   aria-label={`Delete ${acc.username}`}
                 >
@@ -367,7 +429,7 @@ export default function AccountsPage() {
             <p className="text-sm font-sans font-semibold text-gray-700">Technicians</p>
             <span className="text-xs font-mono text-gray-400">({techAccounts.length})</span>
           </div>
-          <button onClick={openCreateTech} className="btn-primary text-xs py-1.5 px-3">
+          <button onClick={() => setCreateType('tech')} className="btn-primary text-xs py-1.5 px-3">
             <Plus className="w-3.5 h-3.5" /> Add Technician
           </button>
         </div>
@@ -423,7 +485,7 @@ export default function AccountsPage() {
                   <KeyRound className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => openDeleteTech(acc.username)}
+                  onClick={() => setDeleteTarget({ username: acc.username, type: 'tech' })}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-red-500 transition-colors shrink-0"
                   aria-label={`Delete ${acc.username}`}
                 >
@@ -435,203 +497,26 @@ export default function AccountsPage() {
         )}
       </div>
 
-      {/* ── Create Staff modal ── */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                  <Plus className="w-4 h-4 text-emerald-600" />
-                </div>
-                <h2 className="font-sans font-bold text-gray-900">New Staff Account</h2>
-              </div>
-              <button onClick={closeCreate} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Username</label>
-                <input
-                  type="text"
-                  value={newUsername}
-                  onChange={e => { setNewUsername(e.target.value); setCreateError('') }}
-                  className="input-field font-mono"
-                  placeholder="e.g. juan_dela_cruz"
-                  autoFocus autoComplete="off" spellCheck={false}
-                  onKeyDown={e => { if (e.key === 'Enter' && !creating) handleCreate() }}
-                />
-                <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Default Password</label>
-                <div className="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
-                  <KeyRound className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span className="font-mono text-sm font-semibold text-gray-900 tracking-wide">{DEFAULT_PASSWORD}</span>
-                </div>
-                <p className="text-xs font-body text-gray-400">Assigned automatically · reset it later from the accounts list.</p>
-              </div>
-              {createError && <p className="text-xs text-red-500 font-sans">{createError}</p>}
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button onClick={closeCreate} disabled={creating} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button
-                onClick={handleCreate}
-                disabled={creating || !newUsername.trim()}
-                className="btn-primary flex-1 justify-center"
-              >
-                {creating
-                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Plus className="w-3.5 h-3.5" /> Create</>
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Create Technician modal ── */}
-      {showCreateTech && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-accent-50 flex items-center justify-center shrink-0">
-                  <Plus className="w-4 h-4 text-accent-600" />
-                </div>
-                <h2 className="font-sans font-bold text-gray-900">New Technician Account</h2>
-              </div>
-              <button onClick={closeCreateTech} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Username</label>
-                <input
-                  type="text"
-                  value={newTechUsername}
-                  onChange={e => { setNewTechUsername(e.target.value); setCreateTechError('') }}
-                  className="input-field font-mono"
-                  placeholder="e.g. pedro_reyes"
-                  autoFocus autoComplete="off" spellCheck={false}
-                  onKeyDown={e => { if (e.key === 'Enter' && !creatingTech) handleCreateTech() }}
-                />
-                <p className="text-xs font-body text-gray-400">3–30 chars · letters (A–Z, a–z), digits, underscore</p>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Default Password</label>
-                <div className="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
-                  <KeyRound className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span className="font-mono text-sm font-semibold text-gray-900 tracking-wide">{DEFAULT_PASSWORD}</span>
-                </div>
-                <p className="text-xs font-body text-gray-400">Assigned automatically · reset it later from the accounts list.</p>
-              </div>
-              {createTechError && <p className="text-xs text-red-500 font-sans">{createTechError}</p>}
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button onClick={closeCreateTech} disabled={creatingTech} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button
-                onClick={handleCreateTech}
-                disabled={creatingTech || !newTechUsername.trim()}
-                className="btn-primary flex-1 justify-center"
-              >
-                {creatingTech
-                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Plus className="w-3.5 h-3.5" /> Create</>
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Delete Staff modal (simple confirm) ── */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </div>
-                <h2 className="font-sans font-bold text-gray-900">Delete Account</h2>
-              </div>
-              <button onClick={closeDelete} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-sm font-body text-gray-600 leading-relaxed">
-              Delete staff account{' '}
-              <span className="font-semibold font-mono text-gray-900">{deleteTarget}</span>?
-              This immediately revokes their access and cannot be undone.
-            </p>
-
-            {deleteError && <p className="text-xs text-red-500 font-sans">{deleteError}</p>}
-
-            <div className="flex gap-2 pt-1">
-              <button onClick={closeDelete} disabled={deleting} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
-              >
-                {deleting
-                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Delete Technician modal (type-to-confirm) ── */}
-      {deleteTechTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </div>
-                <h2 className="font-sans font-bold text-gray-900">Delete Technician</h2>
-              </div>
-              <button onClick={closeDeleteTech} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Cancel">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-sm font-body text-gray-600 leading-relaxed">
-              Delete technician account{' '}
-              <span className="font-semibold font-mono text-gray-900">{deleteTechTarget}</span>?
-              This immediately revokes their access and cannot be undone.
-            </p>
-
-            {deleteTechError && <p className="text-xs text-red-500 font-sans">{deleteTechError}</p>}
-
-            <div className="flex gap-2 pt-1">
-              <button onClick={closeDeleteTech} disabled={deletingTech} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button
-                onClick={handleDeleteTech}
-                disabled={deletingTech}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
-              >
-                {deletingTech
-                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Shared modals ── */}
+      <CreateModal
+        type={createType}
+        show={!!createType}
+        onClose={() => setCreateType(null)}
+        onCreated={() => {
+          if (createType === 'staff') loadStaff()
+          else loadTech()
+        }}
+      />
+      <DeleteModal
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => {
+          showToast(`Account "${deleteTarget?.username}" deleted.`)
+          if (deleteTarget?.type === 'staff') loadStaff()
+          else loadTech()
+          setDeleteTarget(null)
+        }}
+      />
 
       {/* ── Reset Password modal ── */}
       {resetTarget && (
