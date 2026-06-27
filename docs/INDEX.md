@@ -1,15 +1,15 @@
 # VRXE Repair Ticket System — Handover Documentation
 
-The turnover package for the VRXE Repair Ticket System, organized by audience.
+The docs for the VRXE Repair Ticket System, organized by who needs them.
 
 ## For end users (shop staff)
 - [USER_GUIDE.md](USER_GUIDE.md) — how to use the app, per role
 - [TROUBLESHOOTING_FAQ.md](TROUBLESHOOTING_FAQ.md) — common problems and fixes
 
-## For the client / owner
-- [FINAL_AGREEMENT.md](FINAL_AGREEMENT.md) — handover terms & post-engagement support (sign this)
+## For the owner (VRXE)
+- [FINAL_AGREEMENT.md](FINAL_AGREEMENT.md) — handover notes: what was handed over, how things stand
 - [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) — what was built, limitations, next steps
-- [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md) — accounts to confirm + security notes
+- [ACCESS_AND_SECURITY.md](ACCESS_AND_SECURITY.md) — roles & access + security notes
 - [LICENSES.md](LICENSES.md) — third-party software licenses
 - 🔐 **CREDENTIALS_HANDOVER.md** — all accounts/passwords (gitignored, delivered securely — not in this repo or the PDF bundle)
 
@@ -30,4 +30,4 @@ The turnover package for the VRXE Repair Ticket System, organized by audience.
 | Backend | Supabase (Postgres + Edge Functions + Storage) |
 | Support / dev contact | Neo Monserrat — neo.monserrat@gmail.com |
 
-> The app was built entirely on the company's own accounts, so there are no developer-owned credentials to rotate at handover — the company already controls everything. Before final handover, confirm the ownership checklist in [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md). The `.env` file is gitignored and not in git history.
+> The app was built entirely on the company's own accounts, so there's nothing to rotate or transfer at handover — VRXE already controls everything. The `.env` file is gitignored and not in git history.

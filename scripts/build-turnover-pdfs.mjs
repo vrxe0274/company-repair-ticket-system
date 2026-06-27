@@ -36,14 +36,14 @@ const SKIP = new Set(['CREDENTIALS_HANDOVER.md'])
 
 // ── Per-document metadata (title + audience badge for the cover) ──────────────
 const META = {
-  'INDEX.md':                  { title: 'Handover Documentation', badge: 'Overview', sub: 'Turnover package index' },
-  'FINAL_AGREEMENT.md':        { title: 'Final Terms & Conditions', badge: 'Agreement', sub: 'Handover & post-engagement agreement' },
+  'INDEX.md':                  { title: 'Handover Documentation', badge: 'Overview', sub: 'Documentation index' },
+  'FINAL_AGREEMENT.md':        { title: 'Handover Notes', badge: 'Handover', sub: 'What was handed over and how things stand' },
   'CREDENTIALS_HANDOVER.md':   { title: 'Credentials Handover', badge: 'Confidential', sub: 'All accounts & passwords — secure delivery only', confidential: true },
   'USER_GUIDE.md':             { title: 'User Guide', badge: 'End Users', sub: 'How to use the app, per role' },
   'TROUBLESHOOTING_FAQ.md':    { title: 'Troubleshooting & FAQ', badge: 'End Users', sub: 'Common problems and answers' },
-  'PROJECT_SUMMARY.md':        { title: 'Project Summary', badge: 'Client / Stakeholder', sub: 'What was built, limitations, next steps' },
-  'OWNERSHIP_AND_SECURITY.md': { title: 'Ownership & Security', badge: 'Client / Ops', sub: 'Credentials, transfer checklist, security actions' },
-  'LICENSES.md':               { title: 'License Inventory', badge: 'Client / Legal', sub: 'Third-party software licenses' },
+  'PROJECT_SUMMARY.md':        { title: 'Project Summary', badge: 'Overview', sub: 'What was built, limitations, next steps' },
+  'ACCESS_AND_SECURITY.md':    { title: 'Access & Security', badge: 'Ops', sub: 'Roles, access & security notes' },
+  'LICENSES.md':               { title: 'License Inventory', badge: 'Legal', sub: 'Third-party software licenses' },
   'ARCHITECTURE.md':           { title: 'Architecture Overview', badge: 'Developers / Ops', sub: 'Components, data flow, integrations' },
   'DEPLOYMENT_RUNBOOK.md':     { title: 'Deployment Runbook', badge: 'Developers / Ops', sub: 'Deploy, rollback, restart, monitor' },
   'KNOWN_ISSUES.md':           { title: 'Known Issues & Tech Debt', badge: 'Developers / Ops', sub: 'Follow-ups and recommendations' },
@@ -55,7 +55,7 @@ const LAYOUT = {
   'INDEX.md':                  { folder: '1-important',  order: 1 },
   'FINAL_AGREEMENT.md':        { folder: '1-important',  order: 2 },
   'PROJECT_SUMMARY.md':        { folder: '1-important',  order: 3 },
-  'OWNERSHIP_AND_SECURITY.md': { folder: '1-important',  order: 4 },
+  'ACCESS_AND_SECURITY.md':    { folder: '1-important',  order: 4 },
   'USER_GUIDE.md':             { folder: '1-important',  order: 5 },
   'TROUBLESHOOTING_FAQ.md':    { folder: '2-supporting', order: 1 },
   'LICENSES.md':               { folder: '2-supporting', order: 2 },

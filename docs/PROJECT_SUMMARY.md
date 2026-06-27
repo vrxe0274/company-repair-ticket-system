@@ -42,14 +42,13 @@ It runs in any browser and can be **installed like a mobile app** on phones, tab
 None block day-to-day use — they're noted so the owner can decide if/when to harden.
 
 ## Recommended next steps
-1. **Confirm the ownership handover** — the app runs on the company's own accounts, so nothing needs rotating; just confirm access and remove the developer's. See [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md).
-2. **Confirm automated database backups** are enabled on the Supabase plan.
-3. **Auto-record who worked each ticket** — tickets already capture the technician and staff (typed in for commission); a future enhancement is to log the actual signed-in technician/staff account automatically as an audit trail.
-4. Consider **tightening data access** (customer login or stricter rules) if privacy needs grow.
-5. Consider **targeted notifications** (per role/person) instead of broadcast.
-6. Optional: SMS/email notifications to customers, inventory/parts tracking, multi-branch support.
+1. **Confirm automated database backups** are enabled on the Supabase plan.
+2. **Auto-record who worked each ticket** — tickets already capture the technician and staff (typed in for commission); a future enhancement is to log the actual signed-in technician/staff account automatically as an audit trail.
+3. Consider **tightening data access** (customer login or stricter rules) if privacy needs grow.
+4. Consider **targeted notifications** (per role/person) instead of broadcast.
+5. Optional: SMS/email notifications to customers, inventory/parts tracking, multi-branch support.
 
-## Ownership & accounts
-All accounts, credentials, and the transfer checklist are documented in [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md). Third-party software licenses are listed in [LICENSES.md](LICENSES.md).
+## Access & accounts
+Roles, access, and security notes are in [ACCESS_AND_SECURITY.md](ACCESS_AND_SECURITY.md). Account and credential details are in `CREDENTIALS_HANDOVER.md` (delivered separately). Third-party software licenses are listed in [LICENSES.md](LICENSES.md).
 
-**Built and maintained by:** Neo Monserrat — neo.monserrat@gmail.com
+**Built by:** Neo Monserrat — neo.monserrat@gmail.com

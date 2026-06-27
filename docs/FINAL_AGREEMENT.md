@@ -1,84 +1,47 @@
-# Final Terms & Conditions — Handover & Post-Engagement Agreement
+# Handover Notes
 
 **Project:** VRXE Repair Ticket System
 **Repository:** https://github.com/vrxe0274/company-repair-ticket-system
+**Built by:** Neo Monserrat — neo.monserrat@gmail.com
 
-| | |
-|---|---|
-| **Developer (outgoing)** | Neo Monserrat — neo.monserrat@gmail.com |
-| **Client / Product Owner** | VRXE Repair Services _(authorized representative: ___________________________)_ |
-| **Engagement** | Internship — application development |
-| **Internship contract end date** | _____________________ |
-| **Agreement effective date** | _____________________ |
+I built this app as an internship project for VRXE. It's finished and now belongs to VRXE outright. This note sums up what was handed over and how things stand going forward. Read it alongside the rest of the docs in [`docs/`](INDEX.md).
 
-This document sets out the terms under which the VRXE Repair Ticket System ("the App") is turned over to the Client, and the basis of any developer involvement after the internship contract ends. It is intended to be read alongside the rest of the handover package in [`docs/`](INDEX.md).
-
-> This is a working agreement between the parties, not formal legal advice. Both parties may have it reviewed by counsel before signing.
-
----
-
-## 1. Purpose
-The Developer has completed the App and is handing it over to the Client as a finished product. This agreement confirms what has been delivered, what support remains available after the contract ends, and how the Developer's access to the App will be removed.
-
-## 2. Scope of completed work
-The App has been delivered as a finished product, including:
+## What was built
+The app is delivered as a finished product:
 - The customer ticket-submission flow, public tracking, and the staff/technician/admin dashboard.
-- The Supabase backend (database schema, Edge Functions, storage) and Vercel hosting configuration.
-- Full handover documentation (see Section 4).
+- The Supabase backend (database schema, Edge Functions, storage) and Vercel hosting setup.
+- Full documentation (listed below).
 
-A non-technical summary of what was built, along with known limitations, is provided in [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md).
+A plain-language overview of what it does, plus known limitations, is in [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md).
 
-## 3. Post-engagement support
-After the internship contract end date stated above:
+## Going forward
+- VRXE owns and runs the app. It's built entirely on VRXE's own accounts, so there's nothing to transfer — the company already controls everything.
+- I'm not maintaining the app going forward and won't be adding new features. It's built to be picked up by VRXE's future developers using the docs here.
+- You can still reach me with questions at neo.monserrat@gmail.com, but day-to-day upkeep — hosting costs, account renewals, backups, and operation — is VRXE's to handle.
 
-1. **Bug fixes — available.** The Developer remains available to assist with fixing **existing bugs / defects** in the App (functionality that was delivered but is not working as intended). Such work is arranged by consultation (see Section 6).
-2. **New features — not included.** The Developer will **no longer add new features, modules, or enhancements** to the App after the contract has expired. New feature work, if ever needed, is outside the scope of this agreement and would require a separate, mutually agreed arrangement.
-3. This distinction (fix vs. build) is intended to keep the App maintainable by the Client's future developers while still allowing the original author to help resolve genuine defects.
-
-## 4. Documentation & knowledge transfer provided
-To enable future developers and staff to operate and maintain the App without the original Developer, the following have been provided:
-
-| Deliverable | Location |
+## Documentation handed over
+| Doc | Where |
 |---|---|
 | Technical README (setup, build, run) | [`README.md`](../README.md) |
 | Architecture overview (components, data flow) | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | Deployment runbook (deploy, rollback, monitor) | [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md) |
 | Database schema (single source of truth) | [`sql/full-setup.sql`](../sql/full-setup.sql) |
 | Environment variables reference | [`env.example`](../env.example) |
-| **Formulas** (commission, pricing, ticket IDs) | Documented in [`USER_GUIDE.md`](USER_GUIDE.md) & [`ARCHITECTURE.md`](ARCHITECTURE.md); implemented in `src/lib/commission.js`, `src/lib/quotation.js`, `src/lib/utils.js` |
-| End-user manuals (per role) | [`USER_GUIDE.md`](USER_GUIDE.md) |
+| **Formulas** (commission, pricing, ticket IDs) | [`USER_GUIDE.md`](USER_GUIDE.md) & [`ARCHITECTURE.md`](ARCHITECTURE.md); code in `src/lib/commission.js`, `src/lib/quotation.js`, `src/lib/utils.js` |
+| End-user guides (per role) | [`USER_GUIDE.md`](USER_GUIDE.md) |
 | Troubleshooting & FAQ | [`TROUBLESHOOTING_FAQ.md`](TROUBLESHOOTING_FAQ.md) |
+| Roles, access & security notes | [`ACCESS_AND_SECURITY.md`](ACCESS_AND_SECURITY.md) |
 | Known issues / tech debt | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) |
 | Third-party license inventory | [`LICENSES.md`](LICENSES.md) |
-| **Demo videos** explaining App features | _Provided separately — location: ____________________________ (e.g., shared drive / folder link)_ |
 
-All guides, formulas, and manuals are version-controlled in the repository so future maintainers can read them alongside the code.
+Everything is version-controlled in the repo, so future maintainers can read it alongside the code.
 
-## 5. Turnover of accounts & credentials
-All emails, accounts, and passwords used by the App (GitHub, Supabase, Vercel, domain, VAPID keys, and login passwords) are consolidated into a single handover file:
+## Accounts & credentials
+All emails, accounts, and passwords used by the app (GitHub, Supabase, Vercel, domain, VAPID keys, and login passwords) are collected in one file:
 
-> **`CREDENTIALS_HANDOVER.md`** — the single source for all account/credential turnover.
+> **`CREDENTIALS_HANDOVER.md`** — the single source for all account details.
 
-For security, this file is **kept out of the git repository** (it is gitignored) and is delivered to the Client through a secure channel (e.g., a password manager or encrypted transfer). The ownership/transfer checklist and the surrounding security steps are documented in [`OWNERSHIP_AND_SECURITY.md`](OWNERSHIP_AND_SECURITY.md).
-
-## 6. Removal of developer access & consultation for fixes
-1. Upon completion of the turnover, the Developer will **remove all of their own access** to the App's systems — including the GitHub repository, Supabase project, Vercel project, and any related accounts — so that the Client has sole ownership and control. (The App was built on the Client's own accounts, so the Client already holds the live credentials; see [`OWNERSHIP_AND_SECURITY.md`](OWNERSHIP_AND_SECURITY.md).)
-2. If a bug or fix needs to be addressed after access has been removed, the Client will **arrange a consultation** with the Developer. Access required to diagnose and fix the issue will be **granted temporarily by the Client for that purpose, and revoked afterward.**
-3. Contact for consultation: **Neo Monserrat — neo.monserrat@gmail.com.**
-
-## 7. Limitations
-- The Developer's post-engagement assistance is limited to existing-bug fixes as described in Section 3 and is provided on a best-effort, by-consultation basis.
-- The Client is responsible for the App's ongoing hosting costs, account renewals, data backups, and day-to-day operation after turnover.
-- Known limitations of the App as delivered are listed in [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md) and [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
-
-## 8. Acknowledgement & signatures
-By signing below, both parties acknowledge that the App and its documentation have been turned over as described, and agree to the terms above.
-
-| | Developer | Client / Authorized Representative |
-|---|---|---|
-| **Name** | Neo Monserrat | ____________________________ |
-| **Signature** | ____________________________ | ____________________________ |
-| **Date** | ____________________________ | ____________________________ |
+It's kept out of the git repo (gitignored) and delivered separately through a secure channel (password manager or encrypted transfer). Everything lives on VRXE's own accounts, so nothing needs rotating.
 
 ---
-*This agreement accompanies the VRXE Repair Ticket System handover package. See [`INDEX.md`](INDEX.md) for the full document set.*
+*Part of the VRXE Repair Ticket System handover package. See [`INDEX.md`](INDEX.md) for the full document set.*
