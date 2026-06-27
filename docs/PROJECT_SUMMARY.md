@@ -3,9 +3,9 @@
 *A non-technical overview for the product owner / stakeholder.*
 
 ## What this product is
-The **VRXE Repair Ticket System** is a web application that runs the entire lifecycle of a device-repair job — from the moment a customer submits a request to final payment — and gives the shop's team a single place to manage the work.
+The **VRXE Repair Ticket System** is a web app that runs a device-repair job end to end — from customer request to final payment — in one place for the shop's team.
 
-It works in any web browser and can be **installed like a mobile app** (on phones, tablets, and desktops), including offline support and push notifications.
+It runs in any browser and can be **installed like a mobile app** on phones, tablets, and desktops, with offline support and push notifications.
 
 ## What it does
 
@@ -39,14 +39,15 @@ It works in any web browser and can be **installed like a mobile app** (on phone
 - **Database changes and backups are managed manually** in the Supabase dashboard; there is no automated migration tooling.
 - The **"Flush Database"** admin action permanently deletes data and cannot be undone.
 
-None of these prevent day-to-day use — they're noted so the owner can decide if/when to invest in hardening.
+None block day-to-day use — they're noted so the owner can decide if/when to harden.
 
 ## Recommended next steps
-1. **Complete the security handover** — rotate the Supabase keys and all login passwords so the client alone controls them (the code/secrets are *not* exposed in git; this is standard handover hygiene). See [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md). *Do this first.*
+1. **Confirm the ownership handover** — the app runs on the company's own accounts, so nothing needs rotating; just confirm access and remove the developer's. See [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md).
 2. **Confirm automated database backups** are enabled on the Supabase plan.
-3. Consider **tightening data access** (customer login or stricter rules) if customer privacy requirements grow.
-4. Consider **targeted notifications** (per role/person) instead of broadcast.
-5. Optional future enhancements: SMS/email notifications to customers, inventory/parts tracking, multi-branch support.
+3. **Auto-record who worked each ticket** — tickets already capture the technician and staff (typed in for commission); a future enhancement is to log the actual signed-in technician/staff account automatically as an audit trail.
+4. Consider **tightening data access** (customer login or stricter rules) if privacy needs grow.
+5. Consider **targeted notifications** (per role/person) instead of broadcast.
+6. Optional: SMS/email notifications to customers, inventory/parts tracking, multi-branch support.
 
 ## Ownership & accounts
 All accounts, credentials, and the transfer checklist are documented in [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md). Third-party software licenses are listed in [LICENSES.md](LICENSES.md).

@@ -55,17 +55,16 @@ To enable future developers and staff to operate and maintain the App without th
 All guides, formulas, and manuals are version-controlled in the repository so future maintainers can read them alongside the code.
 
 ## 5. Turnover of accounts & credentials
-All emails, accounts, and passwords used by the App (GitHub, Supabase, Vercel, domain, VAPID keys, login passwords, and the destructive-action password) are consolidated into a single handover file:
+All emails, accounts, and passwords used by the App (GitHub, Supabase, Vercel, domain, VAPID keys, and login passwords) are consolidated into a single handover file:
 
 > **`CREDENTIALS_HANDOVER.md`** — the single source for all account/credential turnover.
 
 For security, this file is **kept out of the git repository** (it is gitignored) and is delivered to the Client through a secure channel (e.g., a password manager or encrypted transfer). The ownership/transfer checklist and the surrounding security steps are documented in [`OWNERSHIP_AND_SECURITY.md`](OWNERSHIP_AND_SECURITY.md).
 
 ## 6. Removal of developer access & consultation for fixes
-1. Upon completion of the turnover, the Developer will **remove all of their own access** to the App's systems — including the GitHub repository, Supabase project, Vercel project, and any related accounts — so that the Client has sole ownership and control.
-2. As part of this, all shared passwords and keys the Developer knew are to be **rotated by the Client** (see [`OWNERSHIP_AND_SECURITY.md`](OWNERSHIP_AND_SECURITY.md), Security actions).
-3. If a bug or fix needs to be addressed after access has been removed, the Client will **arrange a consultation** with the Developer. Access required to diagnose and fix the issue will be **granted temporarily by the Client for that purpose, and revoked afterward.**
-4. Contact for consultation: **Neo Monserrat — neo.monserrat@gmail.com.**
+1. Upon completion of the turnover, the Developer will **remove all of their own access** to the App's systems — including the GitHub repository, Supabase project, Vercel project, and any related accounts — so that the Client has sole ownership and control. (The App was built on the Client's own accounts, so the Client already holds the live credentials; see [`OWNERSHIP_AND_SECURITY.md`](OWNERSHIP_AND_SECURITY.md).)
+2. If a bug or fix needs to be addressed after access has been removed, the Client will **arrange a consultation** with the Developer. Access required to diagnose and fix the issue will be **granted temporarily by the Client for that purpose, and revoked afterward.**
+3. Contact for consultation: **Neo Monserrat — neo.monserrat@gmail.com.**
 
 ## 7. Limitations
 - The Developer's post-engagement assistance is limited to existing-bug fixes as described in Section 3 and is provided on a best-effort, by-consultation basis.

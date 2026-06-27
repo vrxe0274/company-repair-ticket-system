@@ -6,16 +6,18 @@
  * so the browser can NOT delete rows directly with the anon key anymore. All
  * destructive operations route here and run with the service-role key.
  *
- * Gate: the caller must send the destructive-action password, which is checked
- * against the ADMIN_DELETE_PASSWORD secret SERVER-SIDE. Unlike the old
- * VITE_ADMIN_PASSWORD, this value is never shipped to the browser bundle.
+ * Gate: the caller must send the ADMIN LOGIN password, which is checked
+ * SERVER-SIDE the same way verify-login checks it (role_passwords hash first,
+ * then the ADMIN_PASSWORD env secret). There is no separate delete password —
+ * the admin uses the one password they already know. Neither value is ever
+ * shipped to the browser bundle.
  *
  * Actions:
  *   { action: 'flush',         password }       → delete every ticket + all repair photos
  *   { action: 'delete-ticket', password, id }   → delete one ticket (+ its photos)
  *
  * Required secrets (supabase secrets set KEY=value):
- *   ADMIN_DELETE_PASSWORD — the destructive-action password (kept off the client)
+ *   ADMIN_PASSWORD — the admin login password (shared with verify-login)
  * SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected automatically.
  *
  * Deploy:  supabase functions deploy admin-delete --no-verify-jwt
@@ -24,7 +26,7 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { corsHeaders, json } from '../_shared/auth.ts'
+import { corsHeaders, json, timingSafeEqual, deriveRoleKey } from '../_shared/auth.ts'
 
 const BUCKET   = 'repair-photos'
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
@@ -42,11 +44,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json(405, { ok: false, error: 'Method not allowed' })
 
-  const adminPassword = Deno.env.get('ADMIN_DELETE_PASSWORD')
-  if (!adminPassword) {
-    return json(500, { ok: false, error: 'ADMIN_DELETE_PASSWORD not configured (supabase secrets set ...)' })
-  }
-
   let body: { action?: string; password?: string; id?: string }
   try {
     body = await req.json()
@@ -54,16 +51,41 @@ Deno.serve(async (req) => {
     return json(400, { ok: false, error: 'Invalid JSON body' })
   }
 
-  // Server-side password check. Returns 200 with ok:false so the client can
-  // show the message without parsing a FunctionsHttpError.
-  if (!body.password || body.password !== adminPassword) {
-    return json(200, { ok: false, error: 'Incorrect password.' })
-  }
-
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
+
+  // Server-side Admin-password check, identical to verify-login's Admin path:
+  // prefer the PBKDF2 hash in role_passwords (set via change-password), and fall
+  // back to the ADMIN_PASSWORD env secret if no DB row exists yet. Returns 200
+  // with ok:false so the client can show the message without parsing a
+  // FunctionsHttpError.
+  if (!body.password) {
+    return json(200, { ok: false, error: 'Incorrect password.' })
+  }
+
+  const { data: pwRow } = await supabase
+    .from('role_passwords')
+    .select('password_hash')
+    .eq('role', 'Admin')
+    .maybeSingle()
+
+  let passwordOk = false
+  if (pwRow?.password_hash) {
+    const inputHash = await deriveRoleKey(body.password, 'Admin')
+    passwordOk = timingSafeEqual(inputHash, pwRow.password_hash)
+  } else {
+    const adminPassword = Deno.env.get('ADMIN_PASSWORD')
+    if (!adminPassword) {
+      return json(500, { ok: false, error: 'ADMIN_PASSWORD not configured (supabase secrets set ...)' })
+    }
+    passwordOk = timingSafeEqual(body.password, adminPassword)
+  }
+
+  if (!passwordOk) {
+    return json(200, { ok: false, error: 'Incorrect password.' })
+  }
 
   if (body.action === 'delete-ticket') {
     if (!body.id) return json(400, { ok: false, error: 'id is required' })

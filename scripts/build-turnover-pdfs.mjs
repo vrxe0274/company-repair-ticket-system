@@ -9,7 +9,11 @@
  *      → PDF (headless Chrome/Edge --print-to-pdf)
  *
  * Usage:  node scripts/build-turnover-pdfs.mjs
- * Output: docs/pdf/*.pdf
+ * Output: docs/pdf/<n-folder>/<n-NAME>.pdf
+ *
+ * PDFs are grouped into numbered audience subfolders (see LAYOUT) and numbered
+ * within each folder, e.g. docs/pdf/1-important/2-FINAL_AGREEMENT.pdf.
+ * Cross-document links are rewritten to the correct relative PDF path.
  *
  * The Markdown subset supported is exactly what these docs use: headings,
  * tables, ordered/unordered (nested) lists, bold, inline code, fenced code,
@@ -19,7 +23,7 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, rmSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { dirname, join, basename } from 'node:path'
+import { dirname, join } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -45,17 +49,73 @@ const META = {
   'KNOWN_ISSUES.md':           { title: 'Known Issues & Tech Debt', badge: 'Developers / Ops', sub: 'Follow-ups and recommendations' },
 }
 
+// ── Output layout: numbered audience subfolders + per-folder ordering ─────────
+// folder = numbered subfolder under docs/pdf/; order = position within it.
+const LAYOUT = {
+  'INDEX.md':                  { folder: '1-important',  order: 1 },
+  'FINAL_AGREEMENT.md':        { folder: '1-important',  order: 2 },
+  'PROJECT_SUMMARY.md':        { folder: '1-important',  order: 3 },
+  'OWNERSHIP_AND_SECURITY.md': { folder: '1-important',  order: 4 },
+  'USER_GUIDE.md':             { folder: '1-important',  order: 5 },
+  'TROUBLESHOOTING_FAQ.md':    { folder: '2-supporting', order: 1 },
+  'LICENSES.md':               { folder: '2-supporting', order: 2 },
+  'ARCHITECTURE.md':           { folder: '3-developers', order: 1 },
+  'DEPLOYMENT_RUNBOOK.md':     { folder: '3-developers', order: 2 },
+  'KNOWN_ISSUES.md':           { folder: '3-developers', order: 3 },
+}
+
+/** Output PDF basename for a source .md (numbered when it has a LAYOUT entry). */
+function pdfNameFor(file) {
+  const base = file.replace(/\.md$/, '')
+  const l = LAYOUT[file]
+  return l ? `${l.order}-${base}.pdf` : `${base}.pdf`
+}
+
+/** Subfolder (relative to docs/pdf/) a source .md renders into; '' = root. */
+function folderFor(file) {
+  return LAYOUT[file]?.folder ?? ''
+}
+
+// Source folder of the doc currently being rendered — used to resolve the
+// relative path of cross-document links. Set before each page() call.
+let CURRENT_FOLDER = ''
+
+/** Relative href from CURRENT_FOLDER to a target md doc's numbered PDF (+anchor). */
+function resolveDocLink(targetFile, anchor) {
+  const targetFolder = folderFor(targetFile)
+  const name = pdfNameFor(targetFile)
+  let prefix = ''
+  if (CURRENT_FOLDER !== targetFolder) {
+    if (CURRENT_FOLDER) prefix += '../'              // climb out of current subfolder
+    if (targetFolder)   prefix += `${targetFolder}/` // descend into target subfolder
+  }
+  return `${prefix}${name}${anchor || ''}`
+}
+
 // ── Inline formatting ─────────────────────────────────────────────────────────
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
+/** Rewrite a markdown link href to the right relative target in the PDF tree. */
+function resolveHref(href) {
+  const m = href.match(/^([^#]*)(#.*)?$/)
+  const path = m[1], anchor = m[2] || ''
+  const base = path.split('/').pop()
+  // A doc we render → numbered PDF at the correct relative depth.
+  if (base.endsWith('.md') && LAYOUT[base]) return resolveDocLink(base, anchor)
+  // Anything else (external .md, ../README.md, ../sql/…): best-effort. Swap
+  // .md→.pdf and add one '../' when the current doc sits in a subfolder
+  // (PDFs are one level deeper than the source markdown).
+  let out = path.replace(/\.md$/, '.pdf')
+  if (CURRENT_FOLDER && out.startsWith('../')) out = '../' + out
+  return out + anchor
+}
+
 function inline(text) {
   let s = escapeHtml(text)
   s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, t, href) => {
-    const h = href.replace(/\.md(#[^)]*)?$/, '.pdf$1') // cross-link to sibling PDFs
-    return `<a href="${h}">${t}</a>`
-  })
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, t, href) =>
+    `<a href="${resolveHref(href)}">${t}</a>`)
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>') // italics (after bold so ** is consumed)
   return s
@@ -256,6 +316,8 @@ function findBrowser() {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+// Wipe the output tree so renames/renumbering don't leave stale PDFs behind.
+rmSync(OUT_DIR, { recursive: true, force: true })
 mkdirSync(OUT_DIR, { recursive: true })
 mkdirSync(TMP_DIR, { recursive: true })
 const browser = findBrowser()
@@ -264,19 +326,33 @@ console.log('Renderer:', browser)
 // By default, confidential files in SKIP are NOT rendered. Pass --all (or
 // --include-confidential) to deliberately render them. Their PDFs are gitignored.
 const includeConfidential = process.argv.includes('--all') || process.argv.includes('--include-confidential')
-const docs = readdirSync(SRC_DIR).filter(f => f.endsWith('.md') && (includeConfidential || !SKIP.has(f))).sort()
+// Build in per-folder order so the console output reads top-to-bottom.
+const docs = readdirSync(SRC_DIR)
+  .filter(f => f.endsWith('.md') && (includeConfidential || !SKIP.has(f)))
+  .sort((a, b) => {
+    const fa = folderFor(a), fb = folderFor(b)
+    if (fa !== fb) return fa.localeCompare(fb)
+    return (LAYOUT[a]?.order ?? 99) - (LAYOUT[b]?.order ?? 99)
+  })
+
 for (const file of docs) {
   const md = readFileSync(join(SRC_DIR, file), 'utf8')
   const meta = META[file] || { title: file.replace('.md', ''), badge: 'Document', sub: '' }
+  const folder = folderFor(file)
+  CURRENT_FOLDER = folder // drives cross-link relative paths in inline()
+  const outDir = folder ? join(OUT_DIR, folder) : OUT_DIR
+  mkdirSync(outDir, { recursive: true })
+
   const html = page(meta, mdToHtml(md))
   const htmlPath = join(TMP_DIR, file.replace('.md', '.html'))
-  const pdfPath = join(OUT_DIR, file.replace('.md', '.pdf'))
+  const pdfName = pdfNameFor(file)
+  const pdfPath = join(outDir, pdfName)
   writeFileSync(htmlPath, html, 'utf8')
   execFileSync(browser, [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer',
     `--print-to-pdf=${pdfPath}`, pathToFileURL(htmlPath).href,
   ], { stdio: 'ignore' })
-  console.log('✓', basename(pdfPath))
+  console.log('✓', folder ? `${folder}/${pdfName}` : pdfName)
 }
 rmSync(TMP_DIR, { recursive: true, force: true }) // drop intermediate HTML
 console.log(`\nDone — ${docs.length} PDFs in docs/pdf/`)

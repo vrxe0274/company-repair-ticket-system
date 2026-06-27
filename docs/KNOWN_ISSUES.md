@@ -5,7 +5,7 @@ A maintainer-facing list of things flagged during the build/handover review. Non
 ## Security / config
 | Item | Detail | Suggested fix |
 |---|---|---|
-| Local-only secrets at handover | `.env` is correctly gitignored and **not** in git history (verified), but the outgoing dev's local copy holds the real keys/passwords in plaintext | Rotate at handover so the client alone holds them (see [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md)) |
+| Local-only secrets | `.env` is gitignored and **not** in git history (verified). The dev's local copy holds the keys/passwords, but they belong to the company's own accounts | No rotation needed — confirm company control and delete the dev's local copy at handover (see [OWNERSHIP_AND_SECURITY.md](OWNERSHIP_AND_SECURITY.md)) |
 | Dead `VITE_*_PASSWORD` vars | `VITE_DASHBOARD_PASSWORD`, `VITE_TECH_PASSWORD`, `VITE_ADMIN_PASSWORD` are not referenced anywhere in `src/`; auth is fully server-side | Delete from any `.env`; remove from docs |
 | `VITE_VAPID_PUBLIC_KEY` easy to miss | Code reads it (`src/lib/push.js`); it was absent from the local `.env` sample | Ensure it is set in Vercel + local `.env` |
 | Permissive ticket RLS | `tickets` allows public read/insert/update (no per-user DB identity) | Acceptable for the current shared-auth model; consider Supabase Auth + row ownership if tightening is required |
@@ -43,4 +43,5 @@ A maintainer-facing list of things flagged during the build/handover review. Non
 - Add automated DB backups + a documented restore drill
 - Add per-role/targeted push instead of global broadcast
 - Add a real migration workflow (Supabase CLI migrations) instead of hand-run SQL
+- **Auto-record ticket attribution** — tickets currently store a manually-typed `technician_name` + `assigned_staff` (for commission); log the actual signed-in technician/staff account automatically as an audit trail
 - Update the stale code docstrings noted above

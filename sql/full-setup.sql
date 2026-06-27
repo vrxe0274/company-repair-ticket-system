@@ -269,8 +269,7 @@ CREATE TRIGGER check_status_transition
 -- Source: lock-deletes-setup.sql
 --
 -- After this, deletes only go through the admin-delete Edge Function.
--- Deploy it first:
---   supabase secrets set ADMIN_DELETE_PASSWORD=<password>
+-- It reuses ADMIN_PASSWORD (no separate delete password). Deploy it first:
 --   supabase functions deploy admin-delete --no-verify-jwt
 -- ============================================================
 
@@ -580,7 +579,7 @@ DROP POLICY IF EXISTS "Allow public delete push_subscriptions" ON push_subscript
 --   staff-login     (no extra secrets)
 --   staff-manage    (no extra secrets)
 --   change-password (no extra secrets)
---   admin-delete    supabase secrets set ADMIN_DELETE_PASSWORD=<password>
+--   admin-delete    (no extra secrets — reuses ADMIN_PASSWORD)
 --   send-push       supabase secrets set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
 --   manage-push     (no extra secrets beyond auto-injected SUPABASE_SERVICE_ROLE_KEY)
 -- ============================================================

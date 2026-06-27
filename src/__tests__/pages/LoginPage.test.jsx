@@ -105,7 +105,9 @@ describe('LoginPage — step 2 (password)', () => {
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'secret' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in as/i }))
     await waitFor(() => {
-      expect(mockSetRole).toHaveBeenCalledWith('Admin')
+      // Admin login resolves to `true` (no identity), so setRole gets an empty
+      // identity object as its second arg.
+      expect(mockSetRole).toHaveBeenCalledWith('Admin', expect.any(Object))
       expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
     })
   })

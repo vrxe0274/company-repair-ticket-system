@@ -4,8 +4,8 @@
  *
  * Deletes can no longer go through the anon Supabase client (the public DELETE
  * RLS policy was removed — see sql/lock-deletes-setup.sql). Every destructive
- * op routes through the Edge Function, which validates the destructive-action
- * password server-side and runs with the service-role key.
+ * op routes through the Edge Function, which validates the ADMIN LOGIN password
+ * server-side (same check as verify-login) and runs with the service-role key.
  *
  * The function returns 200 with { ok: false, error } for expected failures
  * (e.g. wrong password) so we can surface a message without parsing a
@@ -23,12 +23,12 @@ async function invokeAdminDelete(body) {
   return data
 }
 
-/** Delete EVERY ticket and all repair photos. Requires the destructive password. */
+/** Delete EVERY ticket and all repair photos. Requires the admin password. */
 export function adminFlushDatabase(password) {
   return invokeAdminDelete({ action: 'flush', password })
 }
 
-/** Delete a single ticket (and its photos). Requires the destructive password. */
+/** Delete a single ticket (and its photos). Requires the admin password. */
 export function adminDeleteTicket(id, password) {
   return invokeAdminDelete({ action: 'delete-ticket', id, password })
 }

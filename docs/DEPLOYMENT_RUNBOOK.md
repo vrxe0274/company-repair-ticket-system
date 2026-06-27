@@ -55,16 +55,16 @@ done
 
 > `--no-verify-jwt` is required: the app uses shared-password / per-account auth, **not** Supabase Auth JWTs. Functions enforce their own auth.
 
-**Function secrets** (set once; re-set when rotating):
+**Function secrets** (set once; re-set only if you ever change them):
 ```bash
-supabase secrets set ADMIN_PASSWORD=…           # verify-login
+supabase secrets set ADMIN_PASSWORD=…           # verify-login + admin-delete
 supabase secrets set STAFF_PASSWORD=…           # verify-login (legacy fallback)
 supabase secrets set TECH_PASSWORD=…            # verify-login (legacy fallback)
-supabase secrets set ADMIN_DELETE_PASSWORD=…    # admin-delete
 supabase secrets set VAPID_PUBLIC_KEY=…         # send-push
 supabase secrets set VAPID_PRIVATE_KEY=…        # send-push
 supabase secrets set VAPID_SUBJECT=mailto:you@example.com
 ```
+> `admin-delete` reuses `ADMIN_PASSWORD` — there is no separate delete password.
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically — do not set them manually.
 
 ---

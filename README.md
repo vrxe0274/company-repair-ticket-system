@@ -218,7 +218,7 @@ supabase secrets set ADMIN_PASSWORD=your-admin-password
 supabase secrets set STAFF_PASSWORD=your-staff-password
 supabase secrets set TECH_PASSWORD=your-technician-password
 
-supabase secrets set ADMIN_DELETE_PASSWORD=your-flush-password
+# admin-delete reuses ADMIN_PASSWORD — no separate flush password.
 supabase secrets set VAPID_PUBLIC_KEY=your-vapid-public-key
 supabase secrets set VAPID_PRIVATE_KEY=your-vapid-private-key
 supabase secrets set VAPID_SUBJECT=mailto:you@example.com
@@ -260,10 +260,9 @@ Push to GitHub, import the repo on Vercel, and add all `VITE_*` variables under 
 | `VITE_SUPABASE_ANON_KEY` | `.env` + Vercel | Supabase anon/public key |
 | `VITE_APP_URL` | `.env` + Vercel | Full app URL (no trailing slash) |
 | `VITE_VAPID_PUBLIC_KEY` | `.env` + Vercel | VAPID public key (safe for browser) |
-| `ADMIN_PASSWORD` | Supabase secret | Admin role login password (verified by `verify-login`) |
+| `ADMIN_PASSWORD` | Supabase secret | Admin role login password (verified by `verify-login`; also gates `admin-delete`) |
 | `STAFF_PASSWORD` | Supabase secret | Staff role login password (verified by `verify-login`) |
 | `TECH_PASSWORD` | Supabase secret | Technician role login password (verified by `verify-login`) |
-| `ADMIN_DELETE_PASSWORD` | Supabase secret | Required by `admin-delete` Edge Function |
 | `VAPID_PUBLIC_KEY` | Supabase secret | Used by `send-push` Edge Function |
 | `VAPID_PRIVATE_KEY` | Supabase secret | Never exposed to the browser |
 | `VAPID_SUBJECT` | Supabase secret | `mailto:` contact for push service |

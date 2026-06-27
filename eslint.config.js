@@ -37,4 +37,14 @@ export default [
     files: ['src/sw.js'],
     languageOptions: { globals: { ...globals.serviceworker } },
   },
+
+  // Node build scripts (ESM) — Node globals (process, console), not browser
+  {
+    files: ['**/*.mjs', 'scripts/**'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: { ...globals.node },
+    },
+  },
 ]

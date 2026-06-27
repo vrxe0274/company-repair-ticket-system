@@ -39,14 +39,13 @@ describe('buildStatusNotification', () => {
     expect(result.message).toBe(`Approved: ${label}`)
   })
 
-  it('Denied: notifies Technician', () => {
+  it('Denied: no notification (matches server trigger — RETURN NEW)', () => {
     const result = buildStatusNotification({
       actorRole: 'Staff',
       newStatus: 'Denied',
       ticketLabel: label,
     })
-    expect(result.recipientRole).toBe('Technician')
-    expect(result.message).toBe(`Denied: ${label}`)
+    expect(result).toBeNull()
   })
 
   it('Repair in Progress (Technician actor): notifies Staff (the other side)', () => {
