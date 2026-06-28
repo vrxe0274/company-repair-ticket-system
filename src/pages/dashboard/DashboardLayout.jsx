@@ -23,11 +23,12 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
   Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp, Banknote,
-  Lock, Eye, EyeOff, LayoutGrid,
+  Lock, Eye, EyeOff, LayoutGrid, Sun, Moon,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
 import { useRole }          from '../../hooks/useRole.jsx'
+import { useTheme }         from '../../hooks/useTheme.jsx'
 import { supabase }         from '../../lib/supabase'
 import Logo                 from '../../components/ui/Logo.jsx'
 import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
@@ -67,6 +68,7 @@ export default function DashboardLayout() {
   const { logout }               = useAuth()
   const { role, clearRole, getAllowedTransitions, isAdmin, isStaff, isTechnician, staffUsername, staffName, setStaffName } = useRole()
   const { unseenCount }          = useNotifications()
+  const { isDark, toggleTheme }  = useTheme()
   const [taskCount, setTaskCount] = useState(0)
   const location                 = useLocation()
   const navigate                 = useNavigate()
@@ -278,8 +280,16 @@ export default function DashboardLayout() {
         </div>
       </nav>
 
-      {/* Sign out */}
-      <div className="p-3 border-t border-dark-700">
+      {/* Theme toggle + Sign out */}
+      <div className="p-3 border-t border-dark-700 space-y-1">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-all"
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDark ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
+          {isDark ? 'Light Mode' : 'Dark Mode'}
+        </button>
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-sans font-semibold tracking-wide text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-all"
