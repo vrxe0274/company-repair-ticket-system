@@ -85,9 +85,16 @@ export function Step3Issue({ form, errors, handleChange, handleIssuePreset }) {
   return (
     <div className="space-y-4">
       <StepHeading icon={AlertCircle} title="Issue Description" subtitle="What's wrong with your device?" />
+      <Field label="Describe the Issue *" error={errors.issue_description}>
+        <textarea
+          className="input-field resize-none" rows={4}
+          name="issue_description" value={form.issue_description} onChange={handleChange}
+          placeholder="Describe what's happening with your device..."
+        />
+      </Field>
       <div>
         <label className="label">Common Issues</label>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2">
           {VR_ISSUES.map(issue => (
             <button
               key={issue}
@@ -103,13 +110,6 @@ export function Step3Issue({ form, errors, handleChange, handleIssuePreset }) {
           ))}
         </div>
       </div>
-      <Field label="Describe the Issue *" error={errors.issue_description}>
-        <textarea
-          className="input-field resize-none" rows={4}
-          name="issue_description" value={form.issue_description} onChange={handleChange}
-          placeholder="Describe what's happening with your device..."
-        />
-      </Field>
     </div>
   )
 }

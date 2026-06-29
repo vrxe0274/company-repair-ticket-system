@@ -24,7 +24,7 @@ export function StepHeading({ icon: Icon, title, subtitle }) {
 
 export function Field({ label, error, children }) {
   return (
-    <div>
+    <div className="min-w-0">
       <label className="label">{label}</label>
       {children}
       {error && <p className="text-sm text-red-500 mt-1 font-body">{error}</p>}
