@@ -35,8 +35,6 @@ export function useTicket(id) {
   const [paymentOption,  setPaymentOption]  = useState('')
   const [partialHighPct, setPartialHighPct] = useState(DEFAULT_PARTIAL_HIGH_PCT)
   const [partialLowPct,  setPartialLowPct]  = useState(DEFAULT_PARTIAL_LOW_PCT)
-  const [technicianName,   setTechnicianName]   = useState('')
-  const [assignedStaff,    setAssignedStaff]    = useState([])
   const [saveMsg,          setSaveMsg]          = useState('')
   const [transitionErrors, setTransitionErrors] = useState([])
   const [deleteConfirm,    setDeleteConfirm]    = useState(false)
@@ -105,8 +103,6 @@ export function useTicket(id) {
     setPaymentOption(data.payment_option ?? '')
     setPartialHighPct(data.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
     setPartialLowPct(data.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)
-    setTechnicianName(data.technician_name ?? '')
-    setAssignedStaff(data.assigned_staff ?? [])
   }
 
   async function updateStatus(newStatus) {
@@ -275,25 +271,6 @@ export function useTicket(id) {
   function addItem(setter)            { setter(prev => [...prev, emptyItem()]) }
   function removeItem(setter, itemId) { setter(prev => prev.filter(it => it.id !== itemId)) }
 
-  async function saveAssignment() {
-    if (!isManager) return
-    setSaving(true)
-    const patch = {
-      technician_name: technicianName.trim() || null,
-      assigned_staff:  assignedStaff.map(s => s.trim()).filter(Boolean),
-    }
-    const { data, error } = await supabase
-      .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
-    if (error) {
-      alert(`Save failed: ${error.message}`)
-    } else {
-      hydrate(data)
-      setSaveMsg('Assignments saved!')
-      setTimeout(() => setSaveMsg(''), SAVE_MSG_DURATION_MS)
-    }
-    setSaving(false)
-  }
-
   function toggleDiagnosis() {
     setLaborItems(prev => {
       const hasDiagnosis = prev.some(it => it.description === 'Diagnosis')
@@ -412,12 +389,10 @@ export function useTicket(id) {
     paymentOption, setPaymentOption,
     partialHighPct, setPartialHighPct,
     partialLowPct, setPartialLowPct,
-    technicianName, setTechnicianName,
-    assignedStaff, setAssignedStaff,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
     isManager, isTechnician, getAllowedTransitions,
-    updateStatus, undoStatus, saveNotesAndPricing, saveAssignment,
+    updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem, toggleDiagnosis,
