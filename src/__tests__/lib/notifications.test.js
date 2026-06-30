@@ -36,7 +36,7 @@ describe('buildStatusNotification', () => {
       ticketLabel: label,
     })
     expect(result.recipientRole).toBe('Technician')
-    expect(result.message).toBe(`Approved: ${label}`)
+    expect(result.message).toBe(`Inspection & Quote: ${label}`)
   })
 
   it('Denied: no notification (matches server trigger — RETURN NEW)', () => {
@@ -55,7 +55,7 @@ describe('buildStatusNotification', () => {
       ticketLabel: label,
     })
     expect(result.recipientRole).toBe('Staff')
-    expect(result.message).toBe(`Repair started: ${label}`)
+    expect(result.message).toBe(`Repair in Progress: ${label}`)
   })
 
   it('Repair in Progress (Staff actor): notifies Technician (the other side)', () => {
@@ -65,7 +65,7 @@ describe('buildStatusNotification', () => {
       ticketLabel: label,
     })
     expect(result.recipientRole).toBe('Technician')
-    expect(result.message).toBe(`Repair started: ${label}`)
+    expect(result.message).toBe(`Repair in Progress: ${label}`)
   })
 
   it('Repair in Progress (Admin actor): normalized to Staff → notifies Technician', () => {
@@ -84,16 +84,16 @@ describe('buildStatusNotification', () => {
       ticketLabel: label,
     })
     expect(result.recipientRole).toBe('Staff')
-    expect(result.message).toBe(`Ready for pickup: ${label}`)
+    expect(result.message).toBe(`Done: ${label}`)
   })
 
-  it('Paid: notifies Technician', () => {
+  it('Paid: notifies Staff', () => {
     const result = buildStatusNotification({
       actorRole: 'Staff',
       newStatus: 'Paid',
       ticketLabel: label,
     })
-    expect(result.recipientRole).toBe('Technician')
+    expect(result.recipientRole).toBe('Staff')
     expect(result.message).toBe(`Paid: ${label}`)
   })
 

@@ -24,8 +24,8 @@ afterEach(() => {
 // ─── SESSION_TTL_MS ───────────────────────────────────────────────────────────
 
 describe('SESSION_TTL_MS', () => {
-  it('equals 30 days in milliseconds', () => {
-    expect(SESSION_TTL_MS).toBe(30 * 24 * 60 * 60 * 1000)
+  it('equals 9 hours in milliseconds', () => {
+    expect(SESSION_TTL_MS).toBe(9 * 60 * 60 * 1000)
   })
 })
 
@@ -56,7 +56,7 @@ describe('saveSession', () => {
     expect(stored.v).toBe(1)
   })
 
-  it('persistent session has expiresAt ~30 days from now', () => {
+  it('persistent session has expiresAt ~9 hours from now', () => {
     const before = Date.now()
     saveSession('Admin', { persistent: true })
     const after = Date.now()
@@ -65,10 +65,13 @@ describe('saveSession', () => {
     expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
   })
 
-  it('non-persistent session has null expiresAt', () => {
+  it('non-persistent session also has a 9-hour expiresAt (fixed TTL regardless of persistence)', () => {
+    const before = Date.now()
     saveSession('Admin', { persistent: false })
+    const after = Date.now()
     const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY))
-    expect(stored.expiresAt).toBeNull()
+    expect(stored.expiresAt).toBeGreaterThanOrEqual(before + SESSION_TTL_MS)
+    expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
   })
 
   it('clears the other storage when switching persistence modes', () => {
@@ -167,7 +170,7 @@ describe('clearSession', () => {
 // ─── renewSession ─────────────────────────────────────────────────────────────
 
 describe('renewSession', () => {
-  it('slides expiresAt forward by 30 days from the current time', () => {
+  it('does not slide expiresAt — fixed TTL from login, renewSession is a no-op', () => {
     vi.useFakeTimers()
     const start = 1_000_000_000_000
     vi.setSystemTime(start)
@@ -178,8 +181,7 @@ describe('renewSession', () => {
     renewSession()
     const renewed = JSON.parse(localStorage.getItem(SESSION_KEY)).expiresAt
 
-    expect(renewed).toBeGreaterThan(originalExpiry)
-    expect(renewed).toBe(start + 86_400_000 + SESSION_TTL_MS)
+    expect(renewed).toBe(originalExpiry)
   })
 
   it('does nothing when there is no persistent session', () => {
