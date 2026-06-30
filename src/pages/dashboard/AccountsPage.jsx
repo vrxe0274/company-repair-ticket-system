@@ -11,196 +11,12 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { format, parseISO, startOfMonth, endOfMonth, differenceInMinutes, subMonths, addMonths } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import {
   Plus, Trash2, X, Search,
-  Shield, Wrench, KeyRound, Copy, Check, Clock, ChevronLeft, ChevronRight,
-  LogIn, LogOut, CalendarDays,
+  Shield, Wrench, KeyRound, Copy, Check,
 } from 'lucide-react'
 import { supabase, fnErrorMessage } from '../../lib/supabase'
-
-// ── Attendance modal ───────────────────────────────────────────────────────────
-
-const MAX_MINUTES = 9 * 60
-
-function sessionMins(loggedInAt, loggedOutAt) {
-  if (!loggedOutAt) return null
-  const ms = new Date(loggedOutAt) - new Date(loggedInAt)
-  return Math.min(Math.max(Math.floor(ms / 60000), 0), MAX_MINUTES)
-}
-
-function fmtDuration(mins) {
-  if (mins === null) return '—'
-  return `${Math.floor(mins / 60)}h ${(mins % 60).toString().padStart(2, '0')}m`
-}
-
-function AttendanceModal({ target, onClose }) {
-  // target: { username, role, name } | null
-  const [monthDate, setMonthDate] = useState(startOfMonth(new Date()))
-  const [logs,      setLogs]      = useState([])
-  const [loading,   setLoading]   = useState(false)
-
-  useEffect(() => {
-    if (!target) return
-    async function load() {
-      setLoading(true)
-      const { data } = await supabase
-        .from('attendance_logs')
-        .select('*')
-        .eq('username', target.username)
-        .gte('logged_in_at', startOfMonth(monthDate).toISOString())
-        .lte('logged_in_at', endOfMonth(monthDate).toISOString())
-        .order('logged_in_at', { ascending: false })
-      setLogs(data ?? [])
-      setLoading(false)
-    }
-    load()
-  }, [target, monthDate])
-
-  if (!target) return null
-
-  const isStaff   = target.role === 'staff'
-  const accentCls = isStaff ? 'text-emerald-600 bg-emerald-50' : 'text-accent-600 bg-accent-50'
-  const Icon      = isStaff ? Shield : Wrench
-
-  const daysPresent = new Set(logs.map(l => format(parseISO(l.logged_in_at), 'yyyy-MM-dd'))).size
-  const closedLogs  = logs.filter(l => l.logged_out_at)
-  const totalMins   = closedLogs.reduce((sum, l) => sum + (sessionMins(l.logged_in_at, l.logged_out_at) ?? 0), 0)
-  const totalHours  = (totalMins / 60).toFixed(1)
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="card w-full max-w-lg p-0 overflow-hidden flex flex-col max-h-[90vh]">
-
-        {/* Modal header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl ${accentCls} flex items-center justify-center shrink-0`}>
-              <Icon className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="font-sans font-bold text-gray-900 text-sm leading-none">
-                {target.name ?? target.username}
-              </p>
-              <p className="text-xs font-mono text-gray-400 mt-0.5">{target.username}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Month navigator */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60 shrink-0">
-          <button
-            onClick={() => setMonthDate(d => subMonths(d, 1))}
-            className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-white"
-            aria-label="Previous month"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-gray-400" />
-            <span className="font-sans font-semibold text-sm text-gray-700">
-              {format(monthDate, 'MMMM yyyy')}
-            </span>
-          </div>
-          <button
-            onClick={() => setMonthDate(d => addMonths(d, 1))}
-            disabled={format(addMonths(monthDate, 1), 'yyyy-MM') > format(new Date(), 'yyyy-MM')}
-            className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-white disabled:opacity-30 disabled:pointer-events-none"
-            aria-label="Next month"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Summary */}
-        {!loading && (
-          <div className="flex gap-4 px-5 py-3 border-b border-gray-100 shrink-0">
-            <div>
-              <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Days Present</p>
-              <p className="font-mono font-bold text-xl text-gray-900 mt-0.5">{daysPresent}</p>
-            </div>
-            <div className="w-px bg-gray-200" />
-            <div>
-              <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Total Hours</p>
-              <p className="font-mono font-bold text-xl text-gray-900 mt-0.5">{totalHours}h</p>
-            </div>
-            <div className="w-px bg-gray-200" />
-            <div>
-              <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Sessions</p>
-              <p className="font-mono font-bold text-xl text-gray-900 mt-0.5">{logs.length}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Session list */}
-        <div className="overflow-y-auto flex-1">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <span className="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-2 text-gray-400">
-              <Clock className="w-8 h-8" />
-              <p className="text-sm font-sans font-semibold">No sessions in {format(monthDate, 'MMMM yyyy')}</p>
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white z-10 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-5 py-2.5 font-sans font-semibold text-xs text-gray-500 uppercase tracking-wide">Date</th>
-                  <th className="text-left px-5 py-2.5 font-sans font-semibold text-xs text-gray-500 uppercase tracking-wide">
-                    <span className="inline-flex items-center gap-1"><LogIn className="w-3 h-3" /> In</span>
-                  </th>
-                  <th className="text-left px-5 py-2.5 font-sans font-semibold text-xs text-gray-500 uppercase tracking-wide">
-                    <span className="inline-flex items-center gap-1"><LogOut className="w-3 h-3" /> Out</span>
-                  </th>
-                  <th className="text-left px-5 py-2.5 font-sans font-semibold text-xs text-gray-500 uppercase tracking-wide">Duration</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {logs.map(log => {
-                  const mins   = sessionMins(log.logged_in_at, log.logged_out_at)
-                  const capped = mins !== null && mins >= MAX_MINUTES
-                  return (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3 font-sans text-gray-700 text-xs">
-                        {format(parseISO(log.logged_in_at), 'EEE, MMM d')}
-                      </td>
-                      <td className="px-5 py-3 font-mono text-gray-700 tabular-nums text-xs">
-                        {format(parseISO(log.logged_in_at), 'hh:mm a')}
-                      </td>
-                      <td className="px-5 py-3 font-mono tabular-nums text-xs">
-                        {log.logged_out_at ? (
-                          <span className="text-gray-700">
-                            {format(parseISO(log.logged_out_at), 'hh:mm a')}
-                            {log.logout_reason === 'session_expired' && (
-                              <span className="ml-1 text-[10px] text-amber-600 font-sans font-semibold">(expired)</span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={`font-mono text-xs tabular-nums ${capped ? 'text-brand-600 font-semibold' : 'text-gray-700'}`}>
-                          {fmtDuration(mins)}
-                          {capped && <span className="ml-1 text-[10px] font-sans font-bold text-brand-500">MAX</span>}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -434,9 +250,6 @@ export default function AccountsPage() {
   const [techListLoading, setTechListLoading] = useState(false)
   const [techListError,   setTechListError]   = useState('')
 
-  // ── Attendance modal state ────────────────────────────────────────────────
-  const [attendanceTarget, setAttendanceTarget] = useState(null)
-
   // ── Shared modal state ────────────────────────────────────────────────────
   // createType: null | 'staff' | 'tech'
   const [createType,    setCreateType]    = useState(null)
@@ -605,16 +418,9 @@ export default function AccountsPage() {
                   </div>
                   <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{acc.username}</p>
                 </div>
-                <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
-                  {format(new Date(acc.created_at), 'MMM d, yyyy')}
+                <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0">
+                  Created on {format(new Date(acc.created_at), 'MMM d, yyyy')}
                 </p>
-                <button
-                  onClick={() => setAttendanceTarget({ username: acc.username, role: 'staff', name: acc.name ?? null })}
-                  className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-brand-500 transition-colors shrink-0"
-                  aria-label={`View attendance for ${acc.username}`}
-                >
-                  <Clock className="w-4 h-4" />
-                </button>
                 <button
                   onClick={() => openReset(acc.username, 'staff')}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-amber-500 transition-colors shrink-0"
@@ -688,16 +494,9 @@ export default function AccountsPage() {
                   </div>
                   <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{acc.username}</p>
                 </div>
-                <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0 tabular-nums">
-                  {format(new Date(acc.created_at), 'MMM d, yyyy')}
+                <p className="hidden sm:block text-xs font-body text-gray-400 shrink-0">
+                  Created on {format(new Date(acc.created_at), 'MMM d, yyyy')}
                 </p>
-                <button
-                  onClick={() => setAttendanceTarget({ username: acc.username, role: 'tech', name: acc.name ?? null })}
-                  className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-brand-500 transition-colors shrink-0"
-                  aria-label={`View attendance for ${acc.username}`}
-                >
-                  <Clock className="w-4 h-4" />
-                </button>
                 <button
                   onClick={() => openReset(acc.username, 'tech')}
                   className="p-1.5 text-gray-300 group-hover:text-gray-400 hover:!text-amber-500 transition-colors shrink-0"
@@ -799,12 +598,6 @@ export default function AccountsPage() {
           </div>
         </div>
       )}
-
-      {/* Attendance modal */}
-      <AttendanceModal
-        target={attendanceTarget}
-        onClose={() => setAttendanceTarget(null)}
-      />
 
       {/* Toast */}
       {toast && (

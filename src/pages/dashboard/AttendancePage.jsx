@@ -398,7 +398,7 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
           <div>
             <p className={`text-sm font-sans font-bold ${headerText} leading-none`}>{label}</p>
             <p className={`text-xs font-body ${headerSubtext} mt-0.5`}>
-              {uniquePeople} {uniquePeople === 1 ? 'person' : 'people'} · {logs.length} {logs.length === 1 ? 'session' : 'sessions'}
+              {uniquePeople} {uniquePeople === 1 ? 'person' : 'people'}
             </p>
           </div>
         </div>
