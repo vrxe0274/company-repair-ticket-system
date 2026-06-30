@@ -483,15 +483,15 @@ BEGIN
     CASE NEW.status
       WHEN 'Inspection & Quote' THEN
         v_role    := 'Technician';
-        v_message := 'Approved: ' || v_label;
+        v_message := 'Inspection & Quote: ' || v_label;
       WHEN 'Repair in Progress' THEN
         v_role    := 'Staff';
-        v_message := 'Repair started: ' || v_label;
+        v_message := 'Repair in Progress: ' || v_label;
       WHEN 'Done' THEN
         v_role    := 'Staff';
-        v_message := 'Ready for pickup: ' || v_label;
+        v_message := 'Done: ' || v_label;
       WHEN 'Paid' THEN
-        v_role    := 'Technician';
+        v_role    := 'Staff';
         v_message := 'Paid: ' || v_label;
       WHEN 'Denied' THEN
         RETURN NEW;

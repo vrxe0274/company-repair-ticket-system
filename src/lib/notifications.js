@@ -20,15 +20,15 @@ export function buildStatusNotification({ actorRole, newStatus, ticketLabel }) {
 
   switch (newStatus) {
     case 'Inspection & Quote':
-      return { recipientRole: NOTIFY_ROLES.TECHNICIAN, message: `Approved: ${label}` }
+      return { recipientRole: NOTIFY_ROLES.TECHNICIAN, message: `Inspection & Quote: ${label}` }
     case 'Denied':
       return null
     case 'Repair in Progress':
-      return { recipientRole: other, message: `Repair started: ${label}` }
+      return { recipientRole: other, message: `Repair in Progress: ${label}` }
     case 'Done':
-      return { recipientRole: NOTIFY_ROLES.STAFF, message: `Ready for pickup: ${label}` }
+      return { recipientRole: NOTIFY_ROLES.STAFF, message: `Done: ${label}` }
     case 'Paid':
-      return { recipientRole: NOTIFY_ROLES.TECHNICIAN, message: `Paid: ${label}` }
+      return { recipientRole: NOTIFY_ROLES.STAFF, message: `Paid: ${label}` }
     default:
       return { recipientRole: other, message: `${newStatus}: ${label}` }
   }

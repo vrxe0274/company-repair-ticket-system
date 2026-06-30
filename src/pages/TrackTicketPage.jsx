@@ -21,7 +21,7 @@ import { supabase } from '../lib/supabase'
 import { TRACK_POLL_INTERVAL_MS } from '../lib/constants'
 import {
   STATUS_ORDER, STATUS_DENIED, STATUS_DESCRIPTIONS,
-  PAYMENT_OPTIONS, paymentPlanLabel, discountCapFor,
+  PAYMENT_OPTIONS, paymentPlanLabel,
   DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT,
 } from '../lib/utils'
 import { downloadReceiptPDF }   from '../lib/receipt'
@@ -555,7 +555,6 @@ export default function TrackTicketPage() {
                         const fullCap = ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT
                         const halfCap = ticket.payment_partial_low_pct  ?? DEFAULT_PARTIAL_LOW_PCT
                         const checked = ticket.payment_option === opt.value
-                        const cap     = discountCapFor(opt.value, fullCap, halfCap)
                         return (
                           <div
                             key={opt.value}
@@ -569,11 +568,6 @@ export default function TrackTicketPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-sans font-semibold text-gray-800">
                                 {paymentPlanLabel(opt.value, fullCap, halfCap)}
-                              </p>
-                              <p className="text-xs font-body text-gray-500 mt-0.5">
-                                {cap > 0
-                                  ? `Eligible for up to ${cap}% off your repair quotation.`
-                                  : 'No discount — pay the full quotation on completion.'}
                               </p>
                             </div>
                             {checked ? (
