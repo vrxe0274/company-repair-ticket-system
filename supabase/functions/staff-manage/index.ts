@@ -326,6 +326,20 @@ async function handleRequest(req: Request): Promise<Response> {
       console.error('staff delete failed:', JSON.stringify(error))
       return json(200, { ok: false, error: `Failed to delete account: ${error.message ?? error.code ?? 'unknown'}` })
     }
+
+    // Account row is gone — also purge its attendance history so the Attendance
+    // page no longer shows the deleted account. role filter avoids touching a
+    // technician that happens to share the same username (separate table).
+    const { error: attError } = await supabase
+      .from('attendance_logs')
+      .delete()
+      .eq('username', username.trim())
+      .eq('role', 'Staff')
+
+    if (attError) {
+      console.error('staff attendance cleanup failed:', JSON.stringify(attError))
+      return json(200, { ok: false, error: `Account deleted, but attendance cleanup failed: ${attError.message ?? attError.code ?? 'unknown'}` })
+    }
     return json(200, { ok: true })
   }
 
