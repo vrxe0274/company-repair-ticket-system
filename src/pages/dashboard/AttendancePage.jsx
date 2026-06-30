@@ -372,13 +372,17 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
   )
 }
 
+function personKey(l) {
+  return (l.username ?? l.name ?? '').toLowerCase().trim()
+}
+
 function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPerson, emptyText, accentBar, headerBg, headerText, headerSubtext, avatarBg, avatarText }) {
-  const uniquePeople = new Set(logs.map(l => l.username ?? l.name)).size
+  const uniquePeople = new Set(logs.map(personKey)).size
 
   // One row per person — most recent session only (logs arrive DESC from Supabase)
   const seen = new Set()
   const dedupedLogs = logs.filter(l => {
-    const key = l.username ?? l.name
+    const key = personKey(l)
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -442,15 +446,17 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
                     />
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="font-mono text-xs text-gray-700 tabular-nums">
-                      {format(parseISO(log.logged_in_at), 'hh:mm a')}
-                    </span>
-                    {isOutsideShift(log.logged_in_at, shift) && (
-                      <span className="inline-flex items-center gap-0.5 ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-sans font-bold text-amber-600 leading-none align-middle">
-                        <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
-                        Off-shift
+                    <div className="flex flex-col gap-1">
+                      <span className="font-mono text-xs text-gray-700 tabular-nums">
+                        {format(parseISO(log.logged_in_at), 'hh:mm a')}
                       </span>
-                    )}
+                      {isOutsideShift(log.logged_in_at, shift) && (
+                        <span className="inline-flex items-center gap-0.5 w-fit px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-sans font-bold text-amber-600 leading-none">
+                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                          Off-shift
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3.5 hidden md:table-cell">
                     {log.logged_out_at ? (
@@ -536,8 +542,8 @@ export default function AttendancePage() {
   const isViewingToday = selectedDate === today
   const staffLogs      = logs.filter(l => l.role === 'Staff')
   const techLogs       = logs.filter(l => l.role === 'Technician')
-  const uniqueStaff    = new Set(staffLogs.map(l => l.username ?? l.name)).size
-  const uniqueTechs    = new Set(techLogs.map(l => l.username ?? l.name)).size
+  const uniqueStaff    = new Set(staffLogs.map(personKey)).size
+  const uniqueTechs    = new Set(techLogs.map(personKey)).size
   const totalPresent   = uniqueStaff + uniqueTechs
 
   return (
@@ -546,35 +552,37 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
         <div className="h-0.5 bg-gradient-to-r from-brand-500 to-accent-500" />
-        <div className="px-5 lg:px-7 py-5 flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">
-              ATTENDANCE
-            </h1>
-            <p className="text-sm font-body text-gray-400 mt-2">
-              {format(new Date(), 'EEEE, MMMM d, yyyy')}
-            </p>
-          </div>
+        <div className="px-5 lg:px-7 pt-5 pb-3">
+          <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">
+            ATTENDANCE
+          </h1>
+          <p className="text-sm font-body text-gray-400 mt-2">
+            {format(new Date(), 'EEEE, MMMM d, yyyy')}
+          </p>
+        </div>
 
-          <div className="flex items-center gap-3 flex-wrap mb-0.5">
-            {/* Shift window editor */}
-            {editingShift ? (
+        {/* Controls row */}
+        <div className="px-5 lg:px-7 pb-4 space-y-2">
+          {editingShift ? (
+            <>
+              {/* Shift editor: selects row */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-sans font-semibold text-gray-500">Shift:</span>
+                <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <span className="text-xs font-sans font-semibold text-gray-500 shrink-0">Shift</span>
                 <select
                   value={draftStart}
                   onChange={e => setDraftStart(Number(e.target.value))}
-                  className="input-field py-1 text-xs w-24"
+                  className="input-field py-1.5 text-xs flex-1"
                 >
                   {HOURS.map(h => (
                     <option key={h} value={h} disabled={h >= draftEnd}>{fmtShiftHour(h)}</option>
                   ))}
                 </select>
-                <span className="text-xs text-gray-400">to</span>
+                <span className="text-xs text-gray-400 shrink-0">–</span>
                 <select
                   value={draftEnd}
                   onChange={e => setDraftEnd(Number(e.target.value))}
-                  className="input-field py-1 text-xs w-24"
+                  className="input-field py-1.5 text-xs flex-1"
                 >
                   {HOURS.map(h => (
                     <option key={h} value={h} disabled={h <= draftStart}>{fmtShiftHour(h)}</option>
@@ -583,72 +591,88 @@ export default function AttendancePage() {
                 <button
                   onClick={handleSaveShift}
                   disabled={shiftSaving}
-                  className="p-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                  className="p-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 shrink-0"
                   aria-label="Save shift hours"
                 >
                   {shiftSaving
-                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin block" />
-                    : <Check className="w-3.5 h-3.5" />
+                    ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block" />
+                    : <Check className="w-4 h-4" />
                   }
                 </button>
                 <button
                   onClick={cancelShiftEdit}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
                   aria-label="Cancel"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            ) : (
+
+              {/* Date picker — full row below shift editor */}
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={today}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="input-field py-1.5 text-sm flex-1 sm:flex-none sm:w-40"
+                />
+              </div>
+            </>
+          ) : (
+            /* Default state: shift button + date picker side by side */
+            <div className="flex items-center gap-2">
               <button
                 onClick={openShiftEdit}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-sans font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-sans font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors shrink-0"
               >
                 <Clock className="w-3.5 h-3.5 text-gray-400" />
-                Shift: {fmtShiftHour(shift.start)} – {fmtShiftHour(shift.end)}
-                <Pencil className="w-3 h-3 text-gray-400 ml-0.5" />
+                <span className="hidden xs:inline">Shift: </span>{fmtShiftHour(shift.start)} – {fmtShiftHour(shift.end)}
+                <Pencil className="w-3 h-3 text-gray-400" />
               </button>
-            )}
 
-            {/* Date picker */}
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
-              <input
-                type="date"
-                value={selectedDate}
-                max={today}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="input-field py-1.5 text-sm w-40"
-              />
+              <div className="flex items-center gap-2 ml-auto">
+                <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={today}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="input-field py-2 text-sm w-36 sm:w-40"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
       {/* Summary strip */}
       {!loading && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white shrink-0">
-            <Users className="w-4 h-4 text-brand-300" />
-            <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Present</span>
-            <span className="font-mono font-bold text-xl leading-none">{totalPresent}</span>
+        <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 sm:gap-3">
+          <div className="col-span-3 sm:col-span-auto flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white">
+            <Users className="w-4 h-4 text-brand-300 shrink-0" />
+            <div className="flex-1 sm:flex sm:items-center sm:gap-3">
+              <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Present</span>
+              <span className="font-mono font-bold text-2xl sm:text-xl leading-none block sm:inline">{totalPresent}</span>
+            </div>
           </div>
 
           <div className="h-8 w-px bg-gray-200 hidden sm:block" />
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
-            <Shield className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="text-xs font-sans font-semibold text-emerald-600 uppercase tracking-wide">Staff</span>
-            <span className="font-mono font-bold text-base leading-none text-emerald-700">{uniqueStaff}</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2.5 sm:py-1.5 rounded-xl sm:rounded-lg bg-emerald-50 border border-emerald-200 items-center text-center sm:text-left">
+            <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="text-[10px] sm:text-xs font-sans font-semibold text-emerald-600 uppercase tracking-wide">Staff</span>
+            <span className="font-mono font-bold text-xl sm:text-base leading-none text-emerald-700">{uniqueStaff}</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent-50 border border-accent-200">
-            <Wrench className="w-3.5 h-3.5 text-accent-500" />
-            <span className="text-xs font-sans font-semibold text-accent-600 uppercase tracking-wide">Technicians</span>
-            <span className="font-mono font-bold text-base leading-none text-accent-700">{uniqueTechs}</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2.5 sm:py-1.5 rounded-xl sm:rounded-lg bg-accent-50 border border-accent-200 items-center text-center sm:text-left">
+            <Wrench className="w-4 h-4 text-accent-500 shrink-0" />
+            <span className="text-[10px] sm:text-xs font-sans font-semibold text-accent-600 uppercase tracking-wide">Techs</span>
+            <span className="font-mono font-bold text-xl sm:text-base leading-none text-accent-700">{uniqueTechs}</span>
           </div>
 
-          <p className="text-xs text-gray-400 font-body ml-auto hidden sm:block">
+          <p className="text-xs text-gray-400 font-body sm:ml-auto hidden sm:block">
             Duration capped at 9 hrs
           </p>
         </div>
@@ -679,6 +703,7 @@ export default function AttendancePage() {
             isViewingToday={isViewingToday}
             shift={shift}
             onSelectPerson={setCalendarTarget}
+
             emptyText="No staff logins on this date"
             accentBar="bg-emerald-400"
             headerBg="bg-emerald-50/60 border-emerald-100"
@@ -695,6 +720,7 @@ export default function AttendancePage() {
             isViewingToday={isViewingToday}
             shift={shift}
             onSelectPerson={setCalendarTarget}
+
             emptyText="No technician logins on this date"
             accentBar="bg-accent-400"
             headerBg="bg-accent-50/60 border-accent-100"

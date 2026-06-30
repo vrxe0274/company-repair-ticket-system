@@ -86,9 +86,20 @@ export function NotificationsProvider({ children }) {
     await supabase.from('notifications').update({ seen: true }).eq('id', id)
   }, [])
 
+  const clearAll = useCallback(async () => {
+    if (!role) return
+    const roles = isAdmin ? ['Staff', 'Technician'] : [role]
+    setNotifications([])
+    await Promise.all(
+      roles.map(r =>
+        supabase.from('notifications').delete().eq('recipient_role', r)
+      )
+    )
+  }, [role, isAdmin])
+
   return (
     <NotificationsContext.Provider
-      value={{ notifications, unseenCount, loading, fetchNotifications, markAllSeen, markSeen }}
+      value={{ notifications, unseenCount, loading, fetchNotifications, markAllSeen, markSeen, clearAll }}
     >
       {children}
     </NotificationsContext.Provider>
@@ -105,6 +116,7 @@ export function useNotifications() {
       fetchNotifications: async () => {},
       markAllSeen: async () => {},
       markSeen: async () => {},
+      clearAll: async () => {},
     }
   }
   return ctx
