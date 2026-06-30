@@ -536,9 +536,9 @@ export default function AttendancePage() {
   const isViewingToday = selectedDate === today
   const staffLogs      = logs.filter(l => l.role === 'Staff')
   const techLogs       = logs.filter(l => l.role === 'Technician')
-  const totalLogins    = logs.length
-  const uniqueStaff    = new Set(staffLogs.map(l => l.username)).size
-  const uniqueTechs    = new Set(techLogs.map(l => l.username)).size
+  const uniqueStaff    = new Set(staffLogs.map(l => l.username ?? l.name)).size
+  const uniqueTechs    = new Set(techLogs.map(l => l.username ?? l.name)).size
+  const totalPresent   = uniqueStaff + uniqueTechs
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -630,8 +630,8 @@ export default function AttendancePage() {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white shrink-0">
             <Users className="w-4 h-4 text-brand-300" />
-            <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Total</span>
-            <span className="font-mono font-bold text-xl leading-none">{totalLogins}</span>
+            <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Present</span>
+            <span className="font-mono font-bold text-xl leading-none">{totalPresent}</span>
           </div>
 
           <div className="h-8 w-px bg-gray-200 hidden sm:block" />
