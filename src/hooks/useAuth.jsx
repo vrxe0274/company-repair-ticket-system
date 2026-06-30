@@ -14,6 +14,14 @@
  *     30-day sliding expiry; every app load renews it (silent refresh).
  *   - Expired persistent session → cleared + this device's push subscription
  *     removed, then the user lands on /login via ProtectedRoute.
+ *
+ * Attendance logging:
+ *   - Every successful login inserts a row into attendance_logs and saves the
+ *     row ID into the session record.
+ *   - Manual logout updates that row with logged_out_at + logout_reason='manual'.
+ *   - If a persistent session expires, getSession() stashes the row ID in
+ *     localStorage under ATTENDANCE_CLOSE_KEY; the next useEffect call here
+ *     picks it up and closes the row with logout_reason='session_expired'.
  */
 
 import { createContext, useContext, useState, useEffect } from 'react'
@@ -23,11 +31,33 @@ import {
   renewSession,
   clearSession,
   consumeSessionExpiredFlag,
+  saveAttendanceLogId,
+  ATTENDANCE_CLOSE_KEY,
 } from '../lib/session'
 import { unsubscribeFromPush } from '../lib/push'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
+
+/** Fire-and-forget: insert an attendance log row and save its ID to the session. */
+async function recordLogin({ username = null, role, name = null }) {
+  const { data } = await supabase
+    .from('attendance_logs')
+    .insert({ username, role, name })
+    .select('id')
+    .single()
+  if (data?.id) saveAttendanceLogId(data.id)
+}
+
+/** Fire-and-forget: mark an open attendance row as closed. */
+function closeAttendanceLog(id, reason) {
+  if (!id) return
+  supabase
+    .from('attendance_logs')
+    .update({ logged_out_at: new Date().toISOString(), logout_reason: reason })
+    .eq('id', id)
+    .then(() => {})
+}
 
 export function AuthProvider({ children }) {
   const [authenticated, setAuthenticated] = useState(false)
@@ -37,12 +67,18 @@ export function AuthProvider({ children }) {
     const session = getSession()
     if (session) {
       setAuthenticated(true)
-      renewSession() // slide the 30-day expiry forward on every load
+      renewSession()
     } else if (consumeSessionExpiredFlag()) {
-      // Persistent session lapsed — deactivate this device's push subscription
-      // (the closest equivalent to server-side "invalidate on session expiry").
       unsubscribeFromPush()
     }
+
+    // Close any attendance log left open by a session that expired between page loads.
+    const pendingId = localStorage.getItem(ATTENDANCE_CLOSE_KEY)
+    if (pendingId) {
+      localStorage.removeItem(ATTENDANCE_CLOSE_KEY)
+      closeAttendanceLog(pendingId, 'session_expired')
+    }
+
     setLoading(false)
   }, [])
 
@@ -71,6 +107,7 @@ export function AuthProvider({ children }) {
 
     saveSession(role, { persistent: rememberMe })
     setAuthenticated(true)
+    recordLogin({ role })
     return true
   }
 
@@ -101,6 +138,7 @@ export function AuthProvider({ children }) {
     const resolvedName = data.name ?? null
     saveSession('Staff', { persistent: rememberMe, username: username.trim(), name: resolvedName, mustChangePassword: data.mustChangePassword ?? false })
     setAuthenticated(true)
+    recordLogin({ username: username.trim(), role: 'Staff', name: resolvedName })
     return { name: resolvedName }
   }
 
@@ -130,15 +168,18 @@ export function AuthProvider({ children }) {
     const resolvedName = data.name ?? null
     saveSession('Technician', { persistent: rememberMe, username: username.trim(), name: resolvedName, mustChangePassword: data.mustChangePassword ?? false })
     setAuthenticated(true)
+    recordLogin({ username: username.trim(), role: 'Technician', name: resolvedName })
     return { name: resolvedName }
   }
 
   /**
-   * Explicit logout: invalidate the session everywhere and remove this
-   * device's push subscription so it stops receiving global pushes.
+   * Explicit logout: close the open attendance log, invalidate the session
+   * everywhere, and remove this device's push subscription.
    */
   function logout() {
-    unsubscribeFromPush() // fire-and-forget; fails softly
+    const session = getSession()
+    closeAttendanceLog(session?.attendanceLogId, 'manual')
+    unsubscribeFromPush()
     clearSession()
     setAuthenticated(false)
   }

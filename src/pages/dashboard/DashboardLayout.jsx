@@ -23,7 +23,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Ticket, LogOut, Menu, ExternalLink,
   Shield, ShieldCheck, Wrench, Bell, ClipboardList, Settings, Users, UserCircle, X, BarChart2, TrendingUp, Banknote,
-  Lock, Eye, EyeOff, LayoutGrid, Sun, Moon,
+  Lock, Eye, EyeOff, LayoutGrid, Sun, Moon, Clock,
 } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useAuth }          from '../../hooks/useAuth.jsx'
@@ -44,13 +44,19 @@ import { clearMustChangePassword } from '../../lib/session'
  * `id: 'notifications'` is used to conditionally render the unread badge.
  */
 const NAV = [
+  // ── Shared (all roles) ──────────────────────────────────────
   { to: '/',             label: 'Overview',      icon: LayoutDashboard, exact: true },
   { to: 'tickets',       label: 'All Tickets',   icon: Ticket },
   { to: 'tasks',         label: 'Tasks',         icon: ClipboardList,  id: 'tasks' },
+  // ── Admin-only ───────────────────────────────────────────────
   { to: 'analytics',     label: 'Analytics',     icon: BarChart2,      adminOnly: true },
-  { to: 'payroll',       label: 'Payroll',       icon: Banknote,       adminOnly: true },
   { to: 'accounts',      label: 'Accounts',      icon: Users,          adminOnly: true },
+  { to: 'attendance',    label: 'Attendance',    icon: Clock,          adminOnly: true },
+  { to: 'payroll',       label: 'Payroll',       icon: Banknote,       adminOnly: true },
+  // ── Staff / Technician only ──────────────────────────────────
   { to: 'earnings',      label: 'Earnings',      icon: TrendingUp,     staffOrTech: true },
+  { to: 'my-attendance', label: 'My Attendance', icon: Clock,          staffOrTech: true },
+  // ── Shared (all roles, lower priority) ──────────────────────
   { to: 'notifications', label: 'Notifications', icon: Bell,           id: 'notifications' },
   { to: 'settings',      label: 'Settings',      icon: Settings },
 ]

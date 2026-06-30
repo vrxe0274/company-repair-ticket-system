@@ -35,8 +35,11 @@ const LEGACY_ROLE_KEY = 'vrxe_role'
  *  the device's push subscription (no server-side session to hook into). */
 export const SESSION_EXPIRED_FLAG = 'vrxe_session_expired'
 
-/** Long-lived session length: 30 days, sliding. */
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+/** Stores the attendance log ID that needs to be closed after a session expires. */
+export const ATTENDANCE_CLOSE_KEY = 'vrxe_attendance_close'
+
+/** Session length: 9 hours from login. Fixed — does not slide on activity. */
+export const SESSION_TTL_MS = 9 * 60 * 60 * 1000
 
 /** True when running as an installed PWA (home screen / standalone window). */
 export function isStandalone() {
@@ -66,7 +69,11 @@ export function getSession() {
     const s = parse(persistentRaw)
     if (s) {
       if (s.expiresAt && Date.now() > s.expiresAt) {
-        // Expired — clear and flag so push cleanup can run on next load.
+        // Expired — stash the open attendance log ID so the next load can close
+        // it, then flag for push cleanup.
+        if (s.attendanceLogId) {
+          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, s.attendanceLogId) } catch {}
+        }
         localStorage.removeItem(SESSION_KEY)
         localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
         return null
@@ -79,7 +86,17 @@ export function getSession() {
   const tabRaw = sessionStorage.getItem(SESSION_KEY)
   if (tabRaw) {
     const s = parse(tabRaw)
-    if (s) return s
+    if (s) {
+      if (s.expiresAt && Date.now() > s.expiresAt) {
+        if (s.attendanceLogId) {
+          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, s.attendanceLogId) } catch {}
+        }
+        sessionStorage.removeItem(SESSION_KEY)
+        localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
+        return null
+      }
+      return s
+    }
     sessionStorage.removeItem(SESSION_KEY)
   }
 
@@ -111,7 +128,7 @@ export function saveSession(role, { persistent = false, username = null, name = 
     v: 1,
     role,
     persistent: isPersistent,
-    expiresAt: isPersistent ? Date.now() + SESSION_TTL_MS : null,
+    expiresAt: Date.now() + SESSION_TTL_MS, // always set — sessions expire after 9 h regardless of persistence
   }
   if (username)          session.username          = username
   if (name)              session.name              = name
@@ -155,14 +172,12 @@ export function clearMustChangePassword() {
   patchSession({ mustChangePassword: false })
 }
 
-/** Slide a persistent session's expiry forward (call on app load / activity). */
-export function renewSession() {
-  const raw = localStorage.getItem(SESSION_KEY)
-  const s = parse(raw)
-  if (!s || !s.expiresAt || Date.now() > s.expiresAt) return
-  s.expiresAt = Date.now() + SESSION_TTL_MS
-  localStorage.setItem(SESSION_KEY, JSON.stringify(s))
-}
+/**
+ * Previously slid the session expiry forward on every load.
+ * Now a no-op — sessions have a fixed 9-hour TTL from login and do not extend.
+ * Kept so existing callers in useAuth.jsx don't need to change.
+ */
+export function renewSession() {}
 
 /** Update only the role on the existing record (keeps persistence mode, username, name, and expiresAt). */
 export function updateSessionRole(role) {
@@ -182,4 +197,12 @@ export function consumeSessionExpiredFlag() {
   const flagged = localStorage.getItem(SESSION_EXPIRED_FLAG) === '1'
   if (flagged) localStorage.removeItem(SESSION_EXPIRED_FLAG)
   return flagged
+}
+
+/**
+ * Patch the attendance log ID into the active session record so logout can
+ * reference it later.  Must be called after saveSession().
+ */
+export function saveAttendanceLogId(id) {
+  patchSession({ attendanceLogId: id })
 }

@@ -33,6 +33,8 @@ const AccountsPage      = lazy(() => import('./pages/dashboard/AccountsPage.jsx'
 const AnalyticsPage     = lazy(() => import('./pages/dashboard/AnalyticsPage.jsx'))
 const EarningsPage      = lazy(() => import('./pages/dashboard/EarningsPage.jsx'))
 const PayrollPage       = lazy(() => import('./pages/dashboard/PayrollPage.jsx'))
+const AttendancePage    = lazy(() => import('./pages/dashboard/AttendancePage.jsx'))
+const MyAttendancePage  = lazy(() => import('./pages/dashboard/MyAttendancePage.jsx'))
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 import ProtectedRoute from './components/ui/ProtectedRoute.jsx'
@@ -110,6 +112,22 @@ export default function App() {
           element={
             <ProtectedRoute requiredRole="Admin">
               <PayrollPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="attendance"
+          element={
+            <ProtectedRoute requiredRole="Admin">
+              <AttendancePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="my-attendance"
+          element={
+            <ProtectedRoute blockedRole="Admin">
+              <MyAttendancePage />
             </ProtectedRoute>
           }
         />
