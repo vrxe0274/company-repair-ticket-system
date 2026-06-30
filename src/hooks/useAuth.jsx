@@ -32,6 +32,7 @@ import {
   clearSession,
   consumeSessionExpiredFlag,
   saveAttendanceLogId,
+  clearAttendanceLogId,
   ATTENDANCE_CLOSE_KEY,
 } from '../lib/session'
 import { unsubscribeFromPush } from '../lib/push'
@@ -50,11 +51,11 @@ async function recordLogin({ username = null, role, name = null }) {
 }
 
 /** Fire-and-forget: mark an open attendance row as closed. */
-function closeAttendanceLog(id, reason) {
+function closeAttendanceLog(id, reason, loggedOutAt = new Date()) {
   if (!id) return
   supabase
     .from('attendance_logs')
-    .update({ logged_out_at: new Date().toISOString(), logout_reason: reason })
+    .update({ logged_out_at: new Date(loggedOutAt).toISOString(), logout_reason: reason })
     .eq('id', id)
     .then(() => {})
 }
@@ -68,19 +69,65 @@ export function AuthProvider({ children }) {
     if (session) {
       setAuthenticated(true)
       renewSession()
+      // If the session has no open attendance log (e.g. browser was closed and
+      // reopened — the beforeunload handler cleared it), start a fresh one.
+      if (!session.attendanceLogId) {
+        recordLogin({ username: session.username ?? null, role: session.role, name: session.name ?? null })
+      }
     } else if (consumeSessionExpiredFlag()) {
       unsubscribeFromPush()
     }
 
     // Close any attendance log left open by a session that expired between page loads.
-    const pendingId = localStorage.getItem(ATTENDANCE_CLOSE_KEY)
-    if (pendingId) {
+    // The stored value is JSON { id, expiresAt } so we use the real expiry time, not now.
+    const pendingRaw = localStorage.getItem(ATTENDANCE_CLOSE_KEY)
+    if (pendingRaw) {
       localStorage.removeItem(ATTENDANCE_CLOSE_KEY)
-      closeAttendanceLog(pendingId, 'session_expired')
+      try {
+        const { id, expiresAt } = JSON.parse(pendingRaw)
+        closeAttendanceLog(id, 'session_expired', expiresAt ?? new Date())
+      } catch {
+        // Legacy plain-string ID (no expiresAt available) — fall back to now
+        closeAttendanceLog(pendingRaw, 'session_expired')
+      }
     }
 
     setLoading(false)
   }, [])
+
+  // Close the attendance log the moment the browser tab/window closes.
+  // Must use raw fetch with keepalive:true — the supabase-js client cancels
+  // in-flight requests on unload, but keepalive bypasses that restriction.
+  // Also clears attendanceLogId from the session so the next page load
+  // (browser reopen with a persistent session) creates a fresh log.
+  useEffect(() => {
+    if (!authenticated) return
+    function onBeforeUnload() {
+      const session = getSession()
+      const id = session?.attendanceLogId
+      if (!id) return
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/attendance_logs?id=eq.${id}`,
+        {
+          method: 'PATCH',
+          keepalive: true,
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            logged_out_at: new Date().toISOString(),
+            logout_reason: 'browser_closed',
+          }),
+        }
+      )
+      clearAttendanceLogId()
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [authenticated])
 
   /**
    * loginWithRole — verifies the role's shared password server-side via the

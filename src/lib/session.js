@@ -72,7 +72,7 @@ export function getSession() {
         // Expired — stash the open attendance log ID so the next load can close
         // it, then flag for push cleanup.
         if (s.attendanceLogId) {
-          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, s.attendanceLogId) } catch {}
+          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, JSON.stringify({ id: s.attendanceLogId, expiresAt: s.expiresAt })) } catch {}
         }
         localStorage.removeItem(SESSION_KEY)
         localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
@@ -89,7 +89,7 @@ export function getSession() {
     if (s) {
       if (s.expiresAt && Date.now() > s.expiresAt) {
         if (s.attendanceLogId) {
-          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, s.attendanceLogId) } catch {}
+          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, JSON.stringify({ id: s.attendanceLogId, expiresAt: s.expiresAt })) } catch {}
         }
         sessionStorage.removeItem(SESSION_KEY)
         localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
@@ -205,4 +205,10 @@ export function consumeSessionExpiredFlag() {
  */
 export function saveAttendanceLogId(id) {
   patchSession({ attendanceLogId: id })
+}
+
+/** Remove the attendance log ID from the session (called on browser close so
+ *  the next load knows to start a fresh log). */
+export function clearAttendanceLogId() {
+  patchSession({ attendanceLogId: null })
 }
