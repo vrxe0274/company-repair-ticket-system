@@ -16,7 +16,7 @@ export function useTicket(id) {
   const navigate      = useNavigate()
   const fileInputRef  = useRef(null)
   const proofInputRef = useRef(null)
-  const { role, getAllowedTransitions, isManager, isTechnician } = useRole()
+  const { role, getAllowedTransitions, isManager, isTechnician, isAdmin } = useRole()
 
   const [ticket,         setTicket]         = useState(null)
   const [loading,        setLoading]        = useState(true)
@@ -353,7 +353,7 @@ export function useTicket(id) {
    * null on success (after which the page navigates away).
    */
   async function deleteTicket(password) {
-    if (!isManager) return 'Not authorized.'
+    if (!isAdmin) return 'Not authorized.'
     try {
       await adminDeleteTicket(id, password)
       navigate('/tickets')
@@ -374,7 +374,7 @@ export function useTicket(id) {
     finalPrice, setFinalPrice,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
-    isManager, isTechnician, getAllowedTransitions,
+    isManager, isTechnician, isAdmin, getAllowedTransitions,
     updateStatus, undoStatus, saveNotesAndPricing,
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
