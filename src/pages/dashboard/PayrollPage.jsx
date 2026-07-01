@@ -93,15 +93,17 @@ export default function PayrollPage() {
       return sum + staffCommission(fee, rate.technician_pct, rate.staff_pct)
     }, 0), [filteredTickets, rateHistory])
 
-  const grandTotal = techTotal + staff.length * perStaff
-
   const monthLabel = selectedMonth === 'all'
     ? 'All Time'
     : format(new Date(selectedMonth + '-01'), 'MMMM yyyy')
 
-  const techCount  = techs.length || 1  // avoid div-by-zero; fallback shows one "Technician" row
-  const perTech    = techTotal / techCount
+  const techCount  = techs.length || 1  // fallback shows one "Technician" row when no accounts exist
+  // Every technician earns the FULL technician commission — it is NOT split
+  // between technicians. Each tech is paid perTech, so the total technician
+  // payout scales with headcount (techCount × techTotal).
+  const perTech    = techTotal
   const payeeCount = techCount + staff.length
+  const grandTotal = techCount * techTotal + staff.length * perStaff
 
   function openEditModal() {
     setEditTech((currentRate.technician_pct * 100).toString())
@@ -336,7 +338,7 @@ export default function PayrollPage() {
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{filteredTickets.length}</td>
                   <td className="px-4 py-3.5 text-right text-xs font-sans text-gray-500">
-                    {fmtPct(currentRate.technician_pct)} <span className="text-gray-400">of labor fee ÷ {techs.length}</span>
+                    {fmtPct(currentRate.technician_pct)} <span className="text-gray-400">of labor fee</span>
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(perTech)}</td>
                 </tr>

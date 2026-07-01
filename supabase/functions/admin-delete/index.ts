@@ -31,13 +31,21 @@ import { corsHeaders, json, timingSafeEqual, deriveRoleKey } from '../_shared/au
 const BUCKET   = 'repair-photos'
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
 
-/** Remove a list of storage object paths, ignoring failures (best-effort cleanup). */
+/** Remove storage object paths in chunks, ignoring failures (best-effort cleanup).
+ *  Chunked so a large flush (many tickets) can't exceed the remove() array limit. */
 async function removePhotos(
   supabase: ReturnType<typeof createClient>,
   paths: string[],
 ) {
-  if (!paths.length) return
-  await supabase.storage.from(BUCKET).remove(paths)
+  const CHUNK = 100
+  for (let i = 0; i < paths.length; i += CHUNK) {
+    await supabase.storage.from(BUCKET).remove(paths.slice(i, i + CHUNK))
+  }
+}
+
+/** Convert a public storage URL to its object path within BUCKET. */
+function toStoragePath(url: string): string {
+  return url.split(`/${BUCKET}/`).pop() ?? url
 }
 
 Deno.serve(async (req) => {
@@ -90,11 +98,13 @@ Deno.serve(async (req) => {
   if (body.action === 'delete-ticket') {
     if (!body.id) return json(400, { ok: false, error: 'id is required' })
 
-    // Clean up this ticket's photos first (best-effort), then delete the row.
+    // Clean up this ticket's photos AND its payment-proof screenshot first
+    // (best-effort), then delete the row.
     const { data: row } = await supabase
-      .from('tickets').select('repair_photos').eq('id', body.id).single()
-    const photos: string[] = row?.repair_photos ?? []
-    await removePhotos(supabase, photos.map((u) => u.split(`/${BUCKET}/`).pop() ?? u))
+      .from('tickets').select('repair_photos, payment_proof_url').eq('id', body.id).single()
+    const paths: string[] = ((row?.repair_photos ?? []) as string[]).map(toStoragePath)
+    if (row?.payment_proof_url) paths.push(toStoragePath(row.payment_proof_url as string))
+    await removePhotos(supabase, paths)
 
     const { error } = await supabase.from('tickets').delete().eq('id', body.id)
     if (error) return json(500, { ok: false, error: error.message })
@@ -102,9 +112,20 @@ Deno.serve(async (req) => {
   }
 
   if (body.action === 'flush') {
-    // Remove every object in the photos bucket, then every ticket row.
-    const { data: files } = await supabase.storage.from(BUCKET).list()
-    await removePhotos(supabase, (files ?? []).map((f) => f.name))
+    // Derive every stored object path from the ticket rows themselves, then
+    // delete the objects. Listing the bucket root only returns the per-ticket
+    // FOLDER entries (photos live under `${ticket_id}/...`) and storage.remove()
+    // does NOT recurse into folders — so paths must come from the rows to
+    // actually clear the images (repair photos + payment-proof screenshots).
+    const { data: rows } = await supabase
+      .from('tickets').select('repair_photos, payment_proof_url')
+
+    const paths: string[] = []
+    for (const r of rows ?? []) {
+      for (const u of ((r.repair_photos ?? []) as string[])) paths.push(toStoragePath(u))
+      if (r.payment_proof_url) paths.push(toStoragePath(r.payment_proof_url as string))
+    }
+    await removePhotos(supabase, paths)
 
     const { error } = await supabase.from('tickets').delete().neq('id', NIL_UUID)
     if (error) return json(500, { ok: false, error: error.message })
