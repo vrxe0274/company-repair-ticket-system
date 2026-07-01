@@ -42,6 +42,37 @@ export function getTrackingUrl(trackingToken) {
   return `${base}/track/${trackingToken}`
 }
 
+/**
+ * Insert a ticket, generating a fresh sequential ticket_id + random tracking
+ * token, and retrying if a concurrent submission grabbed the same ticket_id.
+ *
+ * generateTicketId() reads the current max and increments, so two public
+ * submissions in the same YYMM window can compute the same number and collide
+ * on the ticket_id UNIQUE constraint (Postgres error 23505). Rather than
+ * surfacing a confusing "Submission failed" to the client, we regenerate and
+ * retry. Caller passes the payload WITHOUT ticket_id / tracking_token.
+ *
+ * @returns {Promise<{data?: object, error?: any}>} supabase-style result.
+ */
+export async function createTicket(supabase, payload, { maxRetries = 5 } = {}) {
+  let lastError = null
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const ticket_id      = await generateTicketId(supabase)
+    const tracking_token = generateTrackingToken()
+    const { data, error } = await supabase
+      .from('tickets')
+      .insert([{ ...payload, ticket_id, tracking_token }])
+      .select()
+      .single()
+    if (!error) return { data }
+    lastError = error
+    // Only a unique-constraint clash is worth retrying (concurrent submit took
+    // the same sequential ticket_id). Any other error is real — stop and report.
+    if (error.code !== '23505') break
+  }
+  return { error: lastError ?? new Error('Could not create ticket. Please try again.') }
+}
+
 /** Builds "Samsung Galaxy S24 (Phone)" from whatever unit fields exist; '' if none. */
 function buildUnitPart(ticket) {
   const unit = [ticket.unit_brand, ticket.unit_model]

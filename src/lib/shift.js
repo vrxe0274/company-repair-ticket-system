@@ -7,7 +7,7 @@ export async function getShiftHours() {
     .from('app_settings')
     .select('value')
     .eq('key', 'shift_hours')
-    .single()
+    .maybeSingle()
   if (!data?.value) return DEFAULT_SHIFT
   return {
     start: data.value.start ?? DEFAULT_SHIFT.start,

@@ -13,7 +13,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
-import { CheckCheck, Inbox, ChevronRight } from 'lucide-react'
+import { CheckCheck, Inbox, ChevronRight, Trash2 } from 'lucide-react'
 import { useRole }          from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { STATUS_COLORS }    from '../../lib/utils'
@@ -42,7 +42,7 @@ function cleanMessage(message) {
 export default function NotificationsPage() {
   const navigate = useNavigate()
   const { role, isAdmin } = useRole()
-  const { notifications, unseenCount, loading, markAllSeen, markSeen } = useNotifications()
+  const { notifications, unseenCount, loading, markAllSeen, markSeen, clearForMe } = useNotifications()
 
   /**
    * Mark a notification as seen (optimistically, then persisted via the hook)
@@ -75,6 +75,16 @@ export default function NotificationsPage() {
           className="btn-secondary text-sm disabled:opacity-40 disabled:pointer-events-none"
         >
           <CheckCheck className="w-3.5 h-3.5" /> Mark all read
+        </button>
+        <button
+          onClick={() => {
+            if (notifications.length === 0) return
+            if (window.confirm('Clear all notifications from your inbox?')) clearForMe()
+          }}
+          disabled={notifications.length === 0}
+          className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Clear all
         </button>
       </div>
 

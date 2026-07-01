@@ -18,8 +18,7 @@ import { ChevronLeft, ChevronRight, Send, CheckCircle } from 'lucide-react'
 import { supabase }              from '../lib/supabase'
 import { sendGlobalPush }        from '../lib/push'
 import {
-  generateTicketId, generateTrackingToken, getTrackingUrl,
-  formatUnitLabel, formatClientUnitLabel,
+  createTicket, getTrackingUrl, formatUnitLabel,
 } from '../lib/utils'
 import { PublicHeader } from './submit-ticket/components'
 import {
@@ -78,8 +77,6 @@ export default function SubmitTicketPage() {
     if (!termsAccepted) { setStep(1); return }  // safety net — Terms is step 1
     setSubmitting(true)
     try {
-      const ticketId      = await generateTicketId(supabase)
-      const trackingToken = generateTrackingToken()
       const resolvedBrand = form.unit_brand === 'Others' ? form.unit_brand_custom : form.unit_brand
       const resolvedType  = form.unit_type === 'Others' ? form.unit_type_custom : form.unit_type
       const resolvedMode  = form.mode_of_service === 'Delivery via courier' ? `Delivery via courier - ${form.mode_courier}` : form.mode_of_service === 'Others' ? form.mode_custom : form.mode_of_service
@@ -98,13 +95,13 @@ export default function SubmitTicketPage() {
         preferred_date:       form.preferred_date  || null,
         preferred_time:       form.preferred_time  || null,
         mode_of_service:      resolvedMode,
-        ticket_id:            ticketId,
-        tracking_token:       trackingToken,
         status:               'Pending',
         labor_items:          [],
         quotation_amount:     null,
       }
-      const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
+      // createTicket generates the ticket_id + tracking_token and retries on a
+      // concurrent ticket_id collision (see lib/utils.js).
+      const { data, error } = await createTicket(supabase, payload)
       if (error) throw error
       // Global push (all subscribed staff devices) — fire-and-forget, fails softly.
       // Creation events show the ticket (unit) name only — no client name.
@@ -127,8 +124,6 @@ export default function SubmitTicketPage() {
   async function devQuickSubmit() {
     setSubmitting(true)
     try {
-      const ticketId      = await generateTicketId(supabase)
-      const trackingToken = generateTrackingToken()
       const payload = {
         client_name:          'Dev Tester',
         contact_number:       '09171234567',
@@ -144,13 +139,11 @@ export default function SubmitTicketPage() {
         preferred_date:       '2026-07-01',
         preferred_time:       '10:00',
         mode_of_service:      'Walk-in or Drop-Off',
-        ticket_id:            ticketId,
-        tracking_token:       trackingToken,
         status:               'Pending',
         labor_items:          [],
         quotation_amount:     null,
       }
-      const { data, error } = await supabase.from('tickets').insert([payload]).select().single()
+      const { data, error } = await createTicket(supabase, payload)
       if (error) throw error
       sendGlobalPush({
         title: 'New repair ticket',

@@ -65,7 +65,7 @@ describe('saveSession', () => {
     expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
   })
 
-  it('non-persistent session has expiresAt set (expires after 9 hours)', () => {
+  it('non-persistent session also has a 9-hour expiresAt (fixed TTL regardless of persistence)', () => {
     const before = Date.now()
     saveSession('Admin', { persistent: false })
     const after = Date.now()
@@ -170,7 +170,7 @@ describe('clearSession', () => {
 // ─── renewSession ─────────────────────────────────────────────────────────────
 
 describe('renewSession', () => {
-  it('is a no-op — session expiry does not change', () => {
+  it('does not slide expiresAt — fixed TTL from login, renewSession is a no-op', () => {
     vi.useFakeTimers()
     const start = 1_000_000_000_000
     vi.setSystemTime(start)

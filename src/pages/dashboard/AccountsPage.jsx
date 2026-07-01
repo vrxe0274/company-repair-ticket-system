@@ -161,7 +161,7 @@ function DeleteModal({ target, onClose, onDeleted }) {
   const isTech  = target?.type === 'tech'
   const callFn  = isTech ? callTechManage : callStaffManage
   const label   = isTech ? 'technician account' : 'staff account'
-  const canDelete = !isTech || confirmText === target?.username
+  const canDelete = confirmText === target?.username
 
   async function handleDelete() {
     setDeleting(true); setError('')
@@ -200,22 +200,20 @@ function DeleteModal({ target, onClose, onDeleted }) {
           This immediately revokes their access and cannot be undone.
         </p>
 
-        {isTech && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
-              Type <span className="font-mono text-gray-700">{target.username}</span> to confirm
-            </label>
-            <input
-              type="text"
-              value={confirmText}
-              onChange={e => setConfirmText(e.target.value)}
-              className="input-field font-mono"
-              placeholder={target.username}
-              autoFocus autoComplete="off" spellCheck={false}
-              onKeyDown={e => { if (e.key === 'Enter' && canDelete && !deleting) handleDelete() }}
-            />
-          </div>
-        )}
+        <div className="space-y-1.5">
+          <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
+            Type <span className="font-mono text-gray-700">{target.username}</span> to confirm
+          </label>
+          <input
+            type="text"
+            value={confirmText}
+            onChange={e => setConfirmText(e.target.value)}
+            className="input-field font-mono"
+            placeholder={target.username}
+            autoFocus autoComplete="off" spellCheck={false}
+            onKeyDown={e => { if (e.key === 'Enter' && canDelete && !deleting) handleDelete() }}
+          />
+        </div>
 
         {error && <p className="text-xs text-red-500 font-sans">{error}</p>}
 
