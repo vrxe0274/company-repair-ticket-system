@@ -14,7 +14,7 @@
  *   4. navigate('/') → ProtectedRoute lets them through.
  */
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { Lock, Eye, EyeOff, ShieldCheck, Wrench, Shield, ArrowLeft, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -120,6 +120,10 @@ export default function LoginPage() {
   const [showPw,       setShowPw]       = useState(false)
   const [error,        setError]        = useState('')
   const [loading,      setLoading]      = useState(false)
+  // Synchronous re-entry guard: the `loading` state disables the button, but
+  // state updates are async — a rapid double-click / Enter+click can pass the
+  // check twice before re-render, firing two logins (→ duplicate attendance rows).
+  const submittingRef = useRef(false)
 
   // Installed PWA → always stay signed in; browser → user-controlled toggle.
   const standalone = isStandalone()
@@ -149,6 +153,7 @@ export default function LoginPage() {
   /** Attempt login for the selected role. Credentials are verified server-side. */
   async function handleLogin(e) {
     e?.preventDefault()
+    if (submittingRef.current) return // block re-entry before `loading` re-render lands
 
     const isStaffRole = selectedRole === ROLES.STAFF
     const isTechRole  = selectedRole === ROLES.TECHNICIAN
@@ -163,6 +168,7 @@ export default function LoginPage() {
       return
     }
 
+    submittingRef.current = true
     setLoading(true)
     setError('')
 
@@ -193,6 +199,7 @@ export default function LoginPage() {
     } catch (err) {
       setError(err.message || 'Connection error. Try again.')
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }

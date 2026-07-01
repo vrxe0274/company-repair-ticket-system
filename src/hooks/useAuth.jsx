@@ -46,13 +46,7 @@ async function recordLogin({ username = null, role, name = null }) {
   // never fired beforeunload (crash, mobile background, killed tab) would
   // otherwise stay "Active" forever while this new login opens another row,
   // stacking up duplicate Active entries for the same person.
-  let closeStale = supabase
-    .from('attendance_logs')
-    .update({ logged_out_at: new Date().toISOString(), logout_reason: 'superseded' })
-    .is('logged_out_at', null)
-    .eq('role', role)
-  closeStale = username ? closeStale.eq('username', username) : closeStale.is('username', null)
-  await closeStale
+  await sweepOrphanOpenLogs({ username, role })
 
   const { data } = await supabase
     .from('attendance_logs')
@@ -60,6 +54,23 @@ async function recordLogin({ username = null, role, name = null }) {
     .select('id')
     .single()
   if (data?.id) saveAttendanceLogId(data.id)
+}
+
+/**
+ * Fire-and-forget: close every open attendance row for this identity EXCEPT
+ * keepId. Runs on every load so orphan "Active" rows left by a tab that was
+ * killed in the background (no beforeunload, session still valid) get swept
+ * instead of stacking up as duplicate Active entries.
+ */
+async function sweepOrphanOpenLogs({ username = null, role, keepId }) {
+  let q = supabase
+    .from('attendance_logs')
+    .update({ logged_out_at: new Date().toISOString(), logout_reason: 'superseded' })
+    .is('logged_out_at', null)
+    .eq('role', role)
+  q = username ? q.eq('username', username) : q.is('username', null)
+  if (keepId) q = q.neq('id', keepId)
+  await q
 }
 
 /** Fire-and-forget: sync the currently-open attendance row's username/name to the session. */
@@ -97,11 +108,18 @@ export function AuthProvider({ children }) {
       // reopened — the beforeunload handler cleared it), start a fresh one.
       if (!session.attendanceLogId) {
         recordLogin({ username: session.username ?? null, role: session.role, name: session.name ?? null })
-      } else if (session.username || session.name) {
-        // Re-sync the open row's username/name to the session on every load —
-        // heals rows left stale by a rename that predates this reconcile
-        // (or any other path that changed the session without patching the row).
-        renameOpenAttendanceLog(session.attendanceLogId, session.username ?? null, session.name ?? null)
+      } else {
+        // Reopen with a live log: sweep any OTHER open rows for this identity
+        // (orphans from tabs killed in the background) so only this one stays
+        // Active, then re-sync its username/name to the session.
+        sweepOrphanOpenLogs({
+          username: session.username ?? null,
+          role: session.role,
+          keepId: session.attendanceLogId,
+        })
+        if (session.username || session.name) {
+          renameOpenAttendanceLog(session.attendanceLogId, session.username ?? null, session.name ?? null)
+        }
       }
     } else if (consumeSessionExpiredFlag()) {
       unsubscribeFromPush()
