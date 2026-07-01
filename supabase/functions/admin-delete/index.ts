@@ -45,7 +45,13 @@ async function removePhotos(
 
 /** Convert a public storage URL to its object path within BUCKET. */
 function toStoragePath(url: string): string {
-  return url.split(`/${BUCKET}/`).pop() ?? url
+  const marker = `/${BUCKET}/`
+  const idx = url.indexOf(marker)
+  if (idx === -1) {
+    console.warn('toStoragePath: bucket delimiter not found in URL, skipping:', url)
+    return url
+  }
+  return url.slice(idx + marker.length)
 }
 
 Deno.serve(async (req) => {

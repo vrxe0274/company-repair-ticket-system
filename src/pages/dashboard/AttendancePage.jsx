@@ -171,7 +171,7 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
       const { data } = await supabase
         .from('attendance_logs')
         .select('*')
-        .eq('username', target.username)
+        .eq('username', target.username.toLowerCase())
         .gte('logged_in_at', startOfMonth(monthDate).toISOString())
         .lte('logged_in_at', endOfMonth(monthDate).toISOString())
         .order('logged_in_at', { ascending: false })
@@ -413,14 +413,14 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
           <p className="text-sm font-body">{emptyText}</p>
         </div>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead>
             <tr className="border-b border-gray-100 bg-white">
-              <th className="text-left pl-6 pr-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Person</th>
-              <th className="text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
+              <th className="w-[40%] text-left pl-6 pr-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Person</th>
+              <th className="w-[22%] text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
                 <span className="inline-flex items-center gap-1"><LogIn className="w-3 h-3" /> In</span>
               </th>
-              <th className="text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide hidden md:table-cell">
+              <th className="w-[22%] text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide hidden md:table-cell">
                 <span className="inline-flex items-center gap-1"><LogOut className="w-3 h-3" /> Out</span>
               </th>
               <th className="text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Duration</th>
@@ -436,7 +436,7 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
                   title="Click to view full attendance history"
                   onClick={() => onSelectPerson({ username: log.username, role: log.role, name: log.name })}
                 >
-                  <td className="pl-6 pr-4 py-3.5">
+                  <td className="pl-6 pr-4 py-3.5 max-w-0">
                     <PersonCell
                       name={log.name}
                       username={log.username}

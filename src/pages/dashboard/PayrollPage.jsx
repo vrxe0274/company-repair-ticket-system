@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
 import { Banknote, Calendar, Wrench, Shield, ChevronDown, Check, Users, Pencil, X } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, fnErrorMessage } from '../../lib/supabase'
 import {
   laborFee, technicianCommission, staffCommission,
   getApplicableRate, getCommissionRates, saveCommissionRate,
@@ -11,6 +11,20 @@ const PESO   = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDig
 const fmtPct = d => { const v = d * 100; return Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%` }
 
 const COLUMNS = ['id', 'ticket_id', 'created_at', 'labor_items'].join(', ')
+
+async function callStaffManage(body) {
+  const { data, error } = await supabase.functions.invoke('staff-manage', { body })
+  if (error) throw new Error(await fnErrorMessage(error))
+  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
+  return data
+}
+
+async function callTechManage(body) {
+  const { data, error } = await supabase.functions.invoke('tech-manage', { body })
+  if (error) throw new Error(await fnErrorMessage(error))
+  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
+  return data
+}
 
 export default function PayrollPage() {
   const [tickets,       setTickets]       = useState([])
@@ -22,11 +36,13 @@ export default function PayrollPage() {
   const [filterOpen,    setFilterOpen]    = useState(false)
   const filterRef = useRef(null)
 
-  const [editOpen,   setEditOpen]   = useState(false)
-  const [editTech,   setEditTech]   = useState('')
-  const [editStaff,  setEditStaff]  = useState('')
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError,  setEditError]  = useState('')
+  const [editOpen,        setEditOpen]        = useState(false)
+  const [editTech,        setEditTech]        = useState('')
+  const [editStaff,       setEditStaff]       = useState('')
+  const [techOverrides,   setTechOverrides]   = useState({}) // { username: '25' | '' }
+  const [staffOverrides,  setStaffOverrides]  = useState({}) // { username: '6' | '' }
+  const [editSaving,      setEditSaving]      = useState(false)
+  const [editError,       setEditError]       = useState('')
 
   useEffect(() => {
     if (!filterOpen) return
@@ -97,39 +113,82 @@ export default function PayrollPage() {
     ? 'All Time'
     : format(new Date(selectedMonth + '-01'), 'MMMM yyyy')
 
-  const techCount  = techs.length || 1  // fallback shows one "Technician" row when no accounts exist
-  // Every technician earns the FULL technician commission — it is NOT split
-  // between technicians. Each tech is paid perTech, so the total technician
-  // payout scales with headcount (techCount × techTotal).
-  const perTech    = techTotal
+  const techAmounts = useMemo(() => Object.fromEntries(
+    techs.map(t => [t.username, filteredTickets.reduce((sum, ticket) => {
+      const fee  = laborFee(ticket)
+      const rate = getApplicableRate(ticket.created_at, rateHistory)
+      return sum + technicianCommission(fee, t.commission_pct ?? rate.technician_pct)
+    }, 0)])
+  ), [filteredTickets, rateHistory, techs])
+
+  const staffAmounts = useMemo(() => Object.fromEntries(
+    staff.map(s => [s.username, filteredTickets.reduce((sum, ticket) => {
+      const fee  = laborFee(ticket)
+      const rate = getApplicableRate(ticket.created_at, rateHistory)
+      return sum + staffCommission(fee, rate.technician_pct, s.commission_pct ?? rate.staff_pct)
+    }, 0)])
+  ), [filteredTickets, rateHistory, staff])
+
+  const techCount  = techs.length || 1
   const payeeCount = techCount + staff.length
-  const grandTotal = techCount * techTotal + staff.length * perStaff
+  const grandTotal = (techs.length === 0 ? techTotal : Object.values(techAmounts).reduce((a, b) => a + b, 0))
+                   + Object.values(staffAmounts).reduce((a, b) => a + b, 0)
 
   function openEditModal() {
     setEditTech((currentRate.technician_pct * 100).toString())
     setEditStaff((currentRate.staff_pct * 100).toString())
+    const techOvr = {}
+    techs.forEach(t => { techOvr[t.username] = t.commission_pct != null ? (t.commission_pct * 100).toString() : '' })
+    setTechOverrides(techOvr)
+    const staffOvr = {}
+    staff.forEach(s => { staffOvr[s.username] = s.commission_pct != null ? (s.commission_pct * 100).toString() : '' })
+    setStaffOverrides(staffOvr)
     setEditError('')
     setEditOpen(true)
   }
 
   async function handleSaveRates(e) {
     e.preventDefault()
-    const tech  = parseFloat(editTech)
-    const stf   = parseFloat(editStaff)
-    if (isNaN(tech) || tech < 0 || tech > 100) {
-      setEditError('Technician rate must be between 0 and 100.')
-      return
+    const tech = parseFloat(editTech)
+    const stf  = parseFloat(editStaff)
+    if (isNaN(tech) || tech < 0 || tech > 100) { setEditError('Technician default must be between 0 and 100.'); return }
+    if (isNaN(stf)  || stf  < 0 || stf  > 100) { setEditError('Staff default must be between 0 and 100.');      return }
+    for (const [u, v] of Object.entries(techOverrides)) {
+      if (v.trim() !== '') { const p = parseFloat(v); if (isNaN(p) || p < 0 || p > 100) { setEditError(`Invalid rate for technician "${u}".`); return } }
     }
-    if (isNaN(stf) || stf < 0 || stf > 100) {
-      setEditError('Staff rate must be between 0 and 100.')
-      return
+    for (const [u, v] of Object.entries(staffOverrides)) {
+      if (v.trim() !== '') { const p = parseFloat(v); if (isNaN(p) || p < 0 || p > 100) { setEditError(`Invalid rate for staff "${u}".`); return } }
     }
-    setEditSaving(true)
-    setEditError('')
+    setEditSaving(true); setEditError('')
     try {
       await saveCommissionRate(tech / 100, stf / 100)
       const updated = await getCommissionRates()
       setRateHistory(updated)
+
+      await Promise.all([
+        ...techs.map(t => {
+          const v      = techOverrides[t.username]?.trim() ?? ''
+          const newPct = v === '' ? null : parseFloat(v) / 100
+          if (newPct === t.commission_pct) return Promise.resolve()
+          return callTechManage({ action: 'set-commission', username: t.username, commission_pct: newPct })
+        }),
+        ...staff.map(s => {
+          const v      = staffOverrides[s.username]?.trim() ?? ''
+          const newPct = v === '' ? null : parseFloat(v) / 100
+          if (newPct === s.commission_pct) return Promise.resolve()
+          return callStaffManage({ action: 'set-commission', username: s.username, commission_pct: newPct })
+        }),
+      ])
+
+      setTechs(prev => prev.map(t => {
+        const v = techOverrides[t.username]?.trim() ?? ''
+        return { ...t, commission_pct: v === '' ? null : parseFloat(v) / 100 }
+      }))
+      setStaff(prev => prev.map(s => {
+        const v = staffOverrides[s.username]?.trim() ?? ''
+        return { ...s, commission_pct: v === '' ? null : parseFloat(v) / 100 }
+      }))
+
       setEditOpen(false)
     } catch {
       setEditError('Failed to save rates. Please try again.')
@@ -243,7 +302,7 @@ export default function PayrollPage() {
                     <Wrench className="w-3.5 h-3.5 text-accent-400 shrink-0" />
                     <span className="text-brand-200 text-sm font-body truncate">{t.name || t.username}</span>
                   </div>
-                  <span className="font-mono text-sm text-white shrink-0">{PESO(perTech)}</span>
+                  <span className="font-mono text-sm text-white shrink-0">{PESO(techAmounts[t.username] ?? 0)}</span>
                 </div>
               ))}
               {staff.map(s => (
@@ -252,7 +311,7 @@ export default function PayrollPage() {
                     <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span className="text-brand-200 text-sm font-body truncate">{s.name || s.username}</span>
                   </div>
-                  <span className="font-mono text-sm text-white shrink-0">{PESO(perStaff)}</span>
+                  <span className="font-mono text-sm text-white shrink-0">{PESO(staffAmounts[s.username] ?? 0)}</span>
                 </div>
               ))}
               {staff.length === 0 && (
@@ -338,9 +397,9 @@ export default function PayrollPage() {
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{filteredTickets.length}</td>
                   <td className="px-4 py-3.5 text-right text-xs font-sans text-gray-500">
-                    {fmtPct(currentRate.technician_pct)} <span className="text-gray-400">of labor fee</span>
+                    {fmtPct(t.commission_pct ?? currentRate.technician_pct)}{t.commission_pct == null && <span className="text-gray-400 ml-0.5">(default)</span>} <span className="text-gray-400">of labor fee</span>
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(perTech)}</td>
+                  <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(techAmounts[t.username] ?? 0)}</td>
                 </tr>
               ))}
 
@@ -367,9 +426,9 @@ export default function PayrollPage() {
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{filteredTickets.length}</td>
                   <td className="px-4 py-3.5 text-right text-xs font-sans text-gray-500">
-                    {fmtPct(currentRate.staff_pct)} <span className="text-gray-400">of net labor fee</span>
+                    {fmtPct(s.commission_pct ?? currentRate.staff_pct)}{s.commission_pct == null && <span className="text-gray-400 ml-0.5">(default)</span>} <span className="text-gray-400">of net labor fee</span>
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(perStaff)}</td>
+                  <td className="px-4 py-3.5 text-right font-mono text-sm font-bold text-gray-900">{PESO(staffAmounts[s.username] ?? 0)}</td>
                 </tr>
               ))}
 
@@ -391,74 +450,129 @@ export default function PayrollPage() {
       {/* ── Edit Rates modal ── */}
       {editOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-sm p-6 space-y-5 animate-slide-up">
+          <div className="card w-full max-w-md animate-slide-up flex flex-col max-h-[85vh]">
 
-            <div className="flex items-start justify-between gap-3">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 p-6 pb-4 shrink-0">
               <div>
                 <h2 className="font-sans font-bold text-gray-900 text-base">Edit Commission Rates</h2>
                 <p className="text-xs font-body text-gray-500 mt-0.5">
                   Applies to new tickets only. Past repairs are unaffected.
                 </p>
               </div>
-              <button
-                onClick={() => setEditOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              >
+              <button onClick={() => setEditOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveRates} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
-                  Technician — % of labor fee
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0" max="100" step="0.1"
-                    value={editTech}
-                    onChange={e => { setEditTech(e.target.value); setEditError('') }}
-                    className="input-field flex-1"
-                    autoFocus
-                  />
-                  <span className="text-sm text-gray-500 font-sans shrink-0">%</span>
+            <form onSubmit={handleSaveRates} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto flex-1 px-6 space-y-5">
+
+                {/* Role defaults */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-widest">Role Defaults</p>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-sans font-semibold text-gray-600">
+                      Technician — % of labor fee
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="0" max="100" step="0.1" value={editTech}
+                        onChange={e => { setEditTech(e.target.value); setEditError('') }}
+                        className="input-field flex-1" autoFocus />
+                      <span className="text-sm text-gray-500 font-sans shrink-0">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-sans font-semibold text-gray-600">
+                      Staff — % of net labor fee
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="0" max="100" step="0.1" value={editStaff}
+                        onChange={e => { setEditStaff(e.target.value); setEditError('') }}
+                        className="input-field flex-1" />
+                      <span className="text-sm text-gray-500 font-sans shrink-0">%</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Per-account overrides — only shown when there are accounts */}
+                {(techs.length > 0 || staff.length > 0) && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-widest">Individual Overrides</p>
+                      <p className="text-xs font-body text-gray-400 mt-0.5">Leave blank to use the role default above.</p>
+                    </div>
+
+                    {techs.length > 0 && (
+                      <div className="rounded-xl border border-gray-100 overflow-hidden">
+                        <div className="px-3 py-2 bg-accent-50/60 border-b border-gray-100 flex items-center gap-1.5">
+                          <Wrench className="w-3 h-3 text-accent-500 shrink-0" />
+                          <span className="text-xs font-sans font-semibold text-accent-700">Technicians</span>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {techs.map(t => (
+                            <div key={t.username} className="flex items-center gap-3 px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-sans font-semibold text-gray-800 truncate">{t.name || t.username}</p>
+                                {t.name && <p className="text-xs font-mono text-gray-400 truncate">{t.username}</p>}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <input
+                                  type="number" min="0" max="100" step="0.1"
+                                  value={techOverrides[t.username] ?? ''}
+                                  onChange={e => { setTechOverrides(p => ({ ...p, [t.username]: e.target.value })); setEditError('') }}
+                                  className="input-field w-20 text-right py-1.5 text-sm"
+                                  placeholder="Default"
+                                />
+                                <span className="text-xs text-gray-400 shrink-0">%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {staff.length > 0 && (
+                      <div className="rounded-xl border border-gray-100 overflow-hidden">
+                        <div className="px-3 py-2 bg-emerald-50/60 border-b border-gray-100 flex items-center gap-1.5">
+                          <Shield className="w-3 h-3 text-emerald-500 shrink-0" />
+                          <span className="text-xs font-sans font-semibold text-emerald-700">Staff</span>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {staff.map(s => (
+                            <div key={s.username} className="flex items-center gap-3 px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-sans font-semibold text-gray-800 truncate">{s.name || s.username}</p>
+                                {s.name && <p className="text-xs font-mono text-gray-400 truncate">{s.username}</p>}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <input
+                                  type="number" min="0" max="100" step="0.1"
+                                  value={staffOverrides[s.username] ?? ''}
+                                  onChange={e => { setStaffOverrides(p => ({ ...p, [s.username]: e.target.value })); setEditError('') }}
+                                  className="input-field w-20 text-right py-1.5 text-sm"
+                                  placeholder="Default"
+                                />
+                                <span className="text-xs text-gray-400 shrink-0">%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {editError && <p className="text-xs text-red-500 font-sans">{editError}</p>}
+
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">
-                  Staff — % of net labor fee
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0" max="100" step="0.1"
-                    value={editStaff}
-                    onChange={e => { setEditStaff(e.target.value); setEditError('') }}
-                    className="input-field flex-1"
-                  />
-                  <span className="text-sm text-gray-500 font-sans shrink-0">%</span>
-                </div>
-              </div>
-
-              {editError && (
-                <p className="text-xs text-red-500 font-sans">{editError}</p>
-              )}
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setEditOpen(false)}
-                  className="btn-secondary flex-1 justify-center"
-                >
+              {/* Footer */}
+              <div className="flex gap-3 p-6 pt-4 border-t border-gray-100 shrink-0">
+                <button type="button" onClick={() => setEditOpen(false)} className="btn-secondary flex-1 justify-center">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={editSaving}
-                  className="btn-primary flex-1 justify-center disabled:opacity-50 disabled:pointer-events-none"
-                >
+                <button type="submit" disabled={editSaving} className="btn-primary flex-1 justify-center disabled:opacity-50 disabled:pointer-events-none">
                   {editSaving
                     ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     : 'Save Rates'

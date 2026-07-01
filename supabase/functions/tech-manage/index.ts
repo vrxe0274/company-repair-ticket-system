@@ -60,6 +60,7 @@ async function handleRequest(req: Request): Promise<Response> {
     newPassword?: string
     newUsername?: string
     name?: string
+    commission_pct?: number | null
   }
   try {
     body = await req.json()
@@ -178,11 +179,31 @@ async function handleRequest(req: Request): Promise<Response> {
   if (action === 'list-names') {
     const { data, error } = await supabase
       .from('technician_accounts')
-      .select('username, name')
+      .select('username, name, commission_pct')
       .order('name', { ascending: true })
 
     if (error) return json(500, { ok: false, error: 'Failed to fetch technician names.' })
     return json(200, { ok: true, staff: data ?? [] })
+  }
+
+  // ── Set per-account commission override ───────────────────────────────────────
+
+  if (action === 'set-commission') {
+    const targetUser    = (body.username ?? '').trim()
+    const commissionPct = body.commission_pct ?? null
+    if (!targetUser) return json(200, { ok: false, error: 'Username is required.' })
+    if (commissionPct !== null) {
+      const pct = Number(commissionPct)
+      if (isNaN(pct) || pct < 0 || pct > 1) {
+        return json(200, { ok: false, error: 'commission_pct must be between 0 and 1.' })
+      }
+    }
+    const { error } = await supabase
+      .from('technician_accounts')
+      .update({ commission_pct: commissionPct })
+      .eq('username', targetUser)
+    if (error) return json(500, { ok: false, error: 'Failed to update commission rate.' })
+    return json(200, { ok: true })
   }
 
   // ── List (no password required) ──────────────────────────────────────────────
@@ -190,7 +211,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (action === 'list') {
     const { data, error } = await supabase
       .from('technician_accounts')
-      .select('id, username, name, created_at, created_by')
+      .select('id, username, name, created_at, created_by, commission_pct')
       .order('created_at', { ascending: false })
 
     if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
@@ -218,7 +239,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // ── Create ────────────────────────────────────────────────────────────────────
 
   if (action === 'create') {
-    const normalizedUsername = (username ?? '').trim()
+    const normalizedUsername = (username ?? '').trim().toLowerCase()
     if (!normalizedUsername || !USERNAME_RE.test(normalizedUsername)) {
       return json(200, {
         ok: false,
@@ -288,7 +309,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
     if (attError) {
       console.error('tech attendance cleanup failed:', JSON.stringify(attError))
-      return json(200, { ok: false, error: `Account deleted, but attendance cleanup failed: ${attError.message ?? attError.code ?? 'unknown'}` })
+      // Account is already deleted — don't block the UI on best-effort cleanup.
     }
     return json(200, { ok: true })
   }
