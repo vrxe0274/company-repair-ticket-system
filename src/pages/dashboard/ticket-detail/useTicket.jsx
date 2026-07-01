@@ -7,7 +7,6 @@ import { downloadTicketPDF } from '../../../lib/pdf'
 import { generateReceiptNumber, downloadReceiptPDF } from '../../../lib/receipt'
 import { useRole }           from '../../../hooks/useRole.jsx'
 import { DIAGNOSIS_FEE }    from '../../../lib/constants'
-import { DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT, discountCapFor } from '../../../lib/utils'
 import {
   TICKET_COLUMNS, SAVE_MSG_DURATION_MS, PDF_DOWNLOAD_DELAY_MS, MAX_PHOTO_BYTES,
 } from './constants'
@@ -31,11 +30,6 @@ export function useTicket(id) {
   const [discount,       setDiscount]       = useState('')
   const [quotationNotes, setQuotationNotes] = useState('')
   const [finalPrice,     setFinalPrice]     = useState('')
-  // Payment plan (per-ticket). Caps are configurable per job — defaults applied
-  // when the ticket has none yet. No plan applies any discount (see save below).
-  const [paymentOption,  setPaymentOption]  = useState('')
-  const [partialHighPct, setPartialHighPct] = useState(DEFAULT_PARTIAL_HIGH_PCT)
-  const [partialLowPct,  setPartialLowPct]  = useState(DEFAULT_PARTIAL_LOW_PCT)
   const [saveMsg,          setSaveMsg]          = useState('')
   const [transitionErrors, setTransitionErrors] = useState([])
   const [deleteConfirm,    setDeleteConfirm]    = useState(false)
@@ -104,9 +98,6 @@ export function useTicket(id) {
     // Prefill the final price from the quotation total until the admin has
     // explicitly saved one — avoids retyping the same number twice.
     setFinalPrice(data.final_price ?? data.quotation_amount ?? '')
-    setPaymentOption(data.payment_option ?? '')
-    setPartialHighPct(data.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
-    setPartialLowPct(data.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)
   }
 
   async function updateStatus(newStatus) {
@@ -219,20 +210,12 @@ export function useTicket(id) {
       .filter(it => it.description.trim() || String(it.amount).trim() !== '')
       .map(({ description, amount }) => ({ description: description.trim(), amount: parseFloat(amount) || 0 }))
     const hasItems  = cleanLabor.length > 0 || cleanParts.length > 0
-    // `discount` holds a manual percentage. It is capped by the client's chosen
-    // payment plan (full_now → high cap, half_now → low cap, pay_later/none → 0)
-    // and resolved to a peso amount against the (labor + parts) base so
+    // `discount` is a manual percentage set entirely at the admin's discretion,
+    // resolved to a peso amount against the (labor + parts) base so
     // discount_amount stays the source of truth for PDF / receipt / export.
-    const cap         = discountCapFor(paymentOption, partialHighPct, partialLowPct)
-    const discountPct = Math.min(cap, Math.max(0, parseFloat(discount) || 0))
+    const discountPct = Math.min(100, Math.max(0, parseFloat(discount) || 0))
     const baseTotal   = sumItems(cleanLabor) + sumItems(cleanParts)
     const quotation   = computeQuotation(cleanLabor, cleanParts, discountPct)
-    // Diag/clean-only tickets have no payment plan — clear any stale client
-    // selection so the discount cap is also cleared on the admin side.
-    const diagCleanOnly =
-      cleanLabor.length > 0 &&
-      cleanParts.length === 0 &&
-      cleanLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
     let patch = {}
     if (scope === 'notes' && isTechnician) {
       patch = { diagnosis_notes: notes.diagnosis_notes || null, repair_notes: notes.repair_notes || null }
@@ -244,9 +227,6 @@ export function useTicket(id) {
         discount_amount:  discountAmount(baseTotal, discountPct),
         quotation_amount: hasItems ? quotation : null,
         quotation_notes:  quotationNotes.trim() || null,
-        // Clear a stale payment_option when saving a diag/clean-only ticket.
-        // Otherwise leave it untouched — the client owns this field.
-        ...(diagCleanOnly && { payment_option: null }),
       }
     } else if (scope === 'payment' && isManager) {
       patch = {
@@ -392,9 +372,6 @@ export function useTicket(id) {
     discount, setDiscount,
     quotationNotes, setQuotationNotes,
     finalPrice, setFinalPrice,
-    paymentOption, setPaymentOption,
-    partialHighPct, setPartialHighPct,
-    partialLowPct, setPartialLowPct,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
     isManager, isTechnician, getAllowedTransitions,

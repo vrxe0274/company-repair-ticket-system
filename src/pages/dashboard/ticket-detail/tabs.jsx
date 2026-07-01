@@ -8,7 +8,6 @@ import {
 import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine } from './components'
 import { peso } from './helpers'
 import { DIAGNOSIS_FEE } from '../../../lib/constants'
-import { paymentPlanLabel, discountCapFor } from '../../../lib/utils'
 
 export function OverviewTab({
   ticket, statusGuidance,
@@ -195,7 +194,6 @@ export function QuotationTab({
   discount, setDiscount,
   quotationNotes, setQuotationNotes,
   finalPrice, setFinalPrice,
-  paymentOption, partialHighPct, partialLowPct,
   saving, saveMsg,
   laborTotal, partsTotal, discountValue, quotationLive,
   paymentProofUrl, uploadingProof, proofInputRef, onUploadProof, onDeleteProof,
@@ -206,19 +204,8 @@ export function QuotationTab({
 }) {
   const [discountOpen, setDiscountOpen] = useState(parseFloat(discount) > 0)
   const diagnosisIncluded = laborItems.some(it => it.description === 'Diagnosis')
-  // The payment plan is chosen by the CLIENT on the tracker page — read-only here.
-  // The chosen plan caps how large a discount the admin may grant:
-  //   full_now → up to partialHighPct%, half_now → up to partialLowPct%, pay_later → 0%.
-  const discountCap = discountCapFor(paymentOption, partialHighPct, partialLowPct)
-  // Effective discount after the plan cap — what is actually applied / displayed.
-  const effDiscountPct = Math.min(discountCap, Math.max(0, parseFloat(discount) || 0))
-  // No payment plan for diagnosis/cleaning-only tickets.
-  const filledLabor = laborItems.filter(i => i.description || i.amount)
-  const filledParts = partsItems.filter(i => i.description || i.amount)
-  const isDiagCleanOnly =
-    filledLabor.length > 0 &&
-    filledParts.length === 0 &&
-    filledLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
+  // `discount` is a manual percentage set entirely at the admin's discretion.
+  const discountPct = Math.min(100, Math.max(0, parseFloat(discount) || 0))
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {canSeePricing ? (
@@ -349,46 +336,41 @@ export function QuotationTab({
 
             {/* Discount + save — pinned to bottom of card */}
             <div className="border-t border-gray-100 pt-4 mt-4 space-y-3 shrink-0">
-              {discountCap > 0 && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  {canEdit ? (
-                    discountOpen ? (
-                      <>
-                        <label className="label w-24 shrink-0 mb-0">Discount %</label>
-                        <div className="flex items-center gap-3 flex-1 flex-wrap">
-                          <div className="relative w-28">
-                            <input type="number" min="0" max={discountCap} step="0.01" value={discount}
-                              onChange={e => setDiscount(e.target.value)} placeholder="0"
-                              className="input-field pr-7 text-sm text-right font-mono" />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
-                          </div>
-                          {discountValue > 0 && (
-                            <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
-                          )}
-                          <button type="button"
-                            onClick={() => { setDiscount('0'); setDiscountOpen(false) }}
-                            className="ml-auto text-xs font-sans font-semibold text-gray-400 hover:text-red-500">
-                            Remove
-                          </button>
-                          <span className="text-xs font-body text-gray-400 w-full">
-                            Max {discountCap}%{Number(discount) > discountCap ? ' — capped on save' : ''}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <button type="button" onClick={() => setDiscountOpen(true)}
-                        className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
-                        <Plus className="w-3.5 h-3.5" /> Add Discount
-                      </button>
-                    )
-                  ) : discountValue > 0 ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                {canEdit ? (
+                  discountOpen ? (
                     <>
                       <label className="label w-24 shrink-0 mb-0">Discount %</label>
-                      <span className="font-mono text-sm text-gray-700">− {peso(discountValue)}</span>
+                      <div className="flex items-center gap-3 flex-1 flex-wrap">
+                        <div className="relative w-28">
+                          <input type="number" min="0" max="100" step="0.01" value={discount}
+                            onChange={e => setDiscount(e.target.value)} placeholder="0"
+                            className="input-field pr-7 text-sm text-right font-mono" />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
+                        </div>
+                        {discountValue > 0 && (
+                          <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
+                        )}
+                        <button type="button"
+                          onClick={() => { setDiscount('0'); setDiscountOpen(false) }}
+                          className="ml-auto text-xs font-sans font-semibold text-gray-400 hover:text-red-500">
+                          Remove
+                        </button>
+                      </div>
                     </>
-                  ) : null}
-                </div>
-              )}
+                  ) : (
+                    <button type="button" onClick={() => setDiscountOpen(true)}
+                      className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
+                      <Plus className="w-3.5 h-3.5" /> Add Discount
+                    </button>
+                  )
+                ) : discountValue > 0 ? (
+                  <>
+                    <label className="label w-24 shrink-0 mb-0">Discount %</label>
+                    <span className="font-mono text-sm text-gray-700">− {peso(discountValue)}</span>
+                  </>
+                ) : null}
+              </div>
               {canEdit && (
                 <div className="flex items-center gap-3">
                   <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
@@ -413,29 +395,10 @@ export function QuotationTab({
             {/* Totals */}
             <div className="card p-3 sm:p-5 space-y-2">
               <p className="section-title text-xs mb-3">Summary</p>
-              {!isDiagCleanOnly && (
-                <div className="pb-3 mb-1 border-b border-gray-100">
-                  <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                    Payment Plan <span className="normal-case font-normal text-gray-400">(client's choice)</span>
-                  </p>
-                  {paymentOption ? (
-                    <>
-                      <p className="text-sm font-sans font-semibold text-gray-800">
-                        {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
-                      </p>
-                      <p className="text-xs font-body text-gray-500 mt-0.5">
-                        {discountCap > 0 ? `Up to ${discountCap}% discount allowed` : 'No discount for this plan.'}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs font-body text-gray-400 italic">Not chosen yet.</p>
-                  )}
-                </div>
-              )}
               <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
               <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
               {discountValue > 0 && (
-                <SummaryLine label={`Discount${effDiscountPct ? ` (${effDiscountPct}%)` : ''}`} value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
+                <SummaryLine label={`Discount${discountPct ? ` (${discountPct}%)` : ''}`} value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
               )}
               <div className="border-t border-gray-200 pt-3 mt-1 flex items-center justify-between">
                 <span className="text-sm font-sans font-bold text-gray-700">Quotation Total</span>

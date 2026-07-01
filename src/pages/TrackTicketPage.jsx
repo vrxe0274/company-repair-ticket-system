@@ -21,8 +21,6 @@ import { supabase } from '../lib/supabase'
 import { TRACK_POLL_INTERVAL_MS } from '../lib/constants'
 import {
   STATUS_ORDER, STATUS_DENIED, STATUS_DESCRIPTIONS,
-  PAYMENT_OPTIONS, paymentPlanLabel,
-  DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT,
 } from '../lib/utils'
 import { downloadReceiptPDF }   from '../lib/receipt'
 import { downloadQuotationPDF } from '../lib/quotation'
@@ -80,33 +78,9 @@ export default function TrackTicketPage() {
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState(null)
-  const [savingPlan, setSavingPlan] = useState(false)
   const [savingPaymentMode, setSavingPaymentMode] = useState(false)
   const intervalRef    = useRef(null)
   const ticketLoadedRef = useRef(false)
-
-  /**
-   * Client picks their payment plan from the tracker once the quotation is
-   * ready. Writes payment_option directly (public update is allowed by RLS).
-   * This is purely the client's choice — it never changes pricing or applies
-   * any discount; partial plans only cap the up-front deposit.
-   */
-  async function choosePaymentPlan(value) {
-    // Selection is final — once a plan is set it cannot be changed by the client.
-    if (savingPlan || ticket?.payment_option) return
-    setSavingPlan(true)
-    const prev = ticket?.payment_option ?? null
-    setTicket(t => ({ ...t, payment_option: value }))  // optimistic
-    const { error: updateError } = await supabase
-      .from('tickets')
-      .update({ payment_option: value })
-      .eq('tracking_token', token)
-    if (updateError) {
-      setTicket(t => ({ ...t, payment_option: prev }))  // revert on failure
-      alert('Could not save your payment plan. Please try again.')
-    }
-    setSavingPlan(false)
-  }
 
   async function choosePaymentMode(value) {
     if (savingPaymentMode || ticket?.payment_mode) return
@@ -215,20 +189,13 @@ export default function TrackTicketPage() {
   // Approved = any status that isn't the two terminal-before-work statuses.
   const isApproved = !isDenied && ticket.status !== 'Pending'
   const currentStep = isDenied ? -1 : STATUS_ORDER.indexOf(ticket.status)
-  // Payment-plan chooser appears once the workflow reaches "Inspection & Quote"
+  // Mode-of-payment chooser appears once the workflow reaches "Inspection & Quote"
   // (the inspection/quotation stage) and stays until the ticket is paid.
   const quoteStageReached = !isDenied && currentStep >= STATUS_ORDER.indexOf('Inspection & Quote')
   // A quotation is "applied" once staff have saved a quotation amount.
   const quotationApplied = quoteStageReached && ticket.quotation_amount != null
   // Mode of payment appears once a quotation amount has been set.
   const paymentModeAvailable = quotationApplied && !isPaid
-  // No payment plan choice for diagnosis/cleaning-only tickets — client pays full price.
-  const filledLabor = (ticket.labor_items || []).filter(i => i.description || i.amount)
-  const filledParts = (ticket.parts_items || []).filter(i => i.description || i.amount)
-  const isDiagCleanOnly =
-    filledLabor.length > 0 &&
-    filledParts.length === 0 &&
-    filledLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
 
   // ── Main render ──────────────────────────────────────────────────────────
 
@@ -517,14 +484,6 @@ export default function TrackTicketPage() {
                       <span className="font-mono font-semibold text-gray-800">{formatPeso(ticket.quotation_amount)}</span>
                     </div>
                   )}
-                  {ticket.payment_option && !isDiagCleanOnly && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-body text-gray-600">Payment Plan</span>
-                      <span className="font-sans font-semibold text-gray-800 text-right">
-                        {paymentPlanLabel(ticket.payment_option, ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT, ticket.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)}
-                      </span>
-                    </div>
-                  )}
                   {ticket.final_price && (
                     <div className="flex items-center justify-between pt-2 border-t border-gray-200 mt-1">
                       <span className="text-sm font-sans font-bold text-gray-800">Amount Due</span>
@@ -540,67 +499,12 @@ export default function TrackTicketPage() {
               </div>
             )}
 
-            {/* Payment plan + Mode of Payment — shown once a quotation has been applied */}
+            {/* Mode of Payment — shown once a quotation has been applied */}
             {quotationApplied && !isPaid && (
               <div className="p-5 space-y-5">
 
-                {/* Payment plan — only once a quotation has been applied (amount set). */}
-                {!isDiagCleanOnly && quotationApplied && (
-                  <div>
-                    <SectionHeader icon={DollarSign} label="Choose Your Payment Plan" iconBg="bg-accent-50" iconColor="text-accent-600" />
-                    <p className="text-sm font-body text-gray-500 mb-3">
-                      How you choose to pay determines the discount you're eligible for.
-                      Your selection is final and can't be changed once submitted.
-                    </p>
-                    <div className="space-y-2">
-                      {PAYMENT_OPTIONS.map(opt => {
-                        const fullCap = ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT
-                        const halfCap = ticket.payment_partial_low_pct  ?? DEFAULT_PARTIAL_LOW_PCT
-                        const checked = ticket.payment_option === opt.value
-                        return (
-                          <div
-                            key={opt.value}
-                            className={`flex items-center gap-3 p-3 rounded-xl border transition-colors
-                              ${checked ? 'bg-accent-50 border-accent-300 ring-1 ring-accent-200' : 'bg-white border-gray-200'}`}
-                          >
-                            <span className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                              ${checked ? 'border-accent-500' : 'border-gray-300'}`}>
-                              {checked && <span className="w-2 h-2 rounded-full bg-accent-500" />}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-sans font-semibold text-gray-800">
-                                {paymentPlanLabel(opt.value, fullCap, halfCap)}
-                              </p>
-                            </div>
-                            {checked ? (
-                              <span className="shrink-0 text-xs font-sans font-semibold px-4 py-2 rounded-lg bg-accent-100 text-accent-700">
-                                Selected
-                              </span>
-                            ) : !ticket.payment_option && (
-                              <button
-                                type="button"
-                                onClick={() => choosePaymentPlan(opt.value)}
-                                disabled={savingPlan}
-                                className="shrink-0 text-xs font-sans font-semibold px-4 py-2 rounded-lg bg-accent-600 hover:bg-accent-700 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                              >
-                                Select
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    {ticket.payment_option && !isDiagCleanOnly && (
-                      <p className="text-xs font-body text-emerald-600 font-semibold mt-3">
-                        ✓ You chose: {paymentPlanLabel(ticket.payment_option, ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT, ticket.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Mode of Payment — available once quotation amount is set */}
                 {paymentModeAvailable && (
-                  <div className={!isDiagCleanOnly ? 'pt-4 border-t border-gray-100' : ''}>
+                  <div>
                     <div className="flex items-center gap-2.5 mb-1">
                       <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
                         <Receipt className="w-3.5 h-3.5 text-emerald-600" />

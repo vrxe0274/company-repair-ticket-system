@@ -31,7 +31,6 @@ import { useTicket }             from './ticket-detail/useTicket'
 import { TabButton }             from './ticket-detail/components'
 import { OverviewTab, TechTab, QuotationTab, SettingsTab } from './ticket-detail/tabs'
 import { sumItems, discountAmount } from './ticket-detail/helpers'
-import { discountCapFor }           from '../../lib/utils'
 import { STATUS_GUIDANCE }       from './ticket-detail/constants'
 
 export default function TicketDetailPage() {
@@ -62,7 +61,6 @@ export default function TicketDetailPage() {
     discount, setDiscount,
     quotationNotes, setQuotationNotes,
     finalPrice, setFinalPrice,
-    paymentOption, partialHighPct, partialLowPct,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
     undoConfirm, setUndoConfirm,
     isManager, isTechnician, getAllowedTransitions,
@@ -85,10 +83,8 @@ export default function TicketDetailPage() {
   const safeTrackingUrl = trackingUrl?.startsWith('http') ? trackingUrl : '#'
   const laborTotal      = sumItems(laborItems)
   const partsTotal      = sumItems(partsItems)
-  // `discount` is a manual percentage, capped by the client's chosen payment
-  // plan; resolve the capped value to a peso amount off the base.
-  const discountCap     = discountCapFor(paymentOption, partialHighPct, partialLowPct)
-  const discountPct     = Math.min(discountCap, Math.max(0, parseFloat(discount) || 0))
+  // `discount` is a manual percentage set entirely at the admin's discretion.
+  const discountPct     = Math.min(100, Math.max(0, parseFloat(discount) || 0))
   const discountValue   = discountAmount(laborTotal + partsTotal, discountPct)
   const quotationLive   = Math.max(0, laborTotal + partsTotal - discountValue)
   const isApproved      = ticket.status !== 'Pending' && ticket.status !== 'Denied'
@@ -248,8 +244,6 @@ export default function TicketDetailPage() {
           discount={discount}         setDiscount={setDiscount}
           quotationNotes={quotationNotes} setQuotationNotes={setQuotationNotes}
           finalPrice={finalPrice}     setFinalPrice={setFinalPrice}
-          paymentOption={paymentOption}
-          partialHighPct={partialHighPct} partialLowPct={partialLowPct}
           saving={saving}             saveMsg={saveMsg}
           laborTotal={laborTotal}     partsTotal={partsTotal}
           discountValue={discountValue} quotationLive={quotationLive}
