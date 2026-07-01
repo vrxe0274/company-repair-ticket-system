@@ -29,6 +29,7 @@ export function useTicket(id) {
   const [laborItems,     setLaborItems]     = useState([emptyItem()])
   const [partsItems,     setPartsItems]     = useState([emptyItem()])
   const [discount,       setDiscount]       = useState('')
+  const [quotationNotes, setQuotationNotes] = useState('')
   const [finalPrice,     setFinalPrice]     = useState('')
   // Payment plan (per-ticket). Caps are configurable per job — defaults applied
   // when the ticket has none yet. No plan applies any discount (see save below).
@@ -99,6 +100,7 @@ export function useTicket(id) {
         : []
     )
     setDiscount(data.discount_percent ?? '')  // discount is now a manual percentage
+    setQuotationNotes(data.quotation_notes ?? '')
     setFinalPrice(data.final_price ?? '')
     setPaymentOption(data.payment_option ?? '')
     setPartialHighPct(data.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
@@ -239,6 +241,7 @@ export function useTicket(id) {
         discount_percent: discountPct,
         discount_amount:  discountAmount(baseTotal, discountPct),
         quotation_amount: hasItems ? quotation : null,
+        quotation_notes:  quotationNotes.trim() || null,
         // Clear a stale payment_option when saving a diag/clean-only ticket.
         // Otherwise leave it untouched — the client owns this field.
         ...(diagCleanOnly && { payment_option: null }),
@@ -385,6 +388,7 @@ export function useTicket(id) {
     laborItems, setLaborItems,
     partsItems, setPartsItems,
     discount, setDiscount,
+    quotationNotes, setQuotationNotes,
     finalPrice, setFinalPrice,
     paymentOption, setPaymentOption,
     partialHighPct, setPartialHighPct,

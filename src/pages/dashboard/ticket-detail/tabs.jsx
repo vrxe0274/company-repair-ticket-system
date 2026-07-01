@@ -193,6 +193,7 @@ export function QuotationTab({
   canSeePricing, canEdit,
   laborItems, partsItems,
   discount, setDiscount,
+  quotationNotes, setQuotationNotes,
   finalPrice, setFinalPrice,
   paymentOption, partialHighPct, partialLowPct,
   saving, saveMsg,
@@ -203,6 +204,7 @@ export function QuotationTab({
   onUpdatePartsItem, onAddPartsItem, onRemovePartsItem,
   onToggleDiagnosis,
 }) {
+  const [discountOpen, setDiscountOpen] = useState(parseFloat(discount) > 0)
   const diagnosisIncluded = laborItems.some(it => it.description === 'Diagnosis')
   // The payment plan is chosen by the CLIENT on the tracker page — read-only here.
   // The chosen plan caps how large a discount the admin may grant:
@@ -242,7 +244,7 @@ export function QuotationTab({
                     />
                     <div>
                       <p className="text-sm font-sans font-semibold text-gray-800">Include Diagnosis Fee</p>
-                      <p className="text-xs font-body text-gray-500">{peso(DIAGNOSIS_FEE)} flat-rate inspection charge — required to unlock Repair in Progress</p>
+                      <p className="text-xs font-body text-gray-500">{peso(DIAGNOSIS_FEE)} flat fee — required to start repair</p>
                     </div>
                   </label>
                 ) : (
@@ -320,58 +322,73 @@ export function QuotationTab({
                 )}
               </div>
 
-              {/* Payment plan — hidden for diagnosis/cleaning-only tickets. */}
-              {!isDiagCleanOnly && (
-                <div className="border-t border-gray-100 pt-5">
-                  <label className="label mb-2">Payment Plan <span className="font-normal text-gray-400">(chosen by client)</span></label>
-                  {paymentOption ? (
-                    <div className="p-3 rounded-lg border bg-brand-50 border-brand-200">
-                      <p className="text-sm font-sans font-semibold text-gray-800">
-                        {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
-                      </p>
-                      <p className="text-xs font-body text-gray-500 mt-1">
-                        {discountCap > 0
-                          ? <>Discount allowed: up to <span className="font-mono text-gray-700">{discountCap}%</span></>
-                          : "No discount allowed for this plan."}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm font-body text-gray-400 italic">
-                      Client hasn’t selected a payment plan yet — they choose it on their tracking page. No discount can be applied until they do.
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* Quotation notes — internal only (Staff/Admin). Not shown to the
+                  client on the tracker page or the quotation/receipt PDFs. */}
+              <div className="border-t border-gray-100 pt-5">
+                <label className="label mb-2 flex items-center gap-1.5">
+                  <FileText className="w-3 h-3" /> Notes
+                  <span className="font-normal text-gray-400">(internal)</span>
+                </label>
+                {canEdit ? (
+                  <textarea
+                    value={quotationNotes}
+                    onChange={e => setQuotationNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Parts sourcing, price justification, follow-ups…"
+                    className="input-field text-sm w-full resize-y"
+                  />
+                ) : quotationNotes ? (
+                  <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">
+                    {quotationNotes}
+                  </p>
+                ) : (
+                  <p className="text-sm font-body text-gray-400 italic">No notes.</p>
+                )}
+              </div>
             </div>
 
             {/* Discount + save — pinned to bottom of card */}
             <div className="border-t border-gray-100 pt-4 mt-4 space-y-3 shrink-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <label className="label w-24 shrink-0 mb-0">Discount %</label>
-                {canEdit ? (
-                  <div className="flex items-center gap-3 flex-1 flex-wrap">
-                    <div className="relative w-28">
-                      <input type="number" min="0" max={discountCap} step="0.01" value={discount}
-                        disabled={discountCap === 0}
-                        onChange={e => setDiscount(e.target.value)} placeholder="0"
-                        className="input-field pr-7 text-sm text-right font-mono disabled:opacity-50 disabled:cursor-not-allowed" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
-                    </div>
-                    {discountValue > 0 && (
-                      <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
-                    )}
-                    <span className="text-xs font-body text-gray-400 w-full">
-                      {discountCap > 0
-                        ? `Max ${discountCap}% for the client's chosen plan${Number(discount) > discountCap ? ' — will be capped on save' : ''}`
-                        : 'No discount allowed — depends on the payment plan the client chooses.'}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="font-mono text-sm text-gray-700">
-                    {discountValue > 0 ? `− ${peso(discountValue)}` : '—'}
-                  </span>
-                )}
-              </div>
+              {discountCap > 0 && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {canEdit ? (
+                    discountOpen ? (
+                      <>
+                        <label className="label w-24 shrink-0 mb-0">Discount %</label>
+                        <div className="flex items-center gap-3 flex-1 flex-wrap">
+                          <div className="relative w-28">
+                            <input type="number" min="0" max={discountCap} step="0.01" value={discount}
+                              onChange={e => setDiscount(e.target.value)} placeholder="0"
+                              className="input-field pr-7 text-sm text-right font-mono" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
+                          </div>
+                          {discountValue > 0 && (
+                            <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
+                          )}
+                          <button type="button"
+                            onClick={() => { setDiscount('0'); setDiscountOpen(false) }}
+                            className="ml-auto text-xs font-sans font-semibold text-gray-400 hover:text-red-500">
+                            Remove
+                          </button>
+                          <span className="text-xs font-body text-gray-400 w-full">
+                            Max {discountCap}%{Number(discount) > discountCap ? ' — capped on save' : ''}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => setDiscountOpen(true)}
+                        className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
+                        <Plus className="w-3.5 h-3.5" /> Add Discount
+                      </button>
+                    )
+                  ) : discountValue > 0 ? (
+                    <>
+                      <label className="label w-24 shrink-0 mb-0">Discount %</label>
+                      <span className="font-mono text-sm text-gray-700">− {peso(discountValue)}</span>
+                    </>
+                  ) : null}
+                </div>
+              )}
               {canEdit && (
                 <div className="flex items-center gap-3">
                   <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
@@ -396,6 +413,25 @@ export function QuotationTab({
             {/* Totals */}
             <div className="card p-3 sm:p-5 space-y-2">
               <p className="section-title text-xs mb-3">Summary</p>
+              {!isDiagCleanOnly && (
+                <div className="pb-3 mb-1 border-b border-gray-100">
+                  <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                    Payment Plan <span className="normal-case font-normal text-gray-400">(client's choice)</span>
+                  </p>
+                  {paymentOption ? (
+                    <>
+                      <p className="text-sm font-sans font-semibold text-gray-800">
+                        {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
+                      </p>
+                      <p className="text-xs font-body text-gray-500 mt-0.5">
+                        {discountCap > 0 ? `Up to ${discountCap}% discount allowed` : 'No discount for this plan.'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs font-body text-gray-400 italic">Not chosen yet.</p>
+                  )}
+                </div>
+              )}
               <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
               <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
               {discountValue > 0 && (
@@ -476,7 +512,7 @@ export function QuotationTab({
                     Save Final Payment
                   </button>
                   {!paymentProofUrl && (
-                    <p className="text-xs font-body text-gray-400 text-center">Upload payment proof to enable saving.</p>
+                    <p className="text-xs font-body text-gray-400 text-center">Upload proof to enable saving.</p>
                   )}
                   {saveMsg === 'Final payment saved!' && (
                     <span className="text-sm font-sans font-semibold text-green-600 flex items-center justify-center gap-1">
@@ -491,7 +527,7 @@ export function QuotationTab({
         </div>
       ) : (
         <div className="card p-5 flex-1 flex items-center justify-center">
-          <LockedSection message="Pricing details are hidden until the ticket is approved." />
+          <LockedSection message="Hidden until the ticket is approved." />
         </div>
       )}
     </div>

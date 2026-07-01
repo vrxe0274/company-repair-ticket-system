@@ -218,8 +218,10 @@ export default function TrackTicketPage() {
   // Payment-plan chooser appears once the workflow reaches "Inspection & Quote"
   // (the inspection/quotation stage) and stays until the ticket is paid.
   const quoteStageReached = !isDenied && currentStep >= STATUS_ORDER.indexOf('Inspection & Quote')
+  // A quotation is "applied" once staff have saved a quotation amount.
+  const quotationApplied = quoteStageReached && ticket.quotation_amount != null
   // Mode of payment appears once a quotation amount has been set.
-  const paymentModeAvailable = quoteStageReached && ticket.quotation_amount != null && !isPaid
+  const paymentModeAvailable = quotationApplied && !isPaid
   // No payment plan choice for diagnosis/cleaning-only tickets — client pays full price.
   const filledLabor = (ticket.labor_items || []).filter(i => i.description || i.amount)
   const filledParts = (ticket.parts_items || []).filter(i => i.description || i.amount)
@@ -538,12 +540,12 @@ export default function TrackTicketPage() {
               </div>
             )}
 
-            {/* Payment plan + Mode of Payment — shown once quotation stage is reached */}
-            {quoteStageReached && !isPaid && (
+            {/* Payment plan + Mode of Payment — shown once a quotation has been applied */}
+            {quotationApplied && !isPaid && (
               <div className="p-5 space-y-5">
 
-                {/* Payment plan */}
-                {!isDiagCleanOnly && (
+                {/* Payment plan — only once a quotation has been applied (amount set). */}
+                {!isDiagCleanOnly && quotationApplied && (
                   <div>
                     <SectionHeader icon={DollarSign} label="Choose Your Payment Plan" iconBg="bg-accent-50" iconColor="text-accent-600" />
                     <p className="text-sm font-body text-gray-500 mb-3">

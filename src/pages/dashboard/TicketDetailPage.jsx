@@ -15,7 +15,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { useParams, Link }       from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { format }                from 'date-fns'
 import {
   ArrowLeft, Download, ExternalLink,
@@ -36,7 +36,10 @@ import { STATUS_GUIDANCE }       from './ticket-detail/constants'
 
 export default function TicketDetailPage() {
   const { id } = useParams()
-  const [activeTab, setActiveTab]     = useState('overview')
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const initialTab = ['overview', 'tech', 'admin', 'settings'].includes(requestedTab) ? requestedTab : 'overview'
+  const [activeTab, setActiveTab]     = useState(initialTab)
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsRef                    = useRef(null)
 
@@ -57,6 +60,7 @@ export default function TicketDetailPage() {
     laborItems, setLaborItems,
     partsItems, setPartsItems,
     discount, setDiscount,
+    quotationNotes, setQuotationNotes,
     finalPrice, setFinalPrice,
     paymentOption, partialHighPct, partialLowPct,
     saveMsg, transitionErrors, deleteConfirm, setDeleteConfirm,
@@ -242,6 +246,7 @@ export default function TicketDetailPage() {
           canEdit={canEditPricing}
           laborItems={laborItems}     partsItems={partsItems}
           discount={discount}         setDiscount={setDiscount}
+          quotationNotes={quotationNotes} setQuotationNotes={setQuotationNotes}
           finalPrice={finalPrice}     setFinalPrice={setFinalPrice}
           paymentOption={paymentOption}
           partialHighPct={partialHighPct} partialLowPct={partialLowPct}

@@ -188,6 +188,33 @@ export const TASK_ACTIONS = {
   },
 }
 
+/**
+ * Which TicketDetailPage tab actually does the work for a given task, per
+ * role. Status transition buttons only render on the Overview tab, but the
+ * substantive work for most tasks (quotation, payment, notes/photos) lives
+ * elsewhere — task links should open on that tab, not always Overview.
+ */
+export const TASK_TABS = {
+  Admin: {
+    'Pending':            'overview',
+    'Inspection & Quote': 'admin',
+    'Done':               'admin',
+  },
+  Staff: {
+    'Pending':            'overview',
+    'Inspection & Quote': 'admin',
+    'Done':               'admin',
+  },
+  Technician: {
+    'Inspection & Quote': 'tech',
+    'Repair in Progress': 'tech',
+  },
+}
+
+export function taskTab(role, status) {
+  return TASK_TABS[role]?.[status] || 'overview'
+}
+
 export const PLATFORMS = [
   'Facebook', 'Viber', 'Walk-in', 'Phone Call', 'Email', 'Others'
 ]

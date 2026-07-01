@@ -27,7 +27,7 @@ export const TICKET_COLUMNS = [
   'address', 'unit_brand', 'unit_model', 'unit_type', 'unit_condition', 'mode_of_service',
   'preferred_date', 'preferred_time', 'accessories_included', 'issue_description',
   'diagnosis_notes', 'repair_notes', 'repair_photos',
-  'labor_items', 'parts_items', 'discount_percent', 'discount_amount', 'quotation_amount', 'final_price',
+  'labor_items', 'parts_items', 'discount_percent', 'discount_amount', 'quotation_amount', 'quotation_notes', 'final_price',
   'payment_proof_url',
   'payment_option', 'payment_partial_high_pct', 'payment_partial_low_pct',
 ].join(', ')
