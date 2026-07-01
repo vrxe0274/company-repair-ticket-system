@@ -42,7 +42,7 @@ function cleanMessage(message) {
 export default function NotificationsPage() {
   const navigate = useNavigate()
   const { role, isAdmin } = useRole()
-  const { notifications, unseenCount, loading, markAllSeen, markSeen, clearAll } = useNotifications()
+  const { notifications, unseenCount, loading, markAllSeen, markSeen, clearForMe } = useNotifications()
 
   /**
    * Mark a notification as seen (optimistically, then persisted via the hook)
@@ -79,7 +79,7 @@ export default function NotificationsPage() {
         <button
           onClick={() => {
             if (notifications.length === 0) return
-            if (window.confirm('Clear all notifications? This cannot be undone.')) clearAll()
+            if (window.confirm('Clear all notifications from your inbox?')) clearForMe()
           }}
           disabled={notifications.length === 0}
           className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200 disabled:opacity-40 disabled:pointer-events-none"

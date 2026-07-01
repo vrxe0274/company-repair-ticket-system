@@ -650,7 +650,7 @@ export default function AttendancePage() {
       {/* Summary strip */}
       {!loading && (
         <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 sm:gap-3">
-          <div className="col-span-3 sm:col-span-auto flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white">
+          <div className="col-span-3 flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white">
             <Users className="w-4 h-4 text-brand-300 shrink-0" />
             <div className="flex-1 sm:flex sm:items-center sm:gap-3">
               <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Present</span>
@@ -703,7 +703,6 @@ export default function AttendancePage() {
             isViewingToday={isViewingToday}
             shift={shift}
             onSelectPerson={setCalendarTarget}
-
             emptyText="No staff logins on this date"
             accentBar="bg-emerald-400"
             headerBg="bg-emerald-50/60 border-emerald-100"
@@ -720,7 +719,6 @@ export default function AttendancePage() {
             isViewingToday={isViewingToday}
             shift={shift}
             onSelectPerson={setCalendarTarget}
-
             emptyText="No technician logins on this date"
             accentBar="bg-accent-400"
             headerBg="bg-accent-50/60 border-accent-100"
