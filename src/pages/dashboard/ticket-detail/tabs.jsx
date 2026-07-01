@@ -5,7 +5,7 @@ import {
   Image as ImageIcon, Upload, ExternalLink, X, Save, CheckCircle,
   DollarSign, Plus, Trash2, Settings,
 } from 'lucide-react'
-import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine } from './components'
+import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine, RequiredMark } from './components'
 import { peso } from './helpers'
 import { DIAGNOSIS_FEE } from '../../../lib/constants'
 
@@ -66,6 +66,7 @@ export function OverviewTab({
 export function TechTab({
   ticket, notes, setNotes,
   canSeeNotes, canEdit,
+  diagnosisActive, repairActive,
   saving, saveMsg, uploading, fileInputRef,
   onSaveNotes, onUpload, onDeletePhoto,
 }) {
@@ -82,26 +83,32 @@ export function TechTab({
           <div className="flex flex-col flex-1 min-h-0 gap-4">
             {canEdit ? (
               <>
-                <div className="flex flex-col flex-1 min-h-0">
-                  <label className="label shrink-0">Diagnosis Notes</label>
+                <div className={`flex flex-col flex-1 min-h-0 rounded-lg transition-opacity ${!diagnosisActive ? 'opacity-50' : ''}`}>
+                  <label className="label shrink-0">
+                    Diagnosis Notes {diagnosisActive && <RequiredMark />}
+                  </label>
                   <textarea
-                    className="input-field resize-none flex-1 min-h-0"
+                    className="input-field resize-none flex-1 min-h-0 disabled:bg-gray-100 disabled:text-gray-400"
                     value={notes.diagnosis_notes}
                     onChange={e => setNotes(n => ({ ...n, diagnosis_notes: e.target.value }))}
                     placeholder="Enter diagnosis findings..."
+                    disabled={!diagnosisActive}
                   />
                 </div>
-                <div className="flex flex-col flex-1 min-h-0">
-                  <label className="label shrink-0">Repair Notes</label>
+                <div className={`flex flex-col flex-1 min-h-0 rounded-lg transition-opacity ${!repairActive ? 'opacity-50' : ''}`}>
+                  <label className="label shrink-0">
+                    Repair Notes {repairActive && <RequiredMark />}
+                  </label>
                   <textarea
-                    className="input-field resize-none flex-1 min-h-0"
+                    className="input-field resize-none flex-1 min-h-0 disabled:bg-gray-100 disabled:text-gray-400"
                     value={notes.repair_notes}
                     onChange={e => setNotes(n => ({ ...n, repair_notes: e.target.value }))}
                     placeholder="Enter repair process notes..."
+                    disabled={!repairActive}
                   />
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <button onClick={onSaveNotes} disabled={saving} className="btn-primary text-sm">
+                  <button onClick={onSaveNotes} disabled={saving || (!diagnosisActive && !repairActive)} className="btn-primary text-sm">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       : <Save className="w-3.5 h-3.5" />
@@ -141,12 +148,15 @@ export function TechTab({
       <div className="card p-5 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-4 shrink-0">
           <p className="section-title flex items-center gap-2 mb-0">
-            <ImageIcon className="w-3.5 h-3.5" /> Documentation
+            <ImageIcon className="w-3.5 h-3.5" /> Documentation {canEdit && repairActive && <RequiredMark />}
           </p>
           {canEdit && (
             <div>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} id="photo-upload" />
-              <label htmlFor="photo-upload" className="btn-secondary text-sm cursor-pointer">
+              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} id="photo-upload" disabled={!repairActive} />
+              <label
+                htmlFor={repairActive ? 'photo-upload' : undefined}
+                className={`btn-secondary text-sm ${repairActive ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed pointer-events-none'}`}
+              >
                 {uploading
                   ? <span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                   : <Upload className="w-3.5 h-3.5" />
@@ -156,7 +166,7 @@ export function TechTab({
             </div>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className={`flex-1 overflow-y-auto min-h-0 transition-opacity ${canEdit && !repairActive ? 'opacity-50' : ''}`}>
           {ticket.repair_photos && ticket.repair_photos.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 content-start">
               {ticket.repair_photos.map((url) => (
@@ -166,7 +176,7 @@ export function TechTab({
                     <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-white/90 rounded-lg hover:bg-white">
                       <ExternalLink className="w-3.5 h-3.5 text-gray-700" />
                     </a>
-                    {canEdit && (
+                    {canEdit && repairActive && (
                       <button onClick={() => onDeletePhoto(url)} className="p-1.5 bg-red-500 rounded-lg hover:bg-red-600">
                         <X className="w-3.5 h-3.5 text-white" />
                       </button>
@@ -190,6 +200,7 @@ export function TechTab({
 
 export function QuotationTab({
   canSeePricing, canEdit,
+  quotationActive, paymentActive,
   laborItems, partsItems,
   discount, setDiscount,
   quotationNotes, setQuotationNotes,
@@ -214,20 +225,21 @@ export function QuotationTab({
           {/* Left — scrollable line items + discount + save */}
           <div className="card p-3 sm:p-5 flex flex-col min-h-0">
             <p className="section-title flex items-center gap-2 mb-4 shrink-0">
-              <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation
+              <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation {canEdit && quotationActive && <RequiredMark />}
             </p>
 
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-5 pr-1">
+            <div className={`flex-1 overflow-y-auto min-h-0 space-y-5 pr-1 transition-opacity ${canEdit && !quotationActive ? 'opacity-50' : ''}`}>
 
               {/* Diagnosis fee toggle — admin sets this before starting repairs */}
               <div className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${diagnosisIncluded ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-200'}`}>
                 {canEdit ? (
-                  <label className="flex items-start gap-3 cursor-pointer select-none w-full">
+                  <label className={`flex items-start gap-3 select-none w-full ${quotationActive ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                     <input
                       type="checkbox"
                       checked={diagnosisIncluded}
                       onChange={onToggleDiagnosis}
-                      className="mt-0.5 w-4 h-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      disabled={!quotationActive}
+                      className="mt-0.5 w-4 h-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer disabled:cursor-not-allowed"
                     />
                     <div>
                       <p className="text-sm font-sans font-semibold text-gray-800">Include Diagnosis Fee</p>
@@ -259,6 +271,7 @@ export function QuotationTab({
                         onChange={onUpdateLaborItem}
                         onRemove={onRemoveLaborItem}
                         canRemove={true}
+                        disabled={!quotationActive}
                       />
                     ))
                   ) : (
@@ -270,7 +283,7 @@ export function QuotationTab({
                     ))
                   )}
                 </div>
-                {canEdit && (
+                {canEdit && quotationActive && (
                   <button type="button" onClick={onAddLaborItem}
                     className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
                     <Plus className="w-3.5 h-3.5" /> Add Labor Item
@@ -290,6 +303,7 @@ export function QuotationTab({
                         onChange={onUpdatePartsItem}
                         onRemove={onRemovePartsItem}
                         canRemove={partsItems.length > 1}
+                        disabled={!quotationActive}
                       />
                     ))
                   ) : (
@@ -301,7 +315,7 @@ export function QuotationTab({
                     ))
                   )}
                 </div>
-                {canEdit && (
+                {canEdit && quotationActive && (
                   <button type="button" onClick={onAddPartsItem}
                     className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
                     <Plus className="w-3.5 h-3.5" /> Add Parts Item
@@ -322,7 +336,8 @@ export function QuotationTab({
                     onChange={e => setQuotationNotes(e.target.value)}
                     rows={3}
                     placeholder="Parts sourcing, price justification, follow-ups…"
-                    className="input-field text-sm w-full resize-y"
+                    disabled={!quotationActive}
+                    className="input-field text-sm w-full resize-y disabled:bg-gray-100 disabled:text-gray-400"
                   />
                 ) : quotationNotes ? (
                   <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">
@@ -345,7 +360,8 @@ export function QuotationTab({
                         <div className="relative w-28">
                           <input type="number" min="0" max="100" step="0.01" value={discount}
                             onChange={e => setDiscount(e.target.value)} placeholder="0"
-                            className="input-field pr-7 text-sm text-right font-mono" />
+                            disabled={!quotationActive}
+                            className="input-field pr-7 text-sm text-right font-mono disabled:bg-gray-100 disabled:text-gray-400" />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
                         </div>
                         {discountValue > 0 && (
@@ -353,14 +369,16 @@ export function QuotationTab({
                         )}
                         <button type="button"
                           onClick={() => { setDiscount('0'); setDiscountOpen(false) }}
-                          className="ml-auto text-xs font-sans font-semibold text-gray-400 hover:text-red-500">
+                          disabled={!quotationActive}
+                          className="ml-auto text-xs font-sans font-semibold text-gray-400 hover:text-red-500 disabled:opacity-40 disabled:pointer-events-none">
                           Remove
                         </button>
                       </div>
                     </>
                   ) : (
                     <button type="button" onClick={() => setDiscountOpen(true)}
-                      className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
+                      disabled={!quotationActive}
+                      className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold disabled:opacity-40 disabled:pointer-events-none">
                       <Plus className="w-3.5 h-3.5" /> Add Discount
                     </button>
                   )
@@ -373,7 +391,7 @@ export function QuotationTab({
               </div>
               {canEdit && (
                 <div className="flex items-center gap-3">
-                  <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
+                  <button onClick={onSaveQuotation} disabled={saving || !quotationActive} className="btn-primary text-sm">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       : <Save className="w-3.5 h-3.5" />
@@ -410,14 +428,15 @@ export function QuotationTab({
             <div className="card p-3 sm:p-5 space-y-3 flex-1 flex flex-col">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-emerald-500" />
-                <p className="section-title text-xs mb-0">Amount Paid</p>
+                <p className="section-title text-xs mb-0">Amount Paid {canEdit && paymentActive && <RequiredMark />}</p>
               </div>
               {canEdit ? (
-                <div className="relative w-full">
+                <div className={`relative w-full transition-opacity ${!paymentActive ? 'opacity-50' : ''}`}>
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
                   <input type="number" min="0" step="0.01" value={finalPrice}
                     onChange={e => setFinalPrice(e.target.value)} placeholder="0.00"
-                    className="input-field pl-7 text-sm text-right font-mono w-full" />
+                    disabled={!paymentActive}
+                    className="input-field pl-7 text-sm text-right font-mono w-full disabled:bg-gray-100 disabled:text-gray-400" />
                 </div>
               ) : (
                 <p className="text-3xl font-display tracking-wider text-emerald-700 flex-1 flex items-center">
@@ -425,11 +444,11 @@ export function QuotationTab({
                 </p>
               )}
               {canEdit && (
-                <div className="flex flex-col gap-2 mt-auto">
+                <div className={`flex flex-col gap-2 mt-auto transition-opacity ${!paymentActive ? 'opacity-50' : ''}`}>
                   {/* Payment proof — required before the final payment can be saved */}
                   <div className="border-t border-gray-100 pt-3">
                     <p className="label mb-2 flex items-center gap-1.5">
-                      Payment Proof <span className="text-red-500">*</span>
+                      Payment Proof {paymentActive && <RequiredMark />}
                     </p>
                     <input
                       ref={proofInputRef}
@@ -438,6 +457,7 @@ export function QuotationTab({
                       className="hidden"
                       id="payment-proof-upload"
                       onChange={onUploadProof}
+                      disabled={!paymentActive}
                     />
                     {paymentProofUrl ? (
                       <div className="flex items-center gap-3">
@@ -446,17 +466,22 @@ export function QuotationTab({
                           <img src={paymentProofUrl} alt="Payment proof" className="w-full h-full object-cover" />
                         </a>
                         <div className="flex flex-col gap-1">
-                          <label htmlFor="payment-proof-upload" className="text-xs font-sans font-semibold text-brand-600 hover:text-brand-700 cursor-pointer">
+                          <label
+                            htmlFor={paymentActive ? 'payment-proof-upload' : undefined}
+                            className={`text-xs font-sans font-semibold text-brand-600 hover:text-brand-700 ${paymentActive ? 'cursor-pointer' : 'cursor-not-allowed pointer-events-none'}`}
+                          >
                             Replace
                           </label>
-                          <button onClick={onDeleteProof} className="text-xs font-sans font-semibold text-red-500 hover:text-red-600 text-left">
+                          <button onClick={onDeleteProof} disabled={!paymentActive} className="text-xs font-sans font-semibold text-red-500 hover:text-red-600 text-left disabled:pointer-events-none">
                             Remove
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <label htmlFor="payment-proof-upload"
-                        className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 text-sm font-sans font-semibold text-gray-500 hover:border-brand-400 hover:text-brand-600 cursor-pointer transition-colors">
+                      <label
+                        htmlFor={paymentActive ? 'payment-proof-upload' : undefined}
+                        className={`flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 text-sm font-sans font-semibold text-gray-500 transition-colors ${paymentActive ? 'hover:border-brand-400 hover:text-brand-600 cursor-pointer' : 'cursor-not-allowed'}`}
+                      >
                         {uploadingProof
                           ? <span className="w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
                           : <Upload className="w-3.5 h-3.5" />
@@ -466,7 +491,7 @@ export function QuotationTab({
                     )}
                   </div>
 
-                  <button onClick={onSaveFinalPayment} disabled={saving || uploadingProof || !paymentProofUrl}
+                  <button onClick={onSaveFinalPayment} disabled={saving || uploadingProof || !paymentProofUrl || !paymentActive}
                     className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -474,7 +499,7 @@ export function QuotationTab({
                     }
                     Save Final Payment
                   </button>
-                  {!paymentProofUrl && (
+                  {!paymentProofUrl && paymentActive && (
                     <p className="text-xs font-body text-gray-400 text-center">Upload proof to enable saving.</p>
                   )}
                   {saveMsg === 'Final payment saved!' && (

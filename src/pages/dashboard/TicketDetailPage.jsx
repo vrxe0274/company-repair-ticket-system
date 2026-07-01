@@ -31,7 +31,7 @@ import { useTicket }             from './ticket-detail/useTicket'
 import { TabButton }             from './ticket-detail/components'
 import { OverviewTab, TechTab, QuotationTab, SettingsTab } from './ticket-detail/tabs'
 import { sumItems, discountAmount } from './ticket-detail/helpers'
-import { STATUS_GUIDANCE }       from './ticket-detail/constants'
+import { STATUS_GUIDANCE, STATUS_ACTION_LABELS } from './ticket-detail/constants'
 
 export default function TicketDetailPage() {
   const { id } = useParams()
@@ -94,6 +94,12 @@ export default function TicketDetailPage() {
   // Once paid the ticket is locked — all fields become read-only regardless of role.
   const canEditNotes    = isTechnician && !isPaid
   const canEditPricing  = isManager && !isPaid
+  // Step-aware gates — within an editable role, only the field(s) the
+  // current status actually needs are enabled; the rest are disabled/grayed.
+  const diagnosisActive = canEditNotes   && ticket.status === 'Inspection & Quote'
+  const repairActive    = canEditNotes   && ticket.status === 'Repair in Progress'
+  const quotationActive = canEditPricing && ticket.status === 'Inspection & Quote'
+  const paymentActive   = canEditPricing && ticket.status === 'Done'
   const canUndo         = (isManager || isTechnician) && !!ticket.previous_status && ticket.previous_status !== ticket.status
   const showActions     = nextStatuses.length > 0 || canUndo
   const statusGuidance  = isManager ? STATUS_GUIDANCE.Staff[ticket.status]
@@ -228,6 +234,7 @@ export default function TicketDetailPage() {
           ticket={ticket}
           notes={notes}           setNotes={setNotes}
           canSeeNotes={canSeeNotes}   canEdit={canEditNotes}
+          diagnosisActive={diagnosisActive} repairActive={repairActive}
           saving={saving}         saveMsg={saveMsg}
           uploading={uploading}   fileInputRef={fileInputRef}
           onSaveNotes={() => saveNotesAndPricing('notes')}
@@ -240,6 +247,7 @@ export default function TicketDetailPage() {
         <QuotationTab
           canSeePricing={canSeePricing}
           canEdit={canEditPricing}
+          quotationActive={quotationActive} paymentActive={paymentActive}
           laborItems={laborItems}     partsItems={partsItems}
           discount={discount}         setDiscount={setDiscount}
           quotationNotes={quotationNotes} setQuotationNotes={setQuotationNotes}
@@ -311,12 +319,12 @@ export default function TicketDetailPage() {
                   key={status}
                   onClick={() => updateStatus(status)}
                   disabled={statusUpdating}
-                  aria-label={`Transition to ${status}`}
-                  className={`btn-primary text-sm px-6 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-400'}`}
+                  aria-label={STATUS_ACTION_LABELS[status] || `Transition to ${status}`}
+                  className={`btn-primary text-sm px-6 ${status === 'Denied' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400' : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-400'}`}
                 >
                   {statusUpdating
                     ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    : `→ ${status}`
+                    : (STATUS_ACTION_LABELS[status] || `→ ${status}`)
                   }
                 </button>
               ))}

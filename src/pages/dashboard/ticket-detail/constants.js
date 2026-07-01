@@ -21,6 +21,16 @@ export const STATUS_GUIDANCE = {
   },
 }
 
+// Button copy for status-transition actions — named by destination status so
+// staff/technician see what the click actually does, not just the raw status word.
+export const STATUS_ACTION_LABELS = {
+  'Inspection & Quote': 'Move to Inspection & Quote',
+  'Repair in Progress': 'Start Repair',
+  'Done':               'Mark as Done',
+  'Paid':               'Mark as Paid',
+  'Denied':             'Deny Request',
+}
+
 export const TICKET_COLUMNS = [
   'id', 'ticket_id', 'status', 'previous_status', 'created_at', 'updated_at', 'paid_at', 'receipt_number',
   'tracking_token', 'client_name', 'contact_number', 'platform', 'email',
