@@ -11,6 +11,19 @@ import { getShiftHours, saveShiftHours, isOutsideShift, fmtShiftHour, DEFAULT_SH
 const MAX_MINUTES = 9 * 60
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
+/** Live username → display-name lookup, so renamed accounts show correctly
+ *  without waiting for attendance_logs' stored snapshot to catch up. */
+async function fetchLiveNames() {
+  const [staffRes, techRes] = await Promise.all([
+    supabase.functions.invoke('staff-manage', { body: { action: 'list-names' } }),
+    supabase.functions.invoke('tech-manage',  { body: { action: 'list-names' } }),
+  ])
+  const map = { Staff: {}, Technician: {} }
+  for (const row of staffRes.data?.staff ?? []) map.Staff[row.username] = row.name
+  for (const row of techRes.data?.staff ?? [])  map.Technician[row.username] = row.name
+  return map
+}
+
 function sessionDurationMins(loggedInAt, loggedOutAt, now) {
   const end = loggedOutAt ? parseISO(loggedOutAt) : now
   return Math.min(Math.max(differenceInMinutes(end, parseISO(loggedInAt)), 0), MAX_MINUTES)
@@ -494,6 +507,9 @@ export default function AttendancePage() {
   const [logs,         setLogs]         = useState([])
   const [loading,      setLoading]      = useState(true)
   const [now,          setNow]          = useState(new Date())
+  const [liveNames,    setLiveNames]    = useState({ Staff: {}, Technician: {} })
+
+  useEffect(() => { fetchLiveNames().then(setLiveNames) }, [])
 
   // Shift hours
   const [shift,        setShift]        = useState(DEFAULT_SHIFT)
@@ -540,8 +556,14 @@ export default function AttendancePage() {
   const [calendarTarget, setCalendarTarget] = useState(null)
 
   const isViewingToday = selectedDate === today
-  const staffLogs      = logs.filter(l => l.role === 'Staff')
-  const techLogs       = logs.filter(l => l.role === 'Technician')
+  // Override the stored (snapshot-at-login) name with the account's current
+  // display name when we have a live one for that username.
+  const resolvedLogs   = logs.map(l => {
+    const live = l.username ? liveNames[l.role]?.[l.username] : null
+    return live ? { ...l, name: live } : l
+  })
+  const staffLogs      = resolvedLogs.filter(l => l.role === 'Staff')
+  const techLogs       = resolvedLogs.filter(l => l.role === 'Technician')
   const uniqueStaff    = new Set(staffLogs.map(personKey)).size
   const uniqueTechs    = new Set(techLogs.map(personKey)).size
   const totalPresent   = uniqueStaff + uniqueTechs

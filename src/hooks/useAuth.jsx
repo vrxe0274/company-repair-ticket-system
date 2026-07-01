@@ -62,12 +62,14 @@ async function recordLogin({ username = null, role, name = null }) {
   if (data?.id) saveAttendanceLogId(data.id)
 }
 
-/** Fire-and-forget: rename the currently-open attendance row after a username change. */
-function renameOpenAttendanceLog(id, username) {
+/** Fire-and-forget: sync the currently-open attendance row's username/name to the session. */
+function renameOpenAttendanceLog(id, username, name = null) {
   if (!id) return
+  const patch = { username }
+  if (name !== null) patch.name = name
   supabase
     .from('attendance_logs')
-    .update({ username })
+    .update(patch)
     .eq('id', id)
     .then(() => {})
 }
@@ -95,6 +97,11 @@ export function AuthProvider({ children }) {
       // reopened — the beforeunload handler cleared it), start a fresh one.
       if (!session.attendanceLogId) {
         recordLogin({ username: session.username ?? null, role: session.role, name: session.name ?? null })
+      } else if (session.username || session.name) {
+        // Re-sync the open row's username/name to the session on every load —
+        // heals rows left stale by a rename that predates this reconcile
+        // (or any other path that changed the session without patching the row).
+        renameOpenAttendanceLog(session.attendanceLogId, session.username ?? null, session.name ?? null)
       }
     } else if (consumeSessionExpiredFlag()) {
       unsubscribeFromPush()
