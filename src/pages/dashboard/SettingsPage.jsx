@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
+import { useAuth } from '../../hooks/useAuth.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
@@ -25,6 +26,7 @@ const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
   const { isAdmin, isManager, isStaff, isTechnician, role, staffUsername, staffName, setStaffName, setStaffUsername } = useRole()
+  const { renameAttendanceLog } = useAuth()
   const { clearAll } = useNotifications()
   const { isDark, toggleTheme } = useTheme()
 
@@ -176,7 +178,9 @@ export default function SettingsPage() {
       })
       if (error) throw new Error(await fnErrorMessage(error))
       if (!data?.ok) throw new Error(data?.error || 'Failed to update username.')
-      setStaffUsername(newUsernameInput.trim().toLowerCase())
+      const newUsername = newUsernameInput.trim().toLowerCase()
+      setStaffUsername(newUsername)
+      renameAttendanceLog(newUsername)
       setUsernameDone(true)
       closeEditUsername()
       setTimeout(() => setUsernameDone(false), 3500)

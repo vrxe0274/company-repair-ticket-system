@@ -42,12 +42,34 @@ const AuthContext = createContext(null)
 
 /** Fire-and-forget: insert an attendance log row and save its ID to the session. */
 async function recordLogin({ username = null, role, name = null }) {
+  // Close any row left open for this same identity — a prior session that
+  // never fired beforeunload (crash, mobile background, killed tab) would
+  // otherwise stay "Active" forever while this new login opens another row,
+  // stacking up duplicate Active entries for the same person.
+  let closeStale = supabase
+    .from('attendance_logs')
+    .update({ logged_out_at: new Date().toISOString(), logout_reason: 'superseded' })
+    .is('logged_out_at', null)
+    .eq('role', role)
+  closeStale = username ? closeStale.eq('username', username) : closeStale.is('username', null)
+  await closeStale
+
   const { data } = await supabase
     .from('attendance_logs')
     .insert({ username, role, name })
     .select('id')
     .single()
   if (data?.id) saveAttendanceLogId(data.id)
+}
+
+/** Fire-and-forget: rename the currently-open attendance row after a username change. */
+function renameOpenAttendanceLog(id, username) {
+  if (!id) return
+  supabase
+    .from('attendance_logs')
+    .update({ username })
+    .eq('id', id)
+    .then(() => {})
 }
 
 /** Fire-and-forget: mark an open attendance row as closed. */
@@ -231,8 +253,16 @@ export function AuthProvider({ children }) {
     setAuthenticated(false)
   }
 
+  /** Called after a successful username change so the currently-open attendance
+   *  row (and thus the admin Attendance panel) reflects the new username right
+   *  away, instead of waiting for the next login. */
+  function renameAttendanceLog(username) {
+    const session = getSession()
+    renameOpenAttendanceLog(session?.attendanceLogId, username)
+  }
+
   return (
-    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, loginAsStaff, loginAsTechnician, logout }}>
+    <AuthContext.Provider value={{ authenticated, loading, loginWithRole, loginAsStaff, loginAsTechnician, logout, renameAttendanceLog }}>
       {children}
     </AuthContext.Provider>
   )
