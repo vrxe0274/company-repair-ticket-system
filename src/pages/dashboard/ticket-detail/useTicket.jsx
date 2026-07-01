@@ -101,7 +101,9 @@ export function useTicket(id) {
     )
     setDiscount(data.discount_percent ?? '')  // discount is now a manual percentage
     setQuotationNotes(data.quotation_notes ?? '')
-    setFinalPrice(data.final_price ?? '')
+    // Prefill the final price from the quotation total until the admin has
+    // explicitly saved one — avoids retyping the same number twice.
+    setFinalPrice(data.final_price ?? data.quotation_amount ?? '')
     setPaymentOption(data.payment_option ?? '')
     setPartialHighPct(data.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
     setPartialLowPct(data.payment_partial_low_pct ?? DEFAULT_PARTIAL_LOW_PCT)

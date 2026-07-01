@@ -276,10 +276,13 @@ export default function TicketDetailPage() {
         />
       )}
 
-      {/* Mobile action bar — fixed to the bottom of the screen. Status
-          transition button(s) fill ~90% of the row, undo the remaining ~10%.
-          Stays below the sidebar drawer (z-50) and its overlay (z-40). */}
-      {showActions && activeTab === 'overview' && (
+      {/* Action bar — fixed to the bottom of the screen. Shown on every tab
+          (not just Overview) so the admin/tech doesn't have to hop back to
+          Overview after doing the actual work (quotation, notes, payment).
+          Status transition button(s) fill ~90% of the row, undo the
+          remaining ~10%. Stays below the sidebar drawer (z-50) and its
+          overlay (z-40). */}
+      {showActions && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {transitionErrors.length > 0 && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 mb-3 flex flex-col gap-1">
