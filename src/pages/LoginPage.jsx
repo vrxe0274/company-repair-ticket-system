@@ -364,7 +364,7 @@ export default function LoginPage() {
                       className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                     />
                     <span className="text-sm font-body text-gray-600">
-                      Remember me on this device (30 days)
+                      Keep me signed in (9 hours)
                     </span>
                   </label>
                 )}
