@@ -24,8 +24,8 @@ afterEach(() => {
 // ─── SESSION_TTL_MS ───────────────────────────────────────────────────────────
 
 describe('SESSION_TTL_MS', () => {
-  it('equals 9 hours in milliseconds', () => {
-    expect(SESSION_TTL_MS).toBe(9 * 60 * 60 * 1000)
+  it('is null — sessions no longer expire', () => {
+    expect(SESSION_TTL_MS).toBeNull()
   })
 })
 
@@ -56,22 +56,16 @@ describe('saveSession', () => {
     expect(stored.v).toBe(1)
   })
 
-  it('persistent session has expiresAt ~9 hours from now', () => {
-    const before = Date.now()
+  it('persistent session has a null expiresAt (never expires)', () => {
     saveSession('Admin', { persistent: true })
-    const after = Date.now()
     const stored = JSON.parse(localStorage.getItem(SESSION_KEY))
-    expect(stored.expiresAt).toBeGreaterThanOrEqual(before + SESSION_TTL_MS)
-    expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
+    expect(stored.expiresAt).toBeNull()
   })
 
-  it('non-persistent session also has a 9-hour expiresAt (fixed TTL regardless of persistence)', () => {
-    const before = Date.now()
+  it('non-persistent session also has a null expiresAt (never expires)', () => {
     saveSession('Admin', { persistent: false })
-    const after = Date.now()
     const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY))
-    expect(stored.expiresAt).toBeGreaterThanOrEqual(before + SESSION_TTL_MS)
-    expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
+    expect(stored.expiresAt).toBeNull()
   })
 
   it('clears the other storage when switching persistence modes', () => {
@@ -116,22 +110,21 @@ describe('getSession', () => {
     expect(getSession().role).toBe('Admin')
   })
 
-  it('returns null and sets the expired flag when persistent session has lapsed', () => {
+  it('never expires — a persistent session stays valid no matter how much time passes', () => {
     vi.useFakeTimers()
     vi.setSystemTime(Date.now())
     saveSession('Admin', { persistent: true })
-    vi.setSystemTime(Date.now() + SESSION_TTL_MS + 1000)
-    expect(getSession()).toBeNull()
-    expect(localStorage.getItem(SESSION_EXPIRED_FLAG)).toBe('1')
+    vi.setSystemTime(Date.now() + 365 * 24 * 60 * 60 * 1000) // +1 year
+    expect(getSession()?.role).toBe('Admin')
+    expect(localStorage.getItem(SESSION_EXPIRED_FLAG)).toBeNull()
   })
 
-  it('removes the expired session from localStorage', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(Date.now())
-    saveSession('Admin', { persistent: true })
-    vi.setSystemTime(Date.now() + SESSION_TTL_MS + 1000)
-    getSession()
-    expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+  it('ignores a stale numeric expiresAt written before sessions stopped expiring', () => {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      v: 1, role: 'Admin', persistent: true, expiresAt: Date.now() - 1000,
+    }))
+    expect(getSession()?.role).toBe('Admin')
+    expect(localStorage.getItem(SESSION_KEY)).not.toBeNull()
   })
 
   it('returns null for a corrupt localStorage record', () => {
@@ -170,18 +163,11 @@ describe('clearSession', () => {
 // ─── renewSession ─────────────────────────────────────────────────────────────
 
 describe('renewSession', () => {
-  it('does not slide expiresAt — fixed TTL from login, renewSession is a no-op', () => {
-    vi.useFakeTimers()
-    const start = 1_000_000_000_000
-    vi.setSystemTime(start)
+  it('is a no-op — expiresAt stays null', () => {
     saveSession('Admin', { persistent: true })
-    const originalExpiry = JSON.parse(localStorage.getItem(SESSION_KEY)).expiresAt
-
-    vi.setSystemTime(start + 86_400_000) // advance 1 day
+    const snapshot = localStorage.getItem(SESSION_KEY)
     renewSession()
-    const after = JSON.parse(localStorage.getItem(SESSION_KEY)).expiresAt
-
-    expect(after).toBe(originalExpiry)
+    expect(localStorage.getItem(SESSION_KEY)).toBe(snapshot)
   })
 
   it('does nothing when there is no persistent session', () => {
@@ -189,18 +175,6 @@ describe('renewSession', () => {
     const snapshot = sessionStorage.getItem(SESSION_KEY)
     renewSession()
     expect(sessionStorage.getItem(SESSION_KEY)).toBe(snapshot)
-  })
-
-  it('does nothing when the persistent session has already expired', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(Date.now())
-    saveSession('Admin', { persistent: true })
-    vi.setSystemTime(Date.now() + SESSION_TTL_MS + 1000)
-    renewSession() // should be a no-op on expired record
-    // expired record still present (renewSession does NOT clear it; getSession does)
-    const stored = JSON.parse(localStorage.getItem(SESSION_KEY))
-    // expiresAt should not have been extended past the expired time
-    expect(stored.expiresAt).toBeLessThan(Date.now())
   })
 })
 

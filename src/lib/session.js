@@ -38,8 +38,8 @@ export const SESSION_EXPIRED_FLAG = 'vrxe_session_expired'
 /** Stores the attendance log ID that needs to be closed after a session expires. */
 export const ATTENDANCE_CLOSE_KEY = 'vrxe_attendance_close'
 
-/** Session length: 9 hours from login. Fixed — does not slide on activity. */
-export const SESSION_TTL_MS = 9 * 60 * 60 * 1000
+/** Sessions no longer expire automatically — expiresAt is always null. */
+export const SESSION_TTL_MS = null
 
 /** True when running as an installed PWA (home screen / standalone window). */
 export function isStandalone() {
@@ -59,7 +59,8 @@ function parse(raw) {
 }
 
 /**
- * Read the current session, honoring expiry.
+ * Read the current session. Sessions never auto-expire — any stored
+ * expiresAt (including one written before this behavior changed) is ignored.
  * @returns {{role: string, persistent: boolean, expiresAt: number|null} | null}
  */
 export function getSession() {
@@ -67,36 +68,14 @@ export function getSession() {
   const persistentRaw = localStorage.getItem(SESSION_KEY)
   if (persistentRaw) {
     const s = parse(persistentRaw)
-    if (s) {
-      if (s.expiresAt && Date.now() > s.expiresAt) {
-        // Expired — stash the open attendance log ID so the next load can close
-        // it, then flag for push cleanup.
-        if (s.attendanceLogId) {
-          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, JSON.stringify({ id: s.attendanceLogId, expiresAt: s.expiresAt })) } catch {}
-        }
-        localStorage.removeItem(SESSION_KEY)
-        localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-        return null
-      }
-      return s
-    }
+    if (s) return s
     localStorage.removeItem(SESSION_KEY)
   }
 
   const tabRaw = sessionStorage.getItem(SESSION_KEY)
   if (tabRaw) {
     const s = parse(tabRaw)
-    if (s) {
-      if (s.expiresAt && Date.now() > s.expiresAt) {
-        if (s.attendanceLogId) {
-          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, JSON.stringify({ id: s.attendanceLogId, expiresAt: s.expiresAt })) } catch {}
-        }
-        sessionStorage.removeItem(SESSION_KEY)
-        localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-        return null
-      }
-      return s
-    }
+    if (s) return s
     sessionStorage.removeItem(SESSION_KEY)
   }
 
@@ -128,7 +107,7 @@ export function saveSession(role, { persistent = false, username = null, name = 
     v: 1,
     role,
     persistent: isPersistent,
-    expiresAt: Date.now() + SESSION_TTL_MS, // always set — sessions expire after 9 h regardless of persistence
+    expiresAt: null, // sessions never expire — stay signed in until manual logout
   }
   if (username)          session.username          = username
   if (name)              session.name              = name

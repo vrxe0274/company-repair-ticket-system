@@ -10,30 +10,22 @@
  * Persistence (Feature: stay signed in for PWA):
  *   - Session record lives in lib/session.js (localStorage when persistent,
  *     sessionStorage otherwise).
- *   - "Remember me" or running as an installed PWA → persistent record with a
- *     30-day sliding expiry; every app load renews it (silent refresh).
- *   - Expired persistent session → cleared + this device's push subscription
- *     removed, then the user lands on /login via ProtectedRoute.
+ *   - Sessions never auto-expire — the only way out is an explicit logout().
  *
  * Attendance logging:
  *   - Every successful login inserts a row into attendance_logs and saves the
  *     row ID into the session record.
  *   - Manual logout updates that row with logged_out_at + logout_reason='manual'.
- *   - If a persistent session expires, getSession() stashes the row ID in
- *     localStorage under ATTENDANCE_CLOSE_KEY; the next useEffect call here
- *     picks it up and closes the row with logout_reason='session_expired'.
  */
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import {
   getSession,
   saveSession,
   renewSession,
   clearSession,
-  consumeSessionExpiredFlag,
   saveAttendanceLogId,
   clearAttendanceLogId,
-  ATTENDANCE_CLOSE_KEY,
 } from '../lib/session'
 import { unsubscribeFromPush } from '../lib/push'
 import { supabase } from '../lib/supabase'
@@ -98,8 +90,15 @@ function closeAttendanceLog(id, reason, loggedOutAt = new Date()) {
 export function AuthProvider({ children }) {
   const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
+  const didInit = useRef(false)
 
   useEffect(() => {
+    // Guards against React.StrictMode's dev-only double-invoke of mount
+    // effects. Without this, a single page load would run recordLogin()
+    // (and its Supabase insert) twice, creating a duplicate attendance row.
+    if (didInit.current) return
+    didInit.current = true
+
     const session = getSession()
     if (session) {
       setAuthenticated(true)
@@ -120,22 +119,6 @@ export function AuthProvider({ children }) {
         if (session.username || session.name) {
           renameOpenAttendanceLog(session.attendanceLogId, session.username ?? null, session.name ?? null)
         }
-      }
-    } else if (consumeSessionExpiredFlag()) {
-      unsubscribeFromPush()
-    }
-
-    // Close any attendance log left open by a session that expired between page loads.
-    // The stored value is JSON { id, expiresAt } so we use the real expiry time, not now.
-    const pendingRaw = localStorage.getItem(ATTENDANCE_CLOSE_KEY)
-    if (pendingRaw) {
-      localStorage.removeItem(ATTENDANCE_CLOSE_KEY)
-      try {
-        const { id, expiresAt } = JSON.parse(pendingRaw)
-        closeAttendanceLog(id, 'session_expired', expiresAt ?? new Date())
-      } catch {
-        // Legacy plain-string ID (no expiresAt available) — fall back to now
-        closeAttendanceLog(pendingRaw, 'session_expired')
       }
     }
 
