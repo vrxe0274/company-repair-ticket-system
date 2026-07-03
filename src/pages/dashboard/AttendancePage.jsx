@@ -306,10 +306,17 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
     if (!target) return
     async function load() {
       setLoading(true)
+      // Shared-password roles store a null username — guard so we don't deref it.
+      // A person's rows may be keyed under the exact username OR its lowercase
+      // form (usernames were only normalised to lowercase later), so match both
+      // without using ilike (usernames can contain "_", a LIKE wildcard).
+      const uname = target.username
+      if (!uname) { setLogs([]); setOpenDays(new Set()); setLoading(false); return }
+      const unames = uname === uname.toLowerCase() ? [uname] : [uname, uname.toLowerCase()]
       const { data } = await supabase
         .from('attendance_logs')
         .select('*')
-        .eq('username', target.username.toLowerCase())
+        .in('username', unames)
         .gte('logged_in_at', startOfMonth(monthDate).toISOString())
         .lte('logged_in_at', endOfMonth(monthDate).toISOString())
         .order('logged_in_at', { ascending: false })

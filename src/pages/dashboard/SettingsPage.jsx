@@ -25,7 +25,7 @@ import { supabase, fnErrorMessage } from '../../lib/supabase'
 const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
-  const { isAdmin, isManager, isStaff, isTechnician, role, staffUsername, staffName, setStaffName, setStaffUsername } = useRole()
+  const { isAdmin, isStaff, isTechnician, role, staffUsername, staffName, setStaffName, setStaffUsername } = useRole()
   const { renameAttendanceLog } = useAuth()
   const { clearAll } = useNotifications()
   const { isDark, toggleTheme } = useTheme()
@@ -239,8 +239,13 @@ export default function SettingsPage() {
     try {
       await adminFlushDatabase(flushInput)
       // Role-wide notification purge rides along with the flush — one
-      // confirmation instead of two separate danger-zone actions.
-      await clearAll()
+      // confirmation instead of two separate danger-zone actions. clearAll()
+      // resolves with { ok: false } (no throw) when a role's purge is silently
+      // refused by RLS, so check the result rather than claim success blindly.
+      const notifResult = await clearAll()
+      if (notifResult && notifResult.ok === false) {
+        throw new Error('Database flushed, but some notifications could not be cleared. Please try clearing notifications again.')
+      }
       setFlushDone(true)
       setShowFlush(false)
       setFlushInput('')

@@ -11,28 +11,12 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import {
   Plus, Trash2, X, Search,
   Shield, Wrench, KeyRound, Copy, Check,
 } from 'lucide-react'
-import { supabase, fnErrorMessage } from '../../lib/supabase'
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-async function callStaffManage(body) {
-  const { data, error } = await supabase.functions.invoke('staff-manage', { body })
-  if (error) throw new Error(await fnErrorMessage(error))
-  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
-  return data
-}
-
-async function callTechManage(body) {
-  const { data, error } = await supabase.functions.invoke('tech-manage', { body })
-  if (error) throw new Error(await fnErrorMessage(error))
-  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
-  return data
-}
+import { callStaffManage, callTechManage } from '../../lib/accounts'
 
 // ── Shared modal components ────────────────────────────────────────────────────
 

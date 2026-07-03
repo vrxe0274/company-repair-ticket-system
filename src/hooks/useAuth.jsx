@@ -80,6 +80,19 @@ async function sweepOrphanOpenLogs({ username = null, role, keepId }) {
   await q
 }
 
+/** Fire-and-forget: re-key every attendance row for this account (open + closed)
+ *  from oldUsername to newUsername. The Attendance calendar looks history up by
+ *  username, so renaming only the open row would orphan the person's past rows. */
+function renameAllAttendanceLogs(oldUsername, newUsername, role) {
+  if (!oldUsername || !newUsername || oldUsername === newUsername) return
+  supabase
+    .from('attendance_logs')
+    .update({ username: newUsername })
+    .eq('role', role)
+    .eq('username', oldUsername)
+    .then(() => {})
+}
+
 /** Fire-and-forget: sync the currently-open attendance row's username/name to the session. */
 function renameOpenAttendanceLog(id, username, name = null) {
   if (!id) return
@@ -311,7 +324,15 @@ export function AuthProvider({ children }) {
    *  away, instead of waiting for the next login. */
   function renameAttendanceLog(username) {
     const session = getSession()
-    renameOpenAttendanceLog(session?.attendanceLogId, username)
+    if (!session) return
+    const oldUsername = session.username ?? null
+    if (oldUsername && oldUsername !== username) {
+      // Re-key the whole history (open + closed) so nothing is orphaned.
+      renameAllAttendanceLogs(oldUsername, username, session.role)
+    } else {
+      // No known prior username to re-key by — at least sync the open row.
+      renameOpenAttendanceLog(session.attendanceLogId, username)
+    }
   }
 
   return (

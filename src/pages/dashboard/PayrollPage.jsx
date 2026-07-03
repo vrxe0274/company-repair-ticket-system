@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
 import { Banknote, Calendar, Wrench, Shield, ChevronDown, Check, Users, Pencil, X } from 'lucide-react'
-import { supabase, fnErrorMessage } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
+import { callStaffManage, callTechManage } from '../../lib/accounts'
 import {
   laborFee, technicianCommission, staffCommission,
   getApplicableRate, getCommissionRates, saveCommissionRate,
+  getApplicableOverride, getCommissionOverrides, appendCommissionOverrides,
 } from '../../lib/commission'
 
 const PESO   = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -12,25 +14,16 @@ const fmtPct = d => { const v = d * 100; return Number.isInteger(v) ? `${v}%` : 
 
 const COLUMNS = ['id', 'ticket_id', 'created_at', 'labor_items'].join(', ')
 
-async function callStaffManage(body) {
-  const { data, error } = await supabase.functions.invoke('staff-manage', { body })
-  if (error) throw new Error(await fnErrorMessage(error))
-  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
-  return data
-}
-
-async function callTechManage(body) {
-  const { data, error } = await supabase.functions.invoke('tech-manage', { body })
-  if (error) throw new Error(await fnErrorMessage(error))
-  if (!data?.ok) throw new Error(data?.error || 'Operation failed.')
-  return data
-}
+/** Compare two commission fractions (or null) tolerantly so a value re-derived
+ *  from a text input isn't treated as "changed" due to IEEE-754 rounding. */
+const samePct = (a, b) => (a == null || b == null) ? (a == null && b == null) : Math.abs(a - b) < 1e-9
 
 export default function PayrollPage() {
   const [tickets,       setTickets]       = useState([])
   const [staff,         setStaff]         = useState([])
   const [techs,         setTechs]         = useState([])
   const [rateHistory,   setRateHistory]   = useState([])
+  const [overrides,     setOverrides]     = useState([])
   const [loading,       setLoading]       = useState(true)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [filterOpen,    setFilterOpen]    = useState(false)
@@ -56,16 +49,38 @@ export default function PayrollPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [ticketRes, staffRes, techRes, rates] = await Promise.all([
+      const [ticketRes, staffRes, techRes, rates, overrideHistory] = await Promise.all([
         supabase.from('tickets').select(COLUMNS).order('created_at', { ascending: false }),
         supabase.functions.invoke('staff-manage', { body: { action: 'list-names' } }),
         supabase.functions.invoke('tech-manage',  { body: { action: 'list-names' } }),
         getCommissionRates(),
+        getCommissionOverrides(),
       ])
+      const staffList = staffRes.data?.staff ?? []
+      const techList  = techRes.data?.staff ?? []
+
+      // Self-healing seed: an override set before dated history existed has no
+      // history entry yet. Record it effective now so it applies to NEW tickets
+      // only (past pay periods stay on the default). Idempotent — once an entry
+      // exists it won't re-seed.
+      const hasEntry = (role, u) => overrideHistory.some(o => o.role === role && o.username === u)
+      const seeds = [
+        ...techList .filter(t => t.commission_pct != null && !hasEntry('Technician', t.username))
+                    .map(t => ({ role: 'Technician', username: t.username, pct: t.commission_pct })),
+        ...staffList.filter(s => s.commission_pct != null && !hasEntry('Staff', s.username))
+                    .map(s => ({ role: 'Staff', username: s.username, pct: s.commission_pct })),
+      ]
+      let resolvedOverrides = overrideHistory
+      if (seeds.length) {
+        await appendCommissionOverrides(seeds)
+        resolvedOverrides = await getCommissionOverrides()
+      }
+
       setTickets(ticketRes.data ?? [])
-      setStaff(staffRes.data?.staff ?? [])
-      setTechs(techRes.data?.staff ?? [])
+      setStaff(staffList)
+      setTechs(techList)
       setRateHistory(rates)
+      setOverrides(resolvedOverrides)
       setLoading(false)
     }
     load()
@@ -102,13 +117,6 @@ export default function PayrollPage() {
       return sum + technicianCommission(fee, rate.technician_pct)
     }, 0), [filteredTickets, rateHistory])
 
-  const perStaff = useMemo(() =>
-    filteredTickets.reduce((sum, t) => {
-      const fee  = laborFee(t)
-      const rate = getApplicableRate(t.created_at, rateHistory)
-      return sum + staffCommission(fee, rate.technician_pct, rate.staff_pct)
-    }, 0), [filteredTickets, rateHistory])
-
   const monthLabel = selectedMonth === 'all'
     ? 'All Time'
     : format(new Date(selectedMonth + '-01'), 'MMMM yyyy')
@@ -117,17 +125,21 @@ export default function PayrollPage() {
     techs.map(t => [t.username, filteredTickets.reduce((sum, ticket) => {
       const fee  = laborFee(ticket)
       const rate = getApplicableRate(ticket.created_at, rateHistory)
-      return sum + technicianCommission(fee, t.commission_pct ?? rate.technician_pct)
+      const ovr  = getApplicableOverride('Technician', t.username, ticket.created_at, overrides)
+      return sum + technicianCommission(fee, ovr ?? rate.technician_pct)
     }, 0)])
-  ), [filteredTickets, rateHistory, techs])
+  ), [filteredTickets, rateHistory, techs, overrides])
 
   const staffAmounts = useMemo(() => Object.fromEntries(
     staff.map(s => [s.username, filteredTickets.reduce((sum, ticket) => {
       const fee  = laborFee(ticket)
       const rate = getApplicableRate(ticket.created_at, rateHistory)
-      return sum + staffCommission(fee, rate.technician_pct, s.commission_pct ?? rate.staff_pct)
+      const ovr  = getApplicableOverride('Staff', s.username, ticket.created_at, overrides)
+      // Net-labor base intentionally uses the default technician rate (tickets
+      // have no assigned technician to source an override from).
+      return sum + staffCommission(fee, rate.technician_pct, ovr ?? rate.staff_pct)
     }, 0)])
-  ), [filteredTickets, rateHistory, staff])
+  ), [filteredTickets, rateHistory, staff, overrides])
 
   const techCount  = techs.length || 1
   const payeeCount = techCount + staff.length
@@ -165,20 +177,27 @@ export default function PayrollPage() {
       const updated = await getCommissionRates()
       setRateHistory(updated)
 
+      // Only accounts whose override actually changed get written.
+      const overrideOf = (map, acct) => {
+        const v = map[acct.username]?.trim() ?? ''
+        return v === '' ? null : parseFloat(v) / 100
+      }
+      const changedTech  = techs.map(t => ({ acct: t, newPct: overrideOf(techOverrides,  t) }))
+                                .filter(({ acct, newPct }) => !samePct(newPct, acct.commission_pct))
+      const changedStaff = staff.map(s => ({ acct: s, newPct: overrideOf(staffOverrides, s) }))
+                                .filter(({ acct, newPct }) => !samePct(newPct, acct.commission_pct))
+
       await Promise.all([
-        ...techs.map(t => {
-          const v      = techOverrides[t.username]?.trim() ?? ''
-          const newPct = v === '' ? null : parseFloat(v) / 100
-          if (newPct === t.commission_pct) return Promise.resolve()
-          return callTechManage({ action: 'set-commission', username: t.username, commission_pct: newPct })
-        }),
-        ...staff.map(s => {
-          const v      = staffOverrides[s.username]?.trim() ?? ''
-          const newPct = v === '' ? null : parseFloat(v) / 100
-          if (newPct === s.commission_pct) return Promise.resolve()
-          return callStaffManage({ action: 'set-commission', username: s.username, commission_pct: newPct })
-        }),
+        ...changedTech .map(({ acct, newPct }) => callTechManage ({ action: 'set-commission', username: acct.username, commission_pct: newPct })),
+        ...changedStaff.map(({ acct, newPct }) => callStaffManage({ action: 'set-commission', username: acct.username, commission_pct: newPct })),
       ])
+
+      // Record the change in dated history so it applies to new tickets only.
+      await appendCommissionOverrides([
+        ...changedTech .map(({ acct, newPct }) => ({ role: 'Technician', username: acct.username, pct: newPct })),
+        ...changedStaff.map(({ acct, newPct }) => ({ role: 'Staff',      username: acct.username, pct: newPct })),
+      ])
+      setOverrides(await getCommissionOverrides())
 
       setTechs(prev => prev.map(t => {
         const v = techOverrides[t.username]?.trim() ?? ''
