@@ -179,8 +179,11 @@ export default function SettingsPage() {
       if (error) throw new Error(await fnErrorMessage(error))
       if (!data?.ok) throw new Error(data?.error || 'Failed to update username.')
       const newUsername = newUsernameInput.trim().toLowerCase()
+      const oldUsername = staffUsername
       setStaffUsername(newUsername)
-      renameAttendanceLog(newUsername)
+      // Pass the prior username explicitly — setStaffUsername has already
+      // overwritten it in the session record, so re-keying can't read it back.
+      renameAttendanceLog(oldUsername, newUsername)
       setUsernameDone(true)
       closeEditUsername()
       setTimeout(() => setUsernameDone(false), 3500)

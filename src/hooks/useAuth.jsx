@@ -82,14 +82,19 @@ async function sweepOrphanOpenLogs({ username = null, role, keepId }) {
 
 /** Fire-and-forget: re-key every attendance row for this account (open + closed)
  *  from oldUsername to newUsername. The Attendance calendar looks history up by
- *  username, so renaming only the open row would orphan the person's past rows. */
+ *  username, so renaming only the open row would orphan the person's past rows.
+ *  A person's rows may be keyed under the exact old username OR its lowercase
+ *  form (usernames were only normalised to lowercase later), so match both. */
 function renameAllAttendanceLogs(oldUsername, newUsername, role) {
   if (!oldUsername || !newUsername || oldUsername === newUsername) return
+  const olds = oldUsername === oldUsername.toLowerCase()
+    ? [oldUsername]
+    : [oldUsername, oldUsername.toLowerCase()]
   supabase
     .from('attendance_logs')
     .update({ username: newUsername })
     .eq('role', role)
-    .eq('username', oldUsername)
+    .in('username', olds)
     .then(() => {})
 }
 
@@ -321,17 +326,19 @@ export function AuthProvider({ children }) {
 
   /** Called after a successful username change so the currently-open attendance
    *  row (and thus the admin Attendance panel) reflects the new username right
-   *  away, instead of waiting for the next login. */
-  function renameAttendanceLog(username) {
+   *  away, instead of waiting for the next login. The old username is passed in
+   *  explicitly: the caller updates the session record synchronously, so reading
+   *  it back here would already show the NEW name and orphan the history. */
+  function renameAttendanceLog(oldUsername, newUsername) {
     const session = getSession()
     if (!session) return
-    const oldUsername = session.username ?? null
-    if (oldUsername && oldUsername !== username) {
+    const from = oldUsername ?? session.username ?? null
+    if (from && from !== newUsername) {
       // Re-key the whole history (open + closed) so nothing is orphaned.
-      renameAllAttendanceLogs(oldUsername, username, session.role)
+      renameAllAttendanceLogs(from, newUsername, session.role)
     } else {
       // No known prior username to re-key by — at least sync the open row.
-      renameOpenAttendanceLog(session.attendanceLogId, username)
+      renameOpenAttendanceLog(session.attendanceLogId, newUsername)
     }
   }
 
