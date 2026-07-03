@@ -101,6 +101,175 @@ export function generateTempPassword(): string {
   return Array.from(bytes, b => TEMP_PASSWORD_CHARS[b % TEMP_PASSWORD_CHARS.length]).join('')
 }
 
+// ── Server-side sessions ────────────────────────────────────────────────────────
+//
+// Login functions call createSession() on success to mint a revocable, expiring
+// session (see sql/sessions-setup.sql). session-validate / session-revoke read
+// it back by token. The client only ever holds the opaque token.
+
+export const SESSION_PERSISTENT_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+export const SESSION_TAB_TTL_MS        = 12 * 60 * 60 * 1000       // 12 hours
+
+/** 256-bit URL-safe random token. */
+export function generateSessionToken(): string {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function ttlFor(persistent: boolean): number {
+  return persistent ? SESSION_PERSISTENT_TTL_MS : SESSION_TAB_TTL_MS
+}
+
+interface SessionIdentity {
+  role: string
+  username?: string | null
+  name?: string | null
+  persistent?: boolean
+}
+
+/**
+ * Create a session on successful login: open a fresh attendance row, enforce
+ * single-session-per-account (individual accounts only), and store the token.
+ * Returns what the client needs to persist. Best-effort attendance — a failure
+ * to insert the log never blocks issuing the session.
+ */
+// deno-lint-ignore no-explicit-any
+export async function createSession(supabase: any, id: SessionIdentity): Promise<{
+  token: string; expiresAt: string; attendanceLogId: string | null
+}> {
+  const role       = id.role
+  const username   = id.username ?? null
+  const name       = id.name ?? null
+  const persistent = id.persistent ?? false
+
+  // Single-session per individual account: revoke prior sessions + close their
+  // still-open attendance rows so an old device (phone) stops showing "Active"
+  // when the account logs in on a new device (desktop). Shared roles (no
+  // username, e.g. Admin) are left alone so concurrent shared logins still work.
+  if (username) {
+    const { data: prior } = await supabase
+      .from('sessions')
+      .select('token, attendance_log_id')
+      .eq('username', username)
+    if (prior?.length) {
+      const openIds = prior.map((p: any) => p.attendance_log_id).filter(Boolean)
+      if (openIds.length) {
+        await supabase
+          .from('attendance_logs')
+          .update({ logged_out_at: new Date().toISOString(), logout_reason: 'session_expired' })
+          .in('id', openIds)
+          .is('logged_out_at', null)
+      }
+      await supabase.from('sessions').delete().eq('username', username)
+    }
+  }
+
+  // Open the attendance row for this login.
+  let attendanceLogId: string | null = null
+  const { data: log } = await supabase
+    .from('attendance_logs')
+    .insert({ username, role, name })
+    .select('id')
+    .single()
+  attendanceLogId = log?.id ?? null
+
+  const token     = generateSessionToken()
+  const expiresAt = new Date(Date.now() + ttlFor(persistent)).toISOString()
+
+  await supabase.from('sessions').insert({
+    token, role, username, name, persistent,
+    attendance_log_id: attendanceLogId,
+    expires_at: expiresAt,
+  })
+
+  return { token, expiresAt, attendanceLogId }
+}
+
+/**
+ * Validate a token on app load. Renews the sliding expiry, and rotates the
+ * attendance row when the current one is missing or already closed (so a
+ * persistent PWA that stays "logged in" for days still logs one row per day
+ * once close_stale_attendance() has closed yesterday's).
+ */
+// deno-lint-ignore no-explicit-any
+export async function validateSession(supabase: any, token: string): Promise<
+  | { valid: false }
+  | { valid: true; role: string; username: string | null; name: string | null; expiresAt: string; attendanceLogId: string | null }
+> {
+  if (!token) return { valid: false }
+
+  const { data: s } = await supabase
+    .from('sessions')
+    .select('token, role, username, name, persistent, attendance_log_id, expires_at')
+    .eq('token', token)
+    .maybeSingle()
+
+  if (!s) return { valid: false }
+
+  // Expired → close its still-open attendance row and drop the session.
+  if (Date.parse(s.expires_at) < Date.now()) {
+    if (s.attendance_log_id) {
+      await supabase
+        .from('attendance_logs')
+        .update({ logged_out_at: new Date().toISOString(), logout_reason: 'session_expired' })
+        .eq('id', s.attendance_log_id)
+        .is('logged_out_at', null)
+    }
+    await supabase.from('sessions').delete().eq('token', token)
+    return { valid: false }
+  }
+
+  // Rotate attendance if the current row is gone or already closed.
+  let attendanceLogId: string | null = s.attendance_log_id ?? null
+  let needsNewRow = !attendanceLogId
+  if (attendanceLogId) {
+    const { data: row } = await supabase
+      .from('attendance_logs')
+      .select('logged_out_at')
+      .eq('id', attendanceLogId)
+      .maybeSingle()
+    if (!row || row.logged_out_at) needsNewRow = true
+  }
+  if (needsNewRow) {
+    const { data: fresh } = await supabase
+      .from('attendance_logs')
+      .insert({ username: s.username, role: s.role, name: s.name })
+      .select('id')
+      .single()
+    attendanceLogId = fresh?.id ?? null
+  }
+
+  // Slide the expiry forward and record activity.
+  const expiresAt = new Date(Date.now() + ttlFor(s.persistent)).toISOString()
+  await supabase
+    .from('sessions')
+    .update({ expires_at: expiresAt, last_seen_at: new Date().toISOString(), attendance_log_id: attendanceLogId })
+    .eq('token', token)
+
+  return { valid: true, role: s.role, username: s.username ?? null, name: s.name ?? null, expiresAt, attendanceLogId }
+}
+
+/** Revoke a session (explicit logout): close its open attendance row + delete it. */
+// deno-lint-ignore no-explicit-any
+export async function revokeSession(supabase: any, token: string): Promise<{ ok: true }> {
+  if (!token) return { ok: true }
+  const { data: s } = await supabase
+    .from('sessions')
+    .select('attendance_log_id')
+    .eq('token', token)
+    .maybeSingle()
+  if (s?.attendance_log_id) {
+    await supabase
+      .from('attendance_logs')
+      .update({ logged_out_at: new Date().toISOString(), logout_reason: 'manual' })
+      .eq('id', s.attendance_log_id)
+      .is('logged_out_at', null)
+  }
+  await supabase.from('sessions').delete().eq('token', token)
+  return { ok: true }
+}
+
 // ── Client IP ─────────────────────────────────────────────────────────────────
 
 export function getClientIp(req: Request): string {

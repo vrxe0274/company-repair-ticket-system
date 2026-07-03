@@ -2,10 +2,11 @@
 -- VRXE Repair Ticket System — Attendance Logs
 --
 -- Records each login event for Staff and Technician accounts.
--- logged_out_at is filled on explicit logout or on session-expiry
--- cleanup (next page load after a lapsed persistent session).
--- Entries with no logged_out_at on a past day are sessions that
--- ended via tab close / browser crash (unclosed).
+-- logged_out_at is filled on explicit logout (logout_reason='manual') or by
+-- session-expiry cleanup (logout_reason='session_expired') — either the nightly
+-- close_stale_attendance() sweep or single-session revocation when the same
+-- account logs in on another device. See sql/sessions-setup.sql.
+-- A row still open on a PAST day only appears if that cleanup hasn't run yet.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS attendance_logs (

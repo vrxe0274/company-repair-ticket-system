@@ -34,7 +34,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual, getClientIp,
-  deriveRoleKey, checkRateLimit, updateRateLimit,
+  deriveRoleKey, checkRateLimit, updateRateLimit, createSession,
 } from '../_shared/auth.ts'
 
 const supabase = createClient(
@@ -76,14 +76,14 @@ async function handleRequest(req: Request): Promise<Response> {
     return json(500, { ok: false, error: 'Login secrets not configured. Run: supabase secrets set ADMIN_PASSWORD=... STAFF_PASSWORD=... TECH_PASSWORD=...' })
   }
 
-  let body: { role?: string; password?: string }
+  let body: { role?: string; password?: string; persistent?: boolean }
   try {
     body = await req.json()
   } catch {
     return json(400, { ok: false, error: 'Invalid JSON body' })
   }
 
-  const { role, password } = body
+  const { role, password, persistent } = body
 
   if (role !== 'Admin' && role !== 'Staff' && role !== 'Technician') {
     return json(400, { ok: false, error: 'Invalid role' })
@@ -128,5 +128,9 @@ async function handleRequest(req: Request): Promise<Response> {
 
   await updateRateLimit(kv, kvKey, record, ok, now)
 
-  return json(200, { ok })
+  if (!ok) return json(200, { ok: false })
+
+  // Mint a server session (token + attendance row) on success.
+  const session = await createSession(supabase, { role, persistent: persistent ?? false })
+  return json(200, { ok: true, ...session })
 }

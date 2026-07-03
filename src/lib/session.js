@@ -2,24 +2,39 @@
  * @file session.js
  * @description Persistent-session storage shared by useAuth and useRole.
  *
- * The app has no Supabase Auth users/tokens — login is a per-role password
- * check (see useAuth.jsx). "Session" here is a single JSON record:
+ * Login is a per-role / per-account password check done SERVER-SIDE (see
+ * useAuth.jsx + the *-login Edge Functions). On success the server also creates
+ * a row in the `sessions` table and hands back an opaque random TOKEN. That
+ * token — not the client JSON — is what proves the session server-side, so a
+ * hand-edited localStorage record can no longer mint access to token-gated
+ * server actions (session-validate rejects an unknown/forged token).
  *
- *   { v: 1, role: 'Admin'|'Staff'|'Technician', persistent: bool, expiresAt: number|null }
+ * The client record is a single JSON blob:
+ *
+ *   {
+ *     v: 2,
+ *     role: 'Admin'|'Staff'|'Technician',
+ *     persistent: bool,
+ *     token: string,            // server session token (absent on legacy v1)
+ *     expiresAt: ISO string,    // client mirror of the server sliding expiry
+ *     username?, name?, mustChangePassword?,
+ *     attendanceLogId?,         // current open attendance row (server-managed)
+ *   }
  *
  * Storage rules (Feature: persistent login / stay signed in):
- *   - persistent === true  → localStorage, 30-day sliding expiry.
- *     Used when "Remember me" is checked, and ALWAYS when running as an
- *     installed PWA (display-mode: standalone), so the app stays signed in
- *     across closes/reopens. Survives service-worker updates (SW only
- *     manages caches, never web storage).
- *   - persistent === false → sessionStorage, no expiry (dies with the tab).
- *     This is the pre-existing behavior for plain browser sessions.
+ *   - persistent === true  → localStorage. Used when "Remember me" is checked,
+ *     and ALWAYS when running as an installed PWA (display-mode: standalone),
+ *     so the app stays signed in across closes/reopens. Survives service-worker
+ *     updates (SW only manages caches, never web storage).
+ *   - persistent === false → sessionStorage (dies with the tab).
  *
- * renewSession() implements the "silent refresh": every app load while the
- * record is still valid slides expiresAt forward another 30 days. If the
- * record has expired, getSession() clears it and flags the expiry so push
- * subscriptions can be cleaned up (see useAuth.jsx).
+ * Expiry (Feature: 30-day sliding expiry for persistent sessions):
+ *   - A persistent session carries expiresAt = now + 30 days; a non-persistent
+ *     one gets a shorter window. The value is set by the server on login and
+ *     renewed by session-validate on every app load (sliding). getSession()
+ *     enforces it locally: a record past expiresAt is dropped and treated as
+ *     logged-out. Legacy v1 records (no expiresAt) never expire locally — they
+ *     are honoured until the user logs in again and gets a v2/token record.
  */
 
 const SESSION_KEY = 'vrxe_session'
@@ -31,15 +46,9 @@ const VALID_ROLES = new Set(['Admin', 'Staff', 'Technician'])
 const LEGACY_AUTH_KEY = 'vrxe_auth'
 const LEGACY_ROLE_KEY = 'vrxe_role'
 
-/** Set when a persistent session lapses, so the next load can clean up
- *  the device's push subscription (no server-side session to hook into). */
-export const SESSION_EXPIRED_FLAG = 'vrxe_session_expired'
-
-/** Stores the attendance log ID that needs to be closed after a session expires. */
-export const ATTENDANCE_CLOSE_KEY = 'vrxe_attendance_close'
-
-/** Session length: 9 hours from login. Fixed — does not slide on activity. */
-export const SESSION_TTL_MS = 9 * 60 * 60 * 1000
+/** Sliding-expiry windows. Mirrors the server (createSession in _shared/auth.ts). */
+export const PERSISTENT_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+export const TAB_TTL_MS        = 12 * 60 * 60 * 1000       // 12 hours
 
 /** True when running as an installed PWA (home screen / standalone window). */
 export function isStandalone() {
@@ -47,6 +56,13 @@ export function isStandalone() {
     window.matchMedia?.('(display-mode: standalone)')?.matches === true ||
     window.navigator.standalone === true // iOS Safari legacy flag
   )
+}
+
+/** A record is expired when it carries an expiresAt in the past. */
+function isExpired(s) {
+  if (!s?.expiresAt) return false // legacy v1 / tokenless — no local expiry
+  const t = Date.parse(s.expiresAt)
+  return Number.isFinite(t) && Date.now() > t
 }
 
 function parse(raw) {
@@ -59,44 +75,25 @@ function parse(raw) {
 }
 
 /**
- * Read the current session, honoring expiry.
- * @returns {{role: string, persistent: boolean, expiresAt: number|null} | null}
+ * Read the current session. A record whose expiresAt has passed is dropped and
+ * getSession returns null (treated as logged out). Otherwise the record is
+ * returned as-is until explicitly cleared (logout) or dropped by the browser
+ * (sessionStorage on tab close).
+ * @returns {{role: string, persistent: boolean, token?: string} | null}
  */
 export function getSession() {
   // Persistent record first (survives restarts), then tab-scoped record.
   const persistentRaw = localStorage.getItem(SESSION_KEY)
   if (persistentRaw) {
     const s = parse(persistentRaw)
-    if (s) {
-      if (s.expiresAt && Date.now() > s.expiresAt) {
-        // Expired — stash the open attendance log ID so the next load can close
-        // it, then flag for push cleanup.
-        if (s.attendanceLogId) {
-          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, JSON.stringify({ id: s.attendanceLogId, expiresAt: s.expiresAt })) } catch {}
-        }
-        localStorage.removeItem(SESSION_KEY)
-        localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-        return null
-      }
-      return s
-    }
+    if (s && !isExpired(s)) return s
     localStorage.removeItem(SESSION_KEY)
   }
 
   const tabRaw = sessionStorage.getItem(SESSION_KEY)
   if (tabRaw) {
     const s = parse(tabRaw)
-    if (s) {
-      if (s.expiresAt && Date.now() > s.expiresAt) {
-        if (s.attendanceLogId) {
-          try { localStorage.setItem(ATTENDANCE_CLOSE_KEY, JSON.stringify({ id: s.attendanceLogId, expiresAt: s.expiresAt })) } catch {}
-        }
-        sessionStorage.removeItem(SESSION_KEY)
-        localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-        return null
-      }
-      return s
-    }
+    if (s && !isExpired(s)) return s
     sessionStorage.removeItem(SESSION_KEY)
   }
 
@@ -118,21 +115,30 @@ function migrateLegacySession() {
 /**
  * Create/replace the session record after a successful login.
  * @param {'Admin'|'Staff'|'Technician'} role
- * @param {{persistent?: boolean, username?: string|null}} opts
+ * @param {{persistent?: boolean, token?: string|null, expiresAt?: string|null,
+ *          username?: string|null, name?: string|null, mustChangePassword?: boolean,
+ *          attendanceLogId?: string|null}} opts
  *   persistent is forced on in standalone PWA.
- *   username is set for individual Staff accounts (null for shared-password roles).
+ *   token / expiresAt / attendanceLogId come from the login Edge Function; they
+ *   are omitted when the server session backend isn't reachable (tokenless
+ *   fallback — the client still works, just without server-side revocation).
  */
-export function saveSession(role, { persistent = false, username = null, name = null, mustChangePassword = false } = {}) {
+export function saveSession(role, {
+  persistent = false, token = null, expiresAt = null,
+  username = null, name = null, mustChangePassword = false, attendanceLogId = null,
+} = {}) {
   const isPersistent = persistent || isStandalone()
   const session = {
-    v: 1,
+    v: 2,
     role,
     persistent: isPersistent,
-    expiresAt: Date.now() + SESSION_TTL_MS, // always set — sessions expire after 9 h regardless of persistence
   }
-  if (username)          session.username          = username
-  if (name)              session.name              = name
+  if (token)             session.token              = token
+  if (expiresAt)         session.expiresAt          = expiresAt
+  if (username)          session.username           = username
+  if (name)              session.name               = name
   if (mustChangePassword) session.mustChangePassword = true
+  if (attendanceLogId)   session.attendanceLogId    = attendanceLogId
   clearSession() // never leave a stale copy in the other storage
   const store = isPersistent ? localStorage : sessionStorage
   store.setItem(SESSION_KEY, JSON.stringify(session))
@@ -140,9 +146,9 @@ export function saveSession(role, { persistent = false, username = null, name = 
 }
 
 /**
- * Patch specific fields on the stored session without touching expiresAt.
- * Used by updateSessionName and updateSessionRole to avoid silently resetting
- * the 30-day sliding expiry that saveSession() would recompute.
+ * Patch specific fields on the stored session in place.
+ * Used by updateSessionName/updateSessionRole/renewSession/etc. to change a
+ * field without rewriting the whole record.
  */
 function patchSession(patch) {
   const persistRaw = localStorage.getItem(SESSION_KEY)
@@ -172,16 +178,24 @@ export function clearMustChangePassword() {
   patchSession({ mustChangePassword: false })
 }
 
-/**
- * Previously slid the session expiry forward on every load.
- * Now a no-op — sessions have a fixed 9-hour TTL from login and do not extend.
- * Kept so existing callers in useAuth.jsx don't need to change.
- */
-export function renewSession() {}
-
-/** Update only the role on the existing record (keeps persistence mode, username, name, and expiresAt). */
+/** Update only the role on the existing record (keeps persistence mode, username, name). */
 export function updateSessionRole(role) {
   patchSession({ role })
+}
+
+/**
+ * Apply the fields session-validate returns on app load: the renewed sliding
+ * expiry and (when the server rotated the attendance row) a fresh
+ * attendanceLogId. Also refreshes identity in case it changed server-side.
+ */
+export function renewSession({ expiresAt, attendanceLogId, role, name, username } = {}) {
+  const patch = {}
+  if (expiresAt)                 patch.expiresAt       = expiresAt
+  if (attendanceLogId)           patch.attendanceLogId = attendanceLogId
+  if (role && VALID_ROLES.has(role)) patch.role        = role
+  if (name !== undefined)        patch.name            = name
+  if (username !== undefined)    patch.username        = username
+  if (Object.keys(patch).length) patchSession(patch)
 }
 
 /** Remove the session from both storages (explicit logout / replace). */
@@ -192,23 +206,11 @@ export function clearSession() {
   sessionStorage.removeItem(LEGACY_ROLE_KEY)
 }
 
-/** Read-and-clear the "session expired" flag (used for push cleanup). */
-export function consumeSessionExpiredFlag() {
-  const flagged = localStorage.getItem(SESSION_EXPIRED_FLAG) === '1'
-  if (flagged) localStorage.removeItem(SESSION_EXPIRED_FLAG)
-  return flagged
-}
-
 /**
- * Patch the attendance log ID into the active session record so logout can
- * reference it later.  Must be called after saveSession().
+ * Patch the attendance log ID into the active session record. Used for legacy
+ * (tokenless) sessions where the client still opens its own attendance row;
+ * token sessions get this from the server via saveSession/renewSession.
  */
 export function saveAttendanceLogId(id) {
   patchSession({ attendanceLogId: id })
-}
-
-/** Remove the attendance log ID from the session (called on browser close so
- *  the next load knows to start a fresh log). */
-export function clearAttendanceLogId() {
-  patchSession({ attendanceLogId: null })
 }

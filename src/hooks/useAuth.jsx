@@ -2,45 +2,51 @@
  * @file useAuth.jsx
  * @description Authentication context.
  *
- * Auth model: password verification is done SERVER-SIDE via the verify-login
- * Edge Function. There is one shared password per role, stored as Supabase
- * secrets and never shipped to the browser bundle. There are no user accounts
- * or Supabase Auth tokens.
+ * Auth model: password verification is done SERVER-SIDE via the *-login Edge
+ * Functions. There is one shared password per role (verify-login) plus
+ * individual username accounts for Staff and Technician. On success the server
+ * ALSO creates a row in the `sessions` table and returns an opaque TOKEN; the
+ * client stores it in lib/session.js. The token — not the client JSON — is what
+ * proves the session to token-gated server actions, so a hand-edited
+ * localStorage record can no longer forge one.
  *
- * Persistence (Feature: stay signed in for PWA):
+ * Persistence & expiry (Feature: stay signed in for PWA):
  *   - Session record lives in lib/session.js (localStorage when persistent,
  *     sessionStorage otherwise).
- *   - "Remember me" or running as an installed PWA → persistent record with a
- *     30-day sliding expiry; every app load renews it (silent refresh).
- *   - Expired persistent session → cleared + this device's push subscription
- *     removed, then the user lands on /login via ProtectedRoute.
+ *   - "Remember me" or running as an installed PWA → persistent session with a
+ *     30-day sliding expiry; session-manage 'validate' renews it on every app
+ *     load. Non-persistent sessions get a 12-hour window and die with the tab.
+ *   - A token the server reports invalid/expired (validate → valid:false) →
+ *     the client clears the session + this device's push subscription and lands
+ *     on /login via ProtectedRoute. Network errors during validate are ignored
+ *     (offline-friendly — the local expiry check still applies).
  *
- * Attendance logging:
- *   - Every successful login inserts a row into attendance_logs and saves the
- *     row ID into the session record.
- *   - Manual logout updates that row with logged_out_at + logout_reason='manual'.
- *   - If a persistent session expires, getSession() stashes the row ID in
- *     localStorage under ATTENDANCE_CLOSE_KEY; the next useEffect call here
- *     picks it up and closes the row with logout_reason='session_expired'.
+ * Attendance logging (server-owned for token sessions):
+ *   - Login opens an attendance_logs row server-side (createSession).
+ *   - validate rotates it — once close_stale_attendance() has closed yesterday's
+ *     open row, the next load opens a fresh one (per-day logging for persistent
+ *     PWAs, which previously logged only their very first login).
+ *   - logout ('revoke') closes the row with logout_reason='manual'; an abandoned
+ *     device's row is closed as 'session_expired' by the nightly cleanup or when
+ *     the same account logs in elsewhere (single-session).
+ *   - Legacy tokenless (v1) sessions keep the old client-side attendance path.
  */
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import {
   getSession,
   saveSession,
-  renewSession,
   clearSession,
-  consumeSessionExpiredFlag,
+  renewSession,
   saveAttendanceLogId,
-  clearAttendanceLogId,
-  ATTENDANCE_CLOSE_KEY,
+  isStandalone,
 } from '../lib/session'
 import { unsubscribeFromPush } from '../lib/push'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
-/** Fire-and-forget: insert an attendance log row and save its ID to the session. */
+/** Legacy (tokenless v1) only: insert an attendance row and save its ID. */
 async function recordLogin({ username = null, role, name = null }) {
   const { data } = await supabase
     .from('attendance_logs')
@@ -50,99 +56,122 @@ async function recordLogin({ username = null, role, name = null }) {
   if (data?.id) saveAttendanceLogId(data.id)
 }
 
-/** Fire-and-forget: mark an open attendance row as closed. */
-function closeAttendanceLog(id, reason, loggedOutAt = new Date()) {
+/** Legacy (tokenless v1) only: close an open attendance row at "now". */
+function closeAttendanceLog(id) {
   if (!id) return
   supabase
     .from('attendance_logs')
-    .update({ logged_out_at: new Date(loggedOutAt).toISOString(), logout_reason: reason })
+    .update({ logged_out_at: new Date().toISOString(), logout_reason: 'manual' })
     .eq('id', id)
     .then(() => {})
+}
+
+/** Ask the server to validate a token. Returns the response, or null on network error. */
+async function validateServerSession(token) {
+  try {
+    const { data, error } = await supabase.functions.invoke('session-manage', {
+      body: { action: 'validate', token },
+    })
+    if (error) return null // network/deploy issue — stay logged in (offline-friendly)
+    return data ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Best-effort server revoke on logout (closes attendance + deletes the session row). */
+function revokeServerSession(token) {
+  if (!token) return
+  supabase.functions.invoke('session-manage', { body: { action: 'revoke', token } }).catch(() => {})
 }
 
 export function AuthProvider({ children }) {
   const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
+  const validatedRef = useRef(false) // guard StrictMode double-invoke
 
+  // Initial load: trust the local record for UX (synchronous), then confirm
+  // with the server in the background so revoked/expired tokens get kicked.
   useEffect(() => {
     const session = getSession()
-    if (session) {
-      setAuthenticated(true)
-      renewSession()
-      // If the session has no open attendance log (e.g. browser was closed and
-      // reopened — the beforeunload handler cleared it), start a fresh one.
-      if (!session.attendanceLogId) {
-        recordLogin({ username: session.username ?? null, role: session.role, name: session.name ?? null })
-      }
-    } else if (consumeSessionExpiredFlag()) {
-      unsubscribeFromPush()
-    }
+    if (!session) { setLoading(false); return }
 
-    // Close any attendance log left open by a session that expired between page loads.
-    // The stored value is JSON { id, expiresAt } so we use the real expiry time, not now.
-    const pendingRaw = localStorage.getItem(ATTENDANCE_CLOSE_KEY)
-    if (pendingRaw) {
-      localStorage.removeItem(ATTENDANCE_CLOSE_KEY)
-      try {
-        const { id, expiresAt } = JSON.parse(pendingRaw)
-        closeAttendanceLog(id, 'session_expired', expiresAt ?? new Date())
-      } catch {
-        // Legacy plain-string ID (no expiresAt available) — fall back to now
-        closeAttendanceLog(pendingRaw, 'session_expired')
-      }
-    }
-
+    setAuthenticated(true)
     setLoading(false)
+
+    if (validatedRef.current) return
+    validatedRef.current = true
+
+    if (session.token) {
+      validateServerSession(session.token).then(data => {
+        if (!data) return // network error — leave the local session in place
+        if (data.valid === false) {
+          unsubscribeFromPush()
+          clearSession()
+          setAuthenticated(false)
+          return
+        }
+        // Valid: apply the renewed expiry + any rotated attendance row.
+        renewSession({
+          expiresAt: data.expiresAt,
+          attendanceLogId: data.attendanceLogId,
+          role: data.role,
+          name: data.name,
+          username: data.username,
+        })
+      })
+    } else if (!session.attendanceLogId) {
+      // Legacy tokenless session with no open row yet — open one client-side.
+      recordLogin({ username: session.username ?? null, role: session.role, name: session.name ?? null })
+    }
   }, [])
 
-  // Close the attendance log the moment the browser tab/window closes.
-  // Must use raw fetch with keepalive:true — the supabase-js client cancels
-  // in-flight requests on unload, but keepalive bypasses that restriction.
-  // Also clears attendanceLogId from the session so the next page load
-  // (browser reopen with a persistent session) creates a fresh log.
+  // Cross-tab sync: a logout (or expiry) in another tab clears localStorage;
+  // reflect it here instead of staying authenticated until reload.
   useEffect(() => {
-    if (!authenticated) return
-    function onBeforeUnload() {
-      const session = getSession()
-      const id = session?.attendanceLogId
-      if (!id) return
-      fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/attendance_logs?id=eq.${id}`,
-        {
-          method: 'PATCH',
-          keepalive: true,
-          headers: {
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({
-            logged_out_at: new Date().toISOString(),
-            logout_reason: 'browser_closed',
-          }),
-        }
-      )
-      clearAttendanceLogId()
+    function onStorage(e) {
+      if (e.key !== null && e.key !== 'vrxe_session') return
+      setAuthenticated(!!getSession())
     }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [authenticated])
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  /** Persist the session record from a successful login response. */
+  function persistLogin(role, data, { rememberMe }) {
+    saveSession(role, {
+      persistent:         rememberMe,
+      token:              data?.token ?? null,
+      expiresAt:          data?.expiresAt ?? null,
+      attendanceLogId:    data?.attendanceLogId ?? null,
+      username:           data?.username ?? null,
+      name:               data?.name ?? null,
+      mustChangePassword: data?.mustChangePassword ?? false,
+    })
+    validatedRef.current = true // this record is already server-fresh
+    setAuthenticated(true)
+    // Tokenless fallback (server session backend not deployed): open the
+    // attendance row client-side so attendance still records.
+    if (!data?.token && !data?.attendanceLogId) {
+      recordLogin({ username: data?.username ?? null, role, name: data?.name ?? null })
+    }
+  }
 
   /**
    * loginWithRole — verifies the role's shared password server-side via the
-   * verify-login Edge Function. Used by Admin and Technician roles.
+   * verify-login Edge Function. Used by the Admin role.
    * Passwords never leave the server; the browser bundle contains no credentials.
    *
    * @param {string} password
-   * @param {'Admin'|'Technician'} role
+   * @param {'Admin'|'Staff'|'Technician'} role
    * @param {{rememberMe?: boolean}} opts
    * @returns {Promise<boolean>} true on success, false on wrong password.
    * @throws {Error} if the Edge Function is unreachable or misconfigured.
    */
   async function loginWithRole(password, role, { rememberMe = false } = {}) {
+    const persistent = rememberMe || isStandalone()
     const { data, error } = await supabase.functions.invoke('verify-login', {
-      body: { role, password },
+      body: { role, password, persistent },
     })
 
     if (error) throw new Error('Connection error. Check your network and try again.')
@@ -152,9 +181,7 @@ export function AuthProvider({ children }) {
     }
     if (!data?.ok) return false
 
-    saveSession(role, { persistent: rememberMe })
-    setAuthenticated(true)
-    recordLogin({ role })
+    persistLogin(role, data, { rememberMe })
     return true
   }
 
@@ -164,15 +191,13 @@ export function AuthProvider({ children }) {
    * (created by Admin). The username is stored in the session so it can be
    * displayed in the UI.
    *
-   * @param {string} username
-   * @param {string} password
-   * @param {{rememberMe?: boolean}} opts
-   * @returns {Promise<boolean>} true on success, false on wrong credentials.
+   * @returns {Promise<false | {name: string|null}>} false on wrong credentials.
    * @throws {Error} if the Edge Function is unreachable.
    */
   async function loginAsStaff(username, password, { rememberMe = false } = {}) {
+    const persistent = rememberMe || isStandalone()
     const { data, error } = await supabase.functions.invoke('staff-login', {
-      body: { username: username.trim(), password },
+      body: { username: username.trim(), password, persistent },
     })
 
     if (error) throw new Error('Connection error. Check your network and try again.')
@@ -183,26 +208,22 @@ export function AuthProvider({ children }) {
     if (!data?.ok) return false
 
     const resolvedName = data.name ?? null
-    saveSession('Staff', { persistent: rememberMe, username: username.trim(), name: resolvedName, mustChangePassword: data.mustChangePassword ?? false })
-    setAuthenticated(true)
-    recordLogin({ username: username.trim(), role: 'Staff', name: resolvedName })
+    persistLogin('Staff', { ...data, username: username.trim(), name: resolvedName }, { rememberMe })
     return { name: resolvedName }
   }
 
   /**
    * loginAsTechnician — verifies an individual Technician account's username +
-   * password via the tech-login Edge Function. Mirrors loginAsStaff exactly
-   * but targets the technician_accounts table via a separate edge function.
+   * password via the tech-login Edge Function. Mirrors loginAsStaff exactly but
+   * targets the technician_accounts table via a separate edge function.
    *
-   * @param {string} username
-   * @param {string} password
-   * @param {{rememberMe?: boolean}} opts
-   * @returns {Promise<boolean>} true on success, false on wrong credentials.
+   * @returns {Promise<false | {name: string|null}>} false on wrong credentials.
    * @throws {Error} if the Edge Function is unreachable.
    */
   async function loginAsTechnician(username, password, { rememberMe = false } = {}) {
+    const persistent = rememberMe || isStandalone()
     const { data, error } = await supabase.functions.invoke('tech-login', {
-      body: { username: username.trim(), password },
+      body: { username: username.trim(), password, persistent },
     })
 
     if (error) throw new Error('Connection error. Check your network and try again.')
@@ -213,19 +234,22 @@ export function AuthProvider({ children }) {
     if (!data?.ok) return false
 
     const resolvedName = data.name ?? null
-    saveSession('Technician', { persistent: rememberMe, username: username.trim(), name: resolvedName, mustChangePassword: data.mustChangePassword ?? false })
-    setAuthenticated(true)
-    recordLogin({ username: username.trim(), role: 'Technician', name: resolvedName })
+    persistLogin('Technician', { ...data, username: username.trim(), name: resolvedName }, { rememberMe })
     return { name: resolvedName }
   }
 
   /**
-   * Explicit logout: close the open attendance log, invalidate the session
-   * everywhere, and remove this device's push subscription.
+   * Explicit logout: revoke the server session (closes the attendance row and
+   * deletes the token), remove this device's push subscription, and clear the
+   * local record. Legacy tokenless sessions close their row client-side.
    */
   function logout() {
     const session = getSession()
-    closeAttendanceLog(session?.attendanceLogId, 'manual')
+    if (session?.token) {
+      revokeServerSession(session.token)
+    } else {
+      closeAttendanceLog(session?.attendanceLogId)
+    }
     unsubscribeFromPush()
     clearSession()
     setAuthenticated(false)

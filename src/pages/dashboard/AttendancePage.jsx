@@ -4,16 +4,21 @@ import {
   startOfMonth, endOfMonth, subMonths, addMonths,
   eachDayOfInterval, getDay, isFuture, isToday as dateFnsIsToday,
 } from 'date-fns'
-import { Clock, Shield, Wrench, CalendarDays, Users, LogIn, LogOut, AlertTriangle, Pencil, Check, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Clock, Shield, Wrench, CalendarDays, Users, LogIn, LogOut, AlertTriangle, Pencil, Check, X, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { getShiftHours, saveShiftHours, isOutsideShift, fmtShiftHour, DEFAULT_SHIFT } from '../../lib/shift'
+import { exportAttendanceMonth } from '../../lib/attendanceExport'
+import { useRole } from '../../hooks/useRole.jsx'
 
-const MAX_MINUTES = 9 * 60
+// Sessions are no longer capped — durations reflect real elapsed time.
+// This constant only scales the little progress bar (visual reference), it
+// does NOT cap the displayed hours.
+const BAR_REF_MINUTES = 12 * 60
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 function sessionDurationMins(loggedInAt, loggedOutAt, now) {
   const end = loggedOutAt ? parseISO(loggedOutAt) : now
-  return Math.min(Math.max(differenceInMinutes(end, parseISO(loggedInAt)), 0), MAX_MINUTES)
+  return Math.max(differenceInMinutes(end, parseISO(loggedInAt)), 0)
 }
 
 function formatDuration(mins) {
@@ -21,29 +26,26 @@ function formatDuration(mins) {
 }
 
 function DurationBar({ mins, color }) {
-  const pct = Math.min((mins / MAX_MINUTES) * 100, 100)
+  const pct = Math.min((mins / BAR_REF_MINUTES) * 100, 100)
   return (
     <div className="flex flex-col gap-1.5 min-w-[80px]">
       <span className={`font-mono text-xs tabular-nums font-semibold ${color}`}>
         {formatDuration(mins)}
-        {mins >= MAX_MINUTES && (
-          <span className="ml-1 text-[9px] font-sans font-bold text-brand-500 tracking-wider">MAX</span>
-        )}
       </span>
       <div className="h-1 rounded-full bg-gray-100 overflow-hidden w-20">
         <div
-          className={`h-full rounded-full transition-all ${mins >= MAX_MINUTES ? 'bg-brand-400' : 'bg-current opacity-40'}`}
-          style={{ width: `${pct}%`, color: mins >= MAX_MINUTES ? undefined : 'inherit' }}
+          className="h-full rounded-full transition-all bg-current opacity-40"
+          style={{ width: `${pct}%`, color: 'inherit' }}
         />
       </div>
     </div>
   )
 }
 
-function DurationCell({ log, now, isViewingToday, barColor }) {
+function DurationCell({ log, now, isViewingToday }) {
   if (log.logged_out_at) {
     const mins = sessionDurationMins(log.logged_in_at, log.logged_out_at, now)
-    return <DurationBar mins={mins} color={mins >= MAX_MINUTES ? 'text-brand-600' : 'text-gray-700'} />
+    return <DurationBar mins={mins} color="text-gray-700" />
   }
   if (isViewingToday) {
     const mins = sessionDurationMins(log.logged_in_at, null, now)
@@ -56,7 +58,7 @@ function DurationCell({ log, now, isViewingToday, barColor }) {
         <div className="h-1 rounded-full bg-gray-100 overflow-hidden w-20">
           <div
             className="h-full rounded-full bg-emerald-400 animate-pulse"
-            style={{ width: `${Math.min((mins / MAX_MINUTES) * 100, 100)}%` }}
+            style={{ width: `${Math.min((mins / BAR_REF_MINUTES) * 100, 100)}%` }}
           />
         </div>
       </div>
@@ -83,12 +85,10 @@ function PersonCell({ name, username, initial, bg, text }) {
   )
 }
 
-const CAL_MAX_MINUTES = 9 * 60
-
 function calSessionMins(loggedInAt, loggedOutAt) {
   if (!loggedOutAt) return null
   const ms = new Date(loggedOutAt) - new Date(loggedInAt)
-  return Math.min(Math.max(Math.floor(ms / 60000), 0), CAL_MAX_MINUTES)
+  return Math.max(Math.floor(ms / 60000), 0)
 }
 
 function calFmtDuration(mins) {
@@ -153,11 +153,136 @@ function MonthCalendar({ monthDate, presentDays, offShiftDays, presentColor, rin
   )
 }
 
+/** Group a DESC-ordered log list into per-day buckets, preserving order. */
+function groupLogsByDay(logs) {
+  const groups = []
+  const index = new Map()
+  for (const log of logs) {
+    const key = format(parseISO(log.logged_in_at), 'yyyy-MM-dd')
+    let g = index.get(key)
+    if (!g) {
+      g = { key, date: parseISO(log.logged_in_at), logs: [] }
+      index.set(key, g)
+      groups.push(g)
+    }
+    g.logs.push(log)
+  }
+  return groups
+}
+
+/** One collapsible day: header summary + expandable list of that day's sessions. */
+function DaySessionGroup({ group, shift, palette, isOpen, onToggle }) {
+  const dayIsToday   = format(group.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+  const totalMins    = group.logs
+    .filter(l => l.logged_out_at)
+    .reduce((s, l) => s + (calSessionMins(l.logged_in_at, l.logged_out_at) ?? 0), 0)
+  const hasActive    = dayIsToday && group.logs.some(l => !l.logged_out_at)
+  const anyOffShift  = group.logs.some(l => isOutsideShift(l.logged_in_at, shift))
+  const sessionCount = group.logs.length
+
+  return (
+    <div className="border-b border-gray-100 last:border-b-0">
+      {/* Day header — click to fold/unfold */}
+      <button
+        onClick={() => onToggle(group.key)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/70 transition-colors text-left"
+        aria-expanded={isOpen}
+      >
+        <ChevronRight className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="font-sans font-semibold text-gray-900 text-sm">{format(group.date, 'EEE')}</span>
+          <span className="font-body text-gray-400 text-xs">{format(group.date, 'MMM d')}</span>
+          {anyOffShift && (
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Has off-shift sessions" />
+          )}
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          {hasActive && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-sans font-semibold text-emerald-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
+            </span>
+          )}
+          <span className="px-1.5 py-0.5 rounded-md bg-gray-100 text-[10px] font-sans font-semibold text-gray-500 tabular-nums">
+            {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'}
+          </span>
+          <span className={`font-mono text-xs tabular-nums font-semibold ${palette.stat} w-14 text-right`}>
+            {calFmtDuration(totalMins)}
+          </span>
+        </div>
+      </button>
+
+      {/* Expanded: one row per session */}
+      {isOpen && (
+        <div className="bg-gray-50/40 divide-y divide-gray-100/70">
+          {group.logs.map(log => {
+            const mins     = calSessionMins(log.logged_in_at, log.logged_out_at)
+            const pct      = mins !== null ? Math.min((mins / BAR_REF_MINUTES) * 100, 100) : 0
+            const logToday = format(parseISO(log.logged_in_at), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+            const offShift = isOutsideShift(log.logged_in_at, shift)
+            return (
+              <div key={log.id} className="flex items-center gap-3 pl-11 pr-4 py-2.5 text-xs">
+                {/* In */}
+                <div className="flex items-center gap-1.5 w-24 shrink-0">
+                  <LogIn className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span className="font-mono text-gray-700 tabular-nums">{format(parseISO(log.logged_in_at), 'hh:mm a')}</span>
+                </div>
+                {/* Out */}
+                <div className="flex items-center gap-1.5 w-28 shrink-0">
+                  <LogOut className="w-3 h-3 text-gray-300 shrink-0" />
+                  {log.logged_out_at ? (
+                    <span className="font-mono text-gray-700 tabular-nums">
+                      {format(parseISO(log.logged_out_at), 'hh:mm a')}
+                      {log.logout_reason === 'session_expired' && (
+                        <span className="ml-1 text-[9px] font-sans text-amber-500 font-semibold">(exp)</span>
+                      )}
+                    </span>
+                  ) : logToday ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-sans font-semibold text-emerald-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" /> Active
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </div>
+                {/* Duration */}
+                <div className="flex-1 min-w-0">
+                  {mins !== null ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono tabular-nums font-semibold text-gray-700">
+                        {calFmtDuration(mins)}
+                      </span>
+                      <div className="h-1 w-14 bg-gray-200/70 rounded-full overflow-hidden hidden xs:block">
+                        <div className={`h-full rounded-full ${palette.bar}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  ) : logToday ? (
+                    <span className="text-gray-400 italic">ongoing</span>
+                  ) : (
+                    <span className="text-gray-300 italic">unclosed</span>
+                  )}
+                </div>
+                {/* Off-shift tag */}
+                {offShift && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-sans font-bold text-amber-600 leading-none shrink-0">
+                    <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                    Off-shift
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EmployeeCalendarModal({ target, shift, onClose }) {
   // target: { username, role, name } | null
   const [monthDate, setMonthDate] = useState(startOfMonth(new Date()))
   const [logs,      setLogs]      = useState([])
   const [loading,   setLoading]   = useState(false)
+  const [openDays,  setOpenDays]  = useState(() => new Set())
 
   useEffect(() => {
     if (!target) return
@@ -176,6 +301,9 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
         .lte('logged_in_at', endOfMonth(monthDate).toISOString())
         .order('logged_in_at', { ascending: false })
       setLogs(data ?? [])
+      // Default: expand only the most recent day, keep the rest folded.
+      const first = (data ?? [])[0]
+      setOpenDays(first ? new Set([format(parseISO(first.logged_in_at), 'yyyy-MM-dd')]) : new Set())
       setLoading(false)
     }
     load()
@@ -201,6 +329,19 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
   const totalMins    = logs.filter(l => l.logged_out_at).reduce((s, l) => s + (calSessionMins(l.logged_in_at, l.logged_out_at) ?? 0), 0)
   const totalHours   = (totalMins / 60).toFixed(1)
   const isThisMonth  = format(monthDate, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
+  const dayGroups    = groupLogsByDay(logs)
+  const allExpanded  = dayGroups.length > 0 && dayGroups.every(g => openDays.has(g.key))
+
+  function toggleDay(key) {
+    setOpenDays(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+  function toggleAll() {
+    setOpenDays(allExpanded ? new Set() : new Set(dayGroups.map(g => g.key)))
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -279,7 +420,7 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
                 </div>
               </div>
 
-              {/* Right: session table */}
+              {/* Right: sessions grouped by day (foldable) */}
               <div className="flex-1 min-w-0">
                 {logs.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 gap-2">
@@ -287,81 +428,30 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
                     <p className="text-sm font-sans font-semibold text-gray-400">No sessions in {format(monthDate, 'MMMM yyyy')}</p>
                   </div>
                 ) : (
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-white z-10 border-b border-gray-100">
-                      <tr>
-                        <th className="text-left px-4 py-2.5 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Date</th>
-                        <th className="text-left px-4 py-2.5 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
-                          <span className="inline-flex items-center gap-1"><LogIn className="w-3 h-3" /> In</span>
-                        </th>
-                        <th className="text-left px-4 py-2.5 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
-                          <span className="inline-flex items-center gap-1"><LogOut className="w-3 h-3" /> Out</span>
-                        </th>
-                        <th className="text-left px-4 py-2.5 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Duration</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {logs.map(log => {
-                        const mins    = calSessionMins(log.logged_in_at, log.logged_out_at)
-                        const capped  = mins !== null && mins >= CAL_MAX_MINUTES
-                        const pct     = mins !== null ? Math.min((mins / CAL_MAX_MINUTES) * 100, 100) : 0
-                        const isToday = format(parseISO(log.logged_in_at), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-                        return (
-                          <tr key={log.id} className="hover:bg-gray-50/70 transition-colors">
-                            <td className="px-4 py-3">
-                              <p className="font-sans font-semibold text-gray-900 text-xs leading-tight">{format(parseISO(log.logged_in_at), 'EEE')}</p>
-                              <p className="font-body text-gray-400 text-xs leading-tight">{format(parseISO(log.logged_in_at), 'MMM d')}</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="font-mono text-xs text-gray-700 tabular-nums">
-                                {format(parseISO(log.logged_in_at), 'hh:mm a')}
-                              </span>
-                              {isOutsideShift(log.logged_in_at, shift) && (
-                                <span className="inline-flex items-center gap-0.5 ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-sans font-bold text-amber-600 leading-none align-middle">
-                                  <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
-                                  Off-shift
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 font-mono tabular-nums text-xs">
-                              {log.logged_out_at ? (
-                                <span className="text-gray-700">
-                                  {format(parseISO(log.logged_out_at), 'hh:mm a')}
-                                  {log.logout_reason === 'session_expired' && (
-                                    <span className="ml-1 text-[9px] font-sans text-amber-500 font-semibold">(expired)</span>
-                                  )}
-                                </span>
-                              ) : isToday ? (
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                                  Active
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {mins !== null ? (
-                                <div className="flex flex-col gap-1.5">
-                                  <span className={`font-mono text-xs tabular-nums font-semibold ${capped ? 'text-brand-600' : 'text-gray-700'}`}>
-                                    {calFmtDuration(mins)}
-                                    {capped && <span className="ml-1 text-[9px] font-sans font-bold text-brand-500 tracking-wider">MAX</span>}
-                                  </span>
-                                  <div className="h-1 w-14 bg-gray-100 rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full ${capped ? 'bg-brand-400' : palette.bar}`} style={{ width: `${pct}%` }} />
-                                  </div>
-                                </div>
-                              ) : isToday ? (
-                                <span className="text-xs font-sans text-gray-400 italic">ongoing</span>
-                              ) : (
-                                <span className="text-xs font-sans text-gray-300 italic">unclosed</span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                  <div>
+                    {/* Panel header + expand/collapse all */}
+                    <div className="sticky top-0 bg-white z-10 border-b border-gray-100 flex items-center justify-between px-4 py-2.5">
+                      <span className="font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
+                        {dayGroups.length} {dayGroups.length === 1 ? 'day' : 'days'}
+                      </span>
+                      <button
+                        onClick={toggleAll}
+                        className="text-[11px] font-sans font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+                      >
+                        {allExpanded ? 'Collapse all' : 'Expand all'}
+                      </button>
+                    </div>
+                    {dayGroups.map(group => (
+                      <DaySessionGroup
+                        key={group.key}
+                        group={group}
+                        shift={shift}
+                        palette={palette}
+                        isOpen={openDays.has(group.key)}
+                        onToggle={toggleDay}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -488,12 +578,99 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
   )
 }
 
+/** Popup asking which month to export, then triggers the .xlsx download. */
+function ExportMonthModal({ open, month, setMonth, maxMonth, exporting, msg, onExport, onClose }) {
+  if (!open) return null
+  const monthLabel = (() => {
+    const [y, m] = month.split('-').map(Number)
+    return format(new Date(y, m - 1, 1), 'MMMM yyyy')
+  })()
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="card w-full max-w-sm p-0 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+              <FileSpreadsheet className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-sans font-bold text-gray-900 text-sm leading-none">Export Attendance</p>
+              <p className="text-xs font-body text-gray-400 mt-0.5">Monthly sheet as Excel</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-3">
+          <label className="block">
+            <span className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide">Month to export</span>
+            <div className="flex items-center gap-2 mt-1.5">
+              <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
+              <input
+                type="month"
+                value={month}
+                max={maxMonth}
+                onChange={e => setMonth(e.target.value)}
+                className="input-field py-2 text-sm flex-1"
+              />
+            </div>
+          </label>
+          <p className="text-xs font-body text-gray-400">
+            Exports every Staff &amp; Technician session for <span className="font-semibold text-gray-500">{monthLabel}</span>, with per-day status and per-employee totals.
+          </p>
+          {msg && (
+            <p className={`text-xs font-sans font-semibold ${
+              msg.type === 'ok' ? 'text-emerald-600'
+              : msg.type === 'empty' ? 'text-amber-600'
+              : 'text-red-500'
+            }`}>
+              {msg.text}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60">
+          <button
+            onClick={onClose}
+            className="px-3 py-2 rounded-xl text-xs font-sans font-semibold text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            {msg?.type === 'ok' ? 'Done' : 'Cancel'}
+          </button>
+          <button
+            onClick={onExport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-sans font-semibold hover:bg-brand-700 transition-colors disabled:opacity-50"
+          >
+            {exporting
+              ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              : <Download className="w-3.5 h-3.5" />
+            }
+            {exporting ? 'Exporting…' : 'Download Excel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AttendancePage() {
+  const { isAdmin } = useRole()
   const today = format(new Date(), 'yyyy-MM-dd')
   const [selectedDate, setSelectedDate] = useState(today)
   const [logs,         setLogs]         = useState([])
   const [loading,      setLoading]      = useState(true)
   const [now,          setNow]          = useState(new Date())
+
+  // Monthly Excel export (Admin only) — driven by a popup modal
+  const [exportOpen,  setExportOpen]  = useState(false)
+  const [exportMonth, setExportMonth] = useState(format(new Date(), 'yyyy-MM'))
+  const [exporting,   setExporting]   = useState(false)
+  const [exportMsg,   setExportMsg]   = useState(null)
 
   // Shift hours
   const [shift,        setShift]        = useState(DEFAULT_SHIFT)
@@ -515,6 +692,32 @@ export default function AttendancePage() {
     setShift({ start: draftStart, end: draftEnd })
     setEditingShift(false)
     setShiftSaving(false)
+  }
+
+  function openExport() {
+    setExportMsg(null)
+    setExportMonth(format(new Date(), 'yyyy-MM'))
+    setExportOpen(true)
+  }
+
+  async function handleExport() {
+    if (!isAdmin) return // defense-in-depth; route is already Admin-gated
+    setExporting(true)
+    setExportMsg(null)
+    try {
+      const [y, m] = exportMonth.split('-').map(Number)
+      const monthDate = new Date(y, m - 1, 1)
+      const res = await exportAttendanceMonth(monthDate, shift)
+      setExportMsg(
+        res.rows === 0
+          ? { type: 'empty', text: 'No attendance recorded for that month.' }
+          : { type: 'ok', text: `Exported ${res.employees} employee${res.employees === 1 ? '' : 's'} · ${res.days} day${res.days === 1 ? '' : 's'}.` }
+      )
+    } catch (err) {
+      setExportMsg({ type: 'err', text: err.message || 'Export failed.' })
+    } finally {
+      setExporting(false)
+    }
   }
 
   useEffect(() => {
@@ -552,13 +755,24 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="-mx-5 -mt-5 lg:-mx-7 lg:-mt-7 bg-white border-b border-gray-200 mb-1">
         <div className="h-0.5 bg-gradient-to-r from-brand-500 to-accent-500" />
-        <div className="px-5 lg:px-7 pt-5 pb-3">
-          <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">
-            ATTENDANCE
-          </h1>
-          <p className="text-sm font-body text-gray-400 mt-2">
-            {format(new Date(), 'EEEE, MMMM d, yyyy')}
-          </p>
+        <div className="px-5 lg:px-7 pt-5 pb-3 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">
+              ATTENDANCE
+            </h1>
+            <p className="text-sm font-body text-gray-400 mt-2">
+              {format(new Date(), 'EEEE, MMMM d, yyyy')}
+            </p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={openExport}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-brand-600 text-white text-sm font-sans font-semibold hover:bg-brand-700 transition-colors shrink-0"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          )}
         </div>
 
         {/* Controls row */}
@@ -671,10 +885,6 @@ export default function AttendancePage() {
             <span className="text-[10px] sm:text-xs font-sans font-semibold text-accent-600 uppercase tracking-wide">Techs</span>
             <span className="font-mono font-bold text-xl sm:text-base leading-none text-accent-700">{uniqueTechs}</span>
           </div>
-
-          <p className="text-xs text-gray-400 font-body sm:ml-auto hidden sm:block">
-            Duration capped at 9 hrs
-          </p>
         </div>
       )}
 
@@ -736,6 +946,20 @@ export default function AttendancePage() {
           target={calendarTarget}
           shift={shift}
           onClose={() => setCalendarTarget(null)}
+        />
+      )}
+
+      {/* Monthly export modal (Admin only) */}
+      {isAdmin && (
+        <ExportMonthModal
+          open={exportOpen}
+          month={exportMonth}
+          setMonth={setExportMonth}
+          maxMonth={format(new Date(), 'yyyy-MM')}
+          exporting={exporting}
+          msg={exportMsg}
+          onExport={handleExport}
+          onClose={() => setExportOpen(false)}
         />
       )}
     </div>

@@ -3,11 +3,8 @@ import {
   saveSession,
   getSession,
   clearSession,
-  renewSession,
   updateSessionRole,
-  consumeSessionExpiredFlag,
-  SESSION_TTL_MS,
-  SESSION_EXPIRED_FLAG,
+  renewSession,
 } from '../../lib/session'
 
 const SESSION_KEY = 'vrxe_session'
@@ -19,14 +16,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-})
-
-// ─── SESSION_TTL_MS ───────────────────────────────────────────────────────────
-
-describe('SESSION_TTL_MS', () => {
-  it('equals 9 hours in milliseconds', () => {
-    expect(SESSION_TTL_MS).toBe(9 * 60 * 60 * 1000)
-  })
 })
 
 // ─── saveSession ─────────────────────────────────────────────────────────────
@@ -50,28 +39,24 @@ describe('saveSession', () => {
     expect(stored.role).toBe('Technician')
   })
 
-  it('stores schema version v: 1', () => {
+  it('stores schema version v: 2', () => {
     saveSession('Admin', { persistent: false })
     const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY))
-    expect(stored.v).toBe(1)
+    expect(stored.v).toBe(2)
   })
 
-  it('persistent session has expiresAt ~9 hours from now', () => {
-    const before = Date.now()
-    saveSession('Admin', { persistent: true })
-    const after = Date.now()
+  it('stores the server token and expiresAt when provided', () => {
+    saveSession('Staff', { persistent: true, token: 'tok-123', expiresAt: '2999-01-01T00:00:00.000Z' })
     const stored = JSON.parse(localStorage.getItem(SESSION_KEY))
-    expect(stored.expiresAt).toBeGreaterThanOrEqual(before + SESSION_TTL_MS)
-    expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
+    expect(stored.token).toBe('tok-123')
+    expect(stored.expiresAt).toBe('2999-01-01T00:00:00.000Z')
   })
 
-  it('non-persistent session also has a 9-hour expiresAt (fixed TTL regardless of persistence)', () => {
-    const before = Date.now()
-    saveSession('Admin', { persistent: false })
-    const after = Date.now()
-    const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY))
-    expect(stored.expiresAt).toBeGreaterThanOrEqual(before + SESSION_TTL_MS)
-    expect(stored.expiresAt).toBeLessThanOrEqual(after + SESSION_TTL_MS)
+  it('omits token/expiresAt when not provided (tokenless fallback)', () => {
+    saveSession('Admin', { persistent: true })
+    const stored = JSON.parse(localStorage.getItem(SESSION_KEY))
+    expect(stored.token).toBeUndefined()
+    expect(stored.expiresAt).toBeUndefined()
   })
 
   it('clears the other storage when switching persistence modes', () => {
@@ -110,28 +95,32 @@ describe('getSession', () => {
 
   it('prefers localStorage over sessionStorage', () => {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-      v: 1, role: 'Technician', persistent: false, expiresAt: null,
+      v: 1, role: 'Technician', persistent: false,
     }))
     saveSession('Admin', { persistent: true })
     expect(getSession().role).toBe('Admin')
   })
 
-  it('returns null and sets the expired flag when persistent session has lapsed', () => {
+  it('legacy tokenless session (no expiresAt) never expires', () => {
     vi.useFakeTimers()
     vi.setSystemTime(Date.now())
-    saveSession('Admin', { persistent: true })
-    vi.setSystemTime(Date.now() + SESSION_TTL_MS + 1000)
-    expect(getSession()).toBeNull()
-    expect(localStorage.getItem(SESSION_EXPIRED_FLAG)).toBe('1')
+    saveSession('Admin', { persistent: true }) // no expiresAt
+    // Jump 100 days into the future.
+    vi.setSystemTime(Date.now() + 100 * 24 * 60 * 60 * 1000)
+    expect(getSession()).not.toBeNull()
+    expect(getSession().role).toBe('Admin')
+    expect(localStorage.getItem(SESSION_KEY)).not.toBeNull()
   })
 
-  it('removes the expired session from localStorage', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(Date.now())
-    saveSession('Admin', { persistent: true })
-    vi.setSystemTime(Date.now() + SESSION_TTL_MS + 1000)
-    getSession()
-    expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+  it('honours a session whose expiresAt is still in the future', () => {
+    saveSession('Staff', { persistent: true, token: 't', expiresAt: new Date(Date.now() + 60_000).toISOString() })
+    expect(getSession()?.role).toBe('Staff')
+  })
+
+  it('drops a session whose expiresAt has passed and returns null', () => {
+    saveSession('Staff', { persistent: true, token: 't', expiresAt: new Date(Date.now() - 1000).toISOString() })
+    expect(getSession()).toBeNull()
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull() // record purged
   })
 
   it('returns null for a corrupt localStorage record', () => {
@@ -167,43 +156,6 @@ describe('clearSession', () => {
   })
 })
 
-// ─── renewSession ─────────────────────────────────────────────────────────────
-
-describe('renewSession', () => {
-  it('does not slide expiresAt — fixed TTL from login, renewSession is a no-op', () => {
-    vi.useFakeTimers()
-    const start = 1_000_000_000_000
-    vi.setSystemTime(start)
-    saveSession('Admin', { persistent: true })
-    const originalExpiry = JSON.parse(localStorage.getItem(SESSION_KEY)).expiresAt
-
-    vi.setSystemTime(start + 86_400_000) // advance 1 day
-    renewSession()
-    const renewed = JSON.parse(localStorage.getItem(SESSION_KEY)).expiresAt
-
-    expect(renewed).toBe(originalExpiry)
-  })
-
-  it('does nothing when there is no persistent session', () => {
-    saveSession('Admin', { persistent: false })
-    const snapshot = sessionStorage.getItem(SESSION_KEY)
-    renewSession()
-    expect(sessionStorage.getItem(SESSION_KEY)).toBe(snapshot)
-  })
-
-  it('does nothing when the persistent session has already expired', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(Date.now())
-    saveSession('Admin', { persistent: true })
-    vi.setSystemTime(Date.now() + SESSION_TTL_MS + 1000)
-    renewSession() // should be a no-op on expired record
-    // expired record still present (renewSession does NOT clear it; getSession does)
-    const stored = JSON.parse(localStorage.getItem(SESSION_KEY))
-    // expiresAt should not have been extended past the expired time
-    expect(stored.expiresAt).toBeLessThan(Date.now())
-  })
-})
-
 // ─── updateSessionRole ────────────────────────────────────────────────────────
 
 describe('updateSessionRole', () => {
@@ -221,27 +173,26 @@ describe('updateSessionRole', () => {
   })
 })
 
-// ─── consumeSessionExpiredFlag ────────────────────────────────────────────────
+// ─── renewSession ─────────────────────────────────────────────────────────────
 
-describe('consumeSessionExpiredFlag', () => {
-  it('returns false when the flag has not been set', () => {
-    expect(consumeSessionExpiredFlag()).toBe(false)
+describe('renewSession', () => {
+  it('slides expiresAt forward and rotates attendanceLogId', () => {
+    saveSession('Staff', { persistent: true, token: 't', expiresAt: new Date(Date.now() + 1000).toISOString(), attendanceLogId: 'old' })
+    const next = new Date(Date.now() + 5 * 60_000).toISOString()
+    renewSession({ expiresAt: next, attendanceLogId: 'new' })
+    const s = getSession()
+    expect(s.expiresAt).toBe(next)
+    expect(s.attendanceLogId).toBe('new')
   })
 
-  it('returns true when the flag is present', () => {
-    localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-    expect(consumeSessionExpiredFlag()).toBe(true)
+  it('keeps a session alive by extending an about-to-expire expiresAt', () => {
+    saveSession('Staff', { persistent: true, token: 't', expiresAt: new Date(Date.now() + 1000).toISOString() })
+    renewSession({ expiresAt: new Date(Date.now() + 60_000).toISOString() })
+    expect(getSession()?.role).toBe('Staff')
   })
 
-  it('removes the flag after reading it', () => {
-    localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-    consumeSessionExpiredFlag()
-    expect(localStorage.getItem(SESSION_EXPIRED_FLAG)).toBeNull()
-  })
-
-  it('returns false on the second call (flag already consumed)', () => {
-    localStorage.setItem(SESSION_EXPIRED_FLAG, '1')
-    consumeSessionExpiredFlag()
-    expect(consumeSessionExpiredFlag()).toBe(false)
+  it('is a no-op when no session exists', () => {
+    expect(() => renewSession({ expiresAt: new Date().toISOString() })).not.toThrow()
+    expect(getSession()).toBeNull()
   })
 })

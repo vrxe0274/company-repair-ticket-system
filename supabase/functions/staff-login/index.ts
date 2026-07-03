@@ -22,7 +22,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   corsHeaders, json, timingSafeEqual, getClientIp,
-  deriveStaffKey, checkRateLimit, updateRateLimit,
+  deriveStaffKey, checkRateLimit, updateRateLimit, createSession,
 } from '../_shared/auth.ts'
 
 const supabase = createClient(
@@ -51,14 +51,14 @@ async function handleRequest(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json(405, { ok: false, error: 'Method not allowed' })
 
-  let body: { username?: string; password?: string }
+  let body: { username?: string; password?: string; persistent?: boolean }
   try {
     body = await req.json()
   } catch {
     return json(400, { ok: false, error: 'Invalid JSON body' })
   }
 
-  const { username, password } = body
+  const { username, password, persistent } = body
 
   if (!username || typeof username !== 'string' || !password) {
     return json(200, { ok: false })
@@ -97,9 +97,16 @@ async function handleRequest(req: Request): Promise<Response> {
 
   await updateRateLimit(kv, kvKey, record, ok, now)
 
+  if (!ok) return json(200, { ok: false })
+
+  const resolvedName = account?.name ?? null
+  const session = await createSession(supabase, {
+    role: 'Staff', username: normalizedUsername, name: resolvedName, persistent: persistent ?? false,
+  })
   return json(200, {
-    ok,
-    name:              ok ? (account?.name ?? null)                     : undefined,
-    mustChangePassword: ok ? (account?.password_reset_required ?? false) : undefined,
+    ok: true,
+    name:               resolvedName,
+    mustChangePassword: account?.password_reset_required ?? false,
+    ...session,
   })
 }
