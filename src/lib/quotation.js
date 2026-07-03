@@ -1,8 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { format } from 'date-fns'
-import { DEFAULT_PARTIAL_HIGH_PCT, DEFAULT_PARTIAL_LOW_PCT } from './utils'
-
 const vrxeLogo = '/vrxe-logo.png'
 
 function peso(n) {
@@ -364,41 +362,10 @@ function renderQuotationPage(doc, ticket) {
   })
 
   // Right — Payment Terms
-  const highPct = Number(ticket.payment_partial_high_pct ?? DEFAULT_PARTIAL_HIGH_PCT)
-  const lowPct  = Number(ticket.payment_partial_low_pct  ?? DEFAULT_PARTIAL_LOW_PCT)
-  // Use quotationAmt (post-discount) when a manual discount has already been applied,
-  // so payment-option prices stay consistent with the total box on the same document.
-  const base    = quotationAmt > 0 ? quotationAmt : displayTotal
-
+  // Use quotationAmt (post-discount) when a manual discount has already been
+  // applied, so the printed fee stays consistent with the total box above.
+  const base = quotationAmt > 0 ? quotationAmt : displayTotal
   const ph = (n) => `Php ${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-
-  // No payment plan discounts when the ticket is diagnosis/cleaning only —
-  // i.e. no parts and every labor item is a Diagnosis or Cleaning charge.
-  const isDiagCleanOnly =
-    partsRows.length === 0 &&
-    laborRows.length > 0 &&
-    laborRows.every(i => /diagnosis|cleaning/i.test(i.description || ''))
-
-  const paymentPlans = [
-    {
-      label: `OPTION 1: Pay full price now — ${highPct}% discount`,
-      body:
-        `Full payment upon receipt of the quotation. A ${highPct}% discount from the total ` +
-        `price is applicable. Fee of ${ph(base * (1 - highPct / 100))}`,
-    },
-    {
-      label: `OPTION 2: Pay half price now — ${lowPct}% discount`,
-      body:
-        `Pay half the discounted total upon receipt of the quotation. A ${lowPct}% discount ` +
-        `is applicable. First payment: ${ph((base * (1 - lowPct / 100)) / 2)}. ` +
-        `Remaining ${ph((base * (1 - lowPct / 100)) / 2)} upon completion.`,
-    },
-    {
-      label: 'OPTION 3: Pay later — no discount',
-      body:
-        `Full payment after the completion of the VR repair. No discount. Total fee is ${ph(base)}`,
-    },
-  ]
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
@@ -406,33 +373,15 @@ function renderQuotationPage(doc, ticket) {
   doc.text('PAYMENT TERMS', rightColX, rightY)
   rightY += 7
 
-  if (isDiagCleanOnly) {
-    doc.setFont('helvetica', 'italic')
-    doc.setFontSize(7.5)
-    doc.setTextColor(60, 60, 60)
-    const flatLines = doc.splitTextToSize(
-      `Full payment upon completion of service. Total fee is ${ph(base)}`,
-      rightColW
-    )
-    doc.text(flatLines, rightColX, rightY)
-    rightY += flatLines.length * 4
-  } else {
-    paymentPlans.forEach(({ label, body }) => {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7.5)
-      doc.setTextColor(0, 0, 0)
-      const labelLines = doc.splitTextToSize(label, rightColW)
-      doc.text(labelLines, rightColX, rightY)
-      rightY += labelLines.length * 4 + 2
-
-      doc.setFont('helvetica', 'italic')
-      doc.setFontSize(7)
-      doc.setTextColor(60, 60, 60)
-      const bodyLines = doc.splitTextToSize(body, rightColW)
-      doc.text(bodyLines, rightColX, rightY)
-      rightY += bodyLines.length * 3.8 + 5
-    })
-  }
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(7.5)
+  doc.setTextColor(60, 60, 60)
+  const paymentNote = doc.splitTextToSize(
+    `Full payment of ${ph(base)} is due upon completion of the repair, unless otherwise agreed with staff.`,
+    rightColW
+  )
+  doc.text(paymentNote, rightColX, rightY)
+  rightY += paymentNote.length * 4
 
   // Bank / e-wallet box
   const payBoxH = 16

@@ -16,6 +16,19 @@ import { useRole } from '../../hooks/useRole.jsx'
 const BAR_REF_MINUTES = 12 * 60
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
+/** Live username → display-name lookup, so renamed accounts show correctly
+ *  without waiting for attendance_logs' stored snapshot to catch up. */
+async function fetchLiveNames() {
+  const [staffRes, techRes] = await Promise.all([
+    supabase.functions.invoke('staff-manage', { body: { action: 'list-names' } }),
+    supabase.functions.invoke('tech-manage',  { body: { action: 'list-names' } }),
+  ])
+  const map = { Staff: {}, Technician: {} }
+  for (const row of staffRes.data?.staff ?? []) map.Staff[row.username] = row.name
+  for (const row of techRes.data?.staff ?? [])  map.Technician[row.username] = row.name
+  return map
+}
+
 function sessionDurationMins(loggedInAt, loggedOutAt, now) {
   const end = loggedOutAt ? parseISO(loggedOutAt) : now
   return Math.max(differenceInMinutes(end, parseISO(loggedInAt)), 0)
@@ -296,7 +309,7 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
       const { data } = await supabase
         .from('attendance_logs')
         .select('*')
-        .eq('username', target.username)
+        .eq('username', target.username.toLowerCase())
         .gte('logged_in_at', startOfMonth(monthDate).toISOString())
         .lte('logged_in_at', endOfMonth(monthDate).toISOString())
         .order('logged_in_at', { ascending: false })
@@ -503,14 +516,14 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
           <p className="text-sm font-body">{emptyText}</p>
         </div>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead>
             <tr className="border-b border-gray-100 bg-white">
-              <th className="text-left pl-6 pr-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Person</th>
-              <th className="text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
+              <th className="w-[40%] text-left pl-6 pr-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Person</th>
+              <th className="w-[22%] text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">
                 <span className="inline-flex items-center gap-1"><LogIn className="w-3 h-3" /> In</span>
               </th>
-              <th className="text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide hidden md:table-cell">
+              <th className="w-[22%] text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide hidden md:table-cell">
                 <span className="inline-flex items-center gap-1"><LogOut className="w-3 h-3" /> Out</span>
               </th>
               <th className="text-left px-4 py-3 font-sans font-semibold text-xs text-gray-400 uppercase tracking-wide">Duration</th>
@@ -526,7 +539,7 @@ function RoleSection({ label, icon, logs, now, isViewingToday, shift, onSelectPe
                   title="Click to view full attendance history"
                   onClick={() => onSelectPerson({ username: log.username, role: log.role, name: log.name })}
                 >
-                  <td className="pl-6 pr-4 py-3.5">
+                  <td className="pl-6 pr-4 py-3.5 max-w-0">
                     <PersonCell
                       name={log.name}
                       username={log.username}
@@ -665,6 +678,9 @@ export default function AttendancePage() {
   const [logs,         setLogs]         = useState([])
   const [loading,      setLoading]      = useState(true)
   const [now,          setNow]          = useState(new Date())
+  const [liveNames,    setLiveNames]    = useState({ Staff: {}, Technician: {} })
+
+  useEffect(() => { fetchLiveNames().then(setLiveNames) }, [])
 
   // Monthly Excel export (Admin only) — driven by a popup modal
   const [exportOpen,  setExportOpen]  = useState(false)
@@ -743,8 +759,14 @@ export default function AttendancePage() {
   const [calendarTarget, setCalendarTarget] = useState(null)
 
   const isViewingToday = selectedDate === today
-  const staffLogs      = logs.filter(l => l.role === 'Staff')
-  const techLogs       = logs.filter(l => l.role === 'Technician')
+  // Override the stored (snapshot-at-login) name with the account's current
+  // display name when we have a live one for that username.
+  const resolvedLogs   = logs.map(l => {
+    const live = l.username ? liveNames[l.role]?.[l.username] : null
+    return live ? { ...l, name: live } : l
+  })
+  const staffLogs      = resolvedLogs.filter(l => l.role === 'Staff')
+  const techLogs       = resolvedLogs.filter(l => l.role === 'Technician')
   const uniqueStaff    = new Set(staffLogs.map(personKey)).size
   const uniqueTechs    = new Set(techLogs.map(personKey)).size
   const totalPresent   = uniqueStaff + uniqueTechs

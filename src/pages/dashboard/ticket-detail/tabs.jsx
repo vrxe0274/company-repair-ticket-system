@@ -5,10 +5,9 @@ import {
   Image as ImageIcon, Upload, ExternalLink, X, Save, CheckCircle,
   DollarSign, Plus, Trash2, Settings,
 } from 'lucide-react'
-import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine } from './components'
+import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine, RequiredMark } from './components'
 import { peso } from './helpers'
 import { DIAGNOSIS_FEE } from '../../../lib/constants'
-import { paymentPlanLabel, discountCapFor } from '../../../lib/utils'
 
 export function OverviewTab({
   ticket, statusGuidance,
@@ -67,6 +66,7 @@ export function OverviewTab({
 export function TechTab({
   ticket, notes, setNotes,
   canSeeNotes, canEdit,
+  diagnosisActive, repairActive,
   saving, saveMsg, uploading, fileInputRef,
   onSaveNotes, onUpload, onDeletePhoto,
 }) {
@@ -83,26 +83,32 @@ export function TechTab({
           <div className="flex flex-col flex-1 min-h-0 gap-4">
             {canEdit ? (
               <>
-                <div className="flex flex-col flex-1 min-h-0">
-                  <label className="label shrink-0">Diagnosis Notes</label>
+                <div className={`flex flex-col flex-1 min-h-0 rounded-lg transition-opacity ${!diagnosisActive ? 'opacity-50' : ''}`}>
+                  <label className="label shrink-0">
+                    Diagnosis Notes {diagnosisActive && <RequiredMark />}
+                  </label>
                   <textarea
-                    className="input-field resize-none flex-1 min-h-0"
+                    className="input-field resize-none flex-1 min-h-0 disabled:bg-gray-100 disabled:text-gray-400"
                     value={notes.diagnosis_notes}
                     onChange={e => setNotes(n => ({ ...n, diagnosis_notes: e.target.value }))}
                     placeholder="Enter diagnosis findings..."
+                    disabled={!diagnosisActive}
                   />
                 </div>
-                <div className="flex flex-col flex-1 min-h-0">
-                  <label className="label shrink-0">Repair Notes</label>
+                <div className={`flex flex-col flex-1 min-h-0 rounded-lg transition-opacity ${!repairActive ? 'opacity-50' : ''}`}>
+                  <label className="label shrink-0">
+                    Repair Notes {repairActive && <RequiredMark />}
+                  </label>
                   <textarea
-                    className="input-field resize-none flex-1 min-h-0"
+                    className="input-field resize-none flex-1 min-h-0 disabled:bg-gray-100 disabled:text-gray-400"
                     value={notes.repair_notes}
                     onChange={e => setNotes(n => ({ ...n, repair_notes: e.target.value }))}
                     placeholder="Enter repair process notes..."
+                    disabled={!repairActive}
                   />
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <button onClick={onSaveNotes} disabled={saving} className="btn-primary text-sm">
+                  <button onClick={onSaveNotes} disabled={saving || (!diagnosisActive && !repairActive)} className="btn-primary text-sm">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       : <Save className="w-3.5 h-3.5" />
@@ -142,12 +148,15 @@ export function TechTab({
       <div className="card p-5 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-4 shrink-0">
           <p className="section-title flex items-center gap-2 mb-0">
-            <ImageIcon className="w-3.5 h-3.5" /> Documentation
+            <ImageIcon className="w-3.5 h-3.5" /> Documentation {canEdit && repairActive && <RequiredMark />}
           </p>
           {canEdit && (
             <div>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} id="photo-upload" />
-              <label htmlFor="photo-upload" className="btn-secondary text-sm cursor-pointer">
+              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} id="photo-upload" disabled={!repairActive} />
+              <label
+                htmlFor={repairActive ? 'photo-upload' : undefined}
+                className={`btn-secondary text-sm ${repairActive ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed pointer-events-none'}`}
+              >
                 {uploading
                   ? <span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                   : <Upload className="w-3.5 h-3.5" />
@@ -157,7 +166,7 @@ export function TechTab({
             </div>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className={`flex-1 overflow-y-auto min-h-0 transition-opacity ${canEdit && !repairActive ? 'opacity-50' : ''}`}>
           {ticket.repair_photos && ticket.repair_photos.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 content-start">
               {ticket.repair_photos.map((url) => (
@@ -167,7 +176,7 @@ export function TechTab({
                     <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-white/90 rounded-lg hover:bg-white">
                       <ExternalLink className="w-3.5 h-3.5 text-gray-700" />
                     </a>
-                    {canEdit && (
+                    {canEdit && repairActive && (
                       <button onClick={() => onDeletePhoto(url)} className="p-1.5 bg-red-500 rounded-lg hover:bg-red-600">
                         <X className="w-3.5 h-3.5 text-white" />
                       </button>
@@ -191,10 +200,11 @@ export function TechTab({
 
 export function QuotationTab({
   canSeePricing, canEdit,
+  quotationActive, paymentActive,
   laborItems, partsItems,
   discount, setDiscount,
+  quotationNotes, setQuotationNotes,
   finalPrice, setFinalPrice,
-  paymentOption, partialHighPct, partialLowPct,
   saving, saveMsg,
   laborTotal, partsTotal, discountValue, quotationLive,
   paymentProofUrl, uploadingProof, proofInputRef, onUploadProof, onDeleteProof,
@@ -203,20 +213,10 @@ export function QuotationTab({
   onUpdatePartsItem, onAddPartsItem, onRemovePartsItem,
   onToggleDiagnosis,
 }) {
+  const [discountOpen, setDiscountOpen] = useState(parseFloat(discount) > 0)
   const diagnosisIncluded = laborItems.some(it => it.description === 'Diagnosis')
-  // The payment plan is chosen by the CLIENT on the tracker page — read-only here.
-  // The chosen plan caps how large a discount the admin may grant:
-  //   full_now → up to partialHighPct%, half_now → up to partialLowPct%, pay_later → 0%.
-  const discountCap = discountCapFor(paymentOption, partialHighPct, partialLowPct)
-  // Effective discount after the plan cap — what is actually applied / displayed.
-  const effDiscountPct = Math.min(discountCap, Math.max(0, parseFloat(discount) || 0))
-  // No payment plan for diagnosis/cleaning-only tickets.
-  const filledLabor = laborItems.filter(i => i.description || i.amount)
-  const filledParts = partsItems.filter(i => i.description || i.amount)
-  const isDiagCleanOnly =
-    filledLabor.length > 0 &&
-    filledParts.length === 0 &&
-    filledLabor.every(i => /diagnosis|cleaning/i.test(i.description || ''))
+  // `discount` is a manual percentage set entirely at the admin's discretion.
+  const discountPct = Math.min(100, Math.max(0, parseFloat(discount) || 0))
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {canSeePricing ? (
@@ -225,24 +225,25 @@ export function QuotationTab({
           {/* Left — scrollable line items + discount + save */}
           <div className="card p-3 sm:p-5 flex flex-col min-h-0">
             <p className="section-title flex items-center gap-2 mb-4 shrink-0">
-              <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation
+              <DollarSign className="w-3.5 h-3.5" /> Pricing & Quotation {canEdit && quotationActive && <RequiredMark />}
             </p>
 
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-5 pr-1">
+            <div className={`flex-1 overflow-y-auto min-h-0 space-y-5 pr-1 transition-opacity ${canEdit && !quotationActive ? 'opacity-50' : ''}`}>
 
               {/* Diagnosis fee toggle — admin sets this before starting repairs */}
               <div className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${diagnosisIncluded ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-200'}`}>
                 {canEdit ? (
-                  <label className="flex items-start gap-3 cursor-pointer select-none w-full">
+                  <label className={`flex items-start gap-3 select-none w-full ${quotationActive ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                     <input
                       type="checkbox"
                       checked={diagnosisIncluded}
                       onChange={onToggleDiagnosis}
-                      className="mt-0.5 w-4 h-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      disabled={!quotationActive}
+                      className="mt-0.5 w-4 h-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer disabled:cursor-not-allowed"
                     />
                     <div>
                       <p className="text-sm font-sans font-semibold text-gray-800">Include Diagnosis Fee</p>
-                      <p className="text-xs font-body text-gray-500">{peso(DIAGNOSIS_FEE)} flat-rate inspection charge — required to unlock Repair in Progress</p>
+                      <p className="text-xs font-body text-gray-500">{peso(DIAGNOSIS_FEE)} flat fee — required to start repair</p>
                     </div>
                   </label>
                 ) : (
@@ -270,6 +271,7 @@ export function QuotationTab({
                         onChange={onUpdateLaborItem}
                         onRemove={onRemoveLaborItem}
                         canRemove={true}
+                        disabled={!quotationActive}
                       />
                     ))
                   ) : (
@@ -281,7 +283,7 @@ export function QuotationTab({
                     ))
                   )}
                 </div>
-                {canEdit && (
+                {canEdit && quotationActive && (
                   <button type="button" onClick={onAddLaborItem}
                     className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
                     <Plus className="w-3.5 h-3.5" /> Add Labor Item
@@ -301,6 +303,7 @@ export function QuotationTab({
                         onChange={onUpdatePartsItem}
                         onRemove={onRemovePartsItem}
                         canRemove={partsItems.length > 1}
+                        disabled={!quotationActive}
                       />
                     ))
                   ) : (
@@ -312,7 +315,7 @@ export function QuotationTab({
                     ))
                   )}
                 </div>
-                {canEdit && (
+                {canEdit && quotationActive && (
                   <button type="button" onClick={onAddPartsItem}
                     className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold">
                     <Plus className="w-3.5 h-3.5" /> Add Parts Item
@@ -320,61 +323,75 @@ export function QuotationTab({
                 )}
               </div>
 
-              {/* Payment plan — hidden for diagnosis/cleaning-only tickets. */}
-              {!isDiagCleanOnly && (
-                <div className="border-t border-gray-100 pt-5">
-                  <label className="label mb-2">Payment Plan <span className="font-normal text-gray-400">(chosen by client)</span></label>
-                  {paymentOption ? (
-                    <div className="p-3 rounded-lg border bg-brand-50 border-brand-200">
-                      <p className="text-sm font-sans font-semibold text-gray-800">
-                        {paymentPlanLabel(paymentOption, partialHighPct, partialLowPct)}
-                      </p>
-                      <p className="text-xs font-body text-gray-500 mt-1">
-                        {discountCap > 0
-                          ? <>Discount allowed: up to <span className="font-mono text-gray-700">{discountCap}%</span></>
-                          : "No discount allowed for this plan."}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm font-body text-gray-400 italic">
-                      Client hasn’t selected a payment plan yet — they choose it on their tracking page. No discount can be applied until they do.
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* Quotation notes — internal only (Staff/Admin). Not shown to the
+                  client on the tracker page or the quotation/receipt PDFs. */}
+              <div className="border-t border-gray-100 pt-5">
+                <label className="label mb-2 flex items-center gap-1.5">
+                  <FileText className="w-3 h-3" /> Notes
+                  <span className="font-normal text-gray-400">(internal)</span>
+                </label>
+                {canEdit ? (
+                  <textarea
+                    value={quotationNotes}
+                    onChange={e => setQuotationNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Parts sourcing, price justification, follow-ups…"
+                    disabled={!quotationActive}
+                    className="input-field text-sm w-full resize-y disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                ) : quotationNotes ? (
+                  <p className="text-sm font-body text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">
+                    {quotationNotes}
+                  </p>
+                ) : (
+                  <p className="text-sm font-body text-gray-400 italic">No notes.</p>
+                )}
+              </div>
             </div>
 
             {/* Discount + save — pinned to bottom of card */}
             <div className="border-t border-gray-100 pt-4 mt-4 space-y-3 shrink-0">
               <div className="flex items-center gap-3 flex-wrap">
-                <label className="label w-24 shrink-0 mb-0">Discount %</label>
                 {canEdit ? (
-                  <div className="flex items-center gap-3 flex-1 flex-wrap">
-                    <div className="relative w-28">
-                      <input type="number" min="0" max={discountCap} step="0.01" value={discount}
-                        disabled={discountCap === 0}
-                        onChange={e => setDiscount(e.target.value)} placeholder="0"
-                        className="input-field pr-7 text-sm text-right font-mono disabled:opacity-50 disabled:cursor-not-allowed" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
-                    </div>
-                    {discountValue > 0 && (
-                      <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
-                    )}
-                    <span className="text-xs font-body text-gray-400 w-full">
-                      {discountCap > 0
-                        ? `Max ${discountCap}% for the client's chosen plan${Number(discount) > discountCap ? ' — will be capped on save' : ''}`
-                        : 'No discount allowed — depends on the payment plan the client chooses.'}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="font-mono text-sm text-gray-700">
-                    {discountValue > 0 ? `− ${peso(discountValue)}` : '—'}
-                  </span>
-                )}
+                  discountOpen ? (
+                    <>
+                      <label className="label w-24 shrink-0 mb-0">Discount %</label>
+                      <div className="flex items-center gap-3 flex-1 flex-wrap">
+                        <div className="relative w-28">
+                          <input type="number" min="0" max="100" step="0.01" value={discount}
+                            onChange={e => setDiscount(e.target.value)} placeholder="0"
+                            disabled={!quotationActive}
+                            className="input-field pr-7 text-sm text-right font-mono disabled:bg-gray-100 disabled:text-gray-400" />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
+                        </div>
+                        {discountValue > 0 && (
+                          <span className="text-xs font-body text-gray-500">= − {peso(discountValue)}</span>
+                        )}
+                        <button type="button"
+                          onClick={() => { setDiscount('0'); setDiscountOpen(false) }}
+                          disabled={!quotationActive}
+                          className="ml-auto text-xs font-sans font-semibold text-gray-400 hover:text-red-500 disabled:opacity-40 disabled:pointer-events-none">
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setDiscountOpen(true)}
+                      disabled={!quotationActive}
+                      className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-sans font-semibold disabled:opacity-40 disabled:pointer-events-none">
+                      <Plus className="w-3.5 h-3.5" /> Add Discount
+                    </button>
+                  )
+                ) : discountValue > 0 ? (
+                  <>
+                    <label className="label w-24 shrink-0 mb-0">Discount %</label>
+                    <span className="font-mono text-sm text-gray-700">− {peso(discountValue)}</span>
+                  </>
+                ) : null}
               </div>
               {canEdit && (
                 <div className="flex items-center gap-3">
-                  <button onClick={onSaveQuotation} disabled={saving} className="btn-primary text-sm">
+                  <button onClick={onSaveQuotation} disabled={saving || !quotationActive} className="btn-primary text-sm">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       : <Save className="w-3.5 h-3.5" />
@@ -399,7 +416,7 @@ export function QuotationTab({
               <SummaryLine label="Labor Subtotal" value={peso(laborTotal)} />
               <SummaryLine label="Parts Subtotal" value={peso(partsTotal)} />
               {discountValue > 0 && (
-                <SummaryLine label={`Discount${effDiscountPct ? ` (${effDiscountPct}%)` : ''}`} value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
+                <SummaryLine label={`Discount${discountPct ? ` (${discountPct}%)` : ''}`} value={`− ${peso(discountValue)}`} valueClass="text-green-600" />
               )}
               <div className="border-t border-gray-200 pt-3 mt-1 flex items-center justify-between">
                 <span className="text-sm font-sans font-bold text-gray-700">Quotation Total</span>
@@ -411,14 +428,15 @@ export function QuotationTab({
             <div className="card p-3 sm:p-5 space-y-3 flex-1 flex flex-col">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-emerald-500" />
-                <p className="section-title text-xs mb-0">Amount Paid</p>
+                <p className="section-title text-xs mb-0">Amount Paid {canEdit && paymentActive && <RequiredMark />}</p>
               </div>
               {canEdit ? (
-                <div className="relative w-full">
+                <div className={`relative w-full transition-opacity ${!paymentActive ? 'opacity-50' : ''}`}>
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
                   <input type="number" min="0" step="0.01" value={finalPrice}
                     onChange={e => setFinalPrice(e.target.value)} placeholder="0.00"
-                    className="input-field pl-7 text-sm text-right font-mono w-full" />
+                    disabled={!paymentActive}
+                    className="input-field pl-7 text-sm text-right font-mono w-full disabled:bg-gray-100 disabled:text-gray-400" />
                 </div>
               ) : (
                 <p className="text-3xl font-display tracking-wider text-emerald-700 flex-1 flex items-center">
@@ -426,11 +444,11 @@ export function QuotationTab({
                 </p>
               )}
               {canEdit && (
-                <div className="flex flex-col gap-2 mt-auto">
+                <div className={`flex flex-col gap-2 mt-auto transition-opacity ${!paymentActive ? 'opacity-50' : ''}`}>
                   {/* Payment proof — required before the final payment can be saved */}
                   <div className="border-t border-gray-100 pt-3">
                     <p className="label mb-2 flex items-center gap-1.5">
-                      Payment Proof <span className="text-red-500">*</span>
+                      Payment Proof {paymentActive && <RequiredMark />}
                     </p>
                     <input
                       ref={proofInputRef}
@@ -439,6 +457,7 @@ export function QuotationTab({
                       className="hidden"
                       id="payment-proof-upload"
                       onChange={onUploadProof}
+                      disabled={!paymentActive}
                     />
                     {paymentProofUrl ? (
                       <div className="flex items-center gap-3">
@@ -447,17 +466,22 @@ export function QuotationTab({
                           <img src={paymentProofUrl} alt="Payment proof" className="w-full h-full object-cover" />
                         </a>
                         <div className="flex flex-col gap-1">
-                          <label htmlFor="payment-proof-upload" className="text-xs font-sans font-semibold text-brand-600 hover:text-brand-700 cursor-pointer">
+                          <label
+                            htmlFor={paymentActive ? 'payment-proof-upload' : undefined}
+                            className={`text-xs font-sans font-semibold text-brand-600 hover:text-brand-700 ${paymentActive ? 'cursor-pointer' : 'cursor-not-allowed pointer-events-none'}`}
+                          >
                             Replace
                           </label>
-                          <button onClick={onDeleteProof} className="text-xs font-sans font-semibold text-red-500 hover:text-red-600 text-left">
+                          <button onClick={onDeleteProof} disabled={!paymentActive} className="text-xs font-sans font-semibold text-red-500 hover:text-red-600 text-left disabled:pointer-events-none">
                             Remove
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <label htmlFor="payment-proof-upload"
-                        className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 text-sm font-sans font-semibold text-gray-500 hover:border-brand-400 hover:text-brand-600 cursor-pointer transition-colors">
+                      <label
+                        htmlFor={paymentActive ? 'payment-proof-upload' : undefined}
+                        className={`flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 text-sm font-sans font-semibold text-gray-500 transition-colors ${paymentActive ? 'hover:border-brand-400 hover:text-brand-600 cursor-pointer' : 'cursor-not-allowed'}`}
+                      >
                         {uploadingProof
                           ? <span className="w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
                           : <Upload className="w-3.5 h-3.5" />
@@ -467,7 +491,7 @@ export function QuotationTab({
                     )}
                   </div>
 
-                  <button onClick={onSaveFinalPayment} disabled={saving || uploadingProof || !paymentProofUrl}
+                  <button onClick={onSaveFinalPayment} disabled={saving || uploadingProof || !paymentProofUrl || !paymentActive}
                     className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 focus:ring-emerald-400 w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                     {saving
                       ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -475,8 +499,8 @@ export function QuotationTab({
                     }
                     Save Final Payment
                   </button>
-                  {!paymentProofUrl && (
-                    <p className="text-xs font-body text-gray-400 text-center">Upload payment proof to enable saving.</p>
+                  {!paymentProofUrl && paymentActive && (
+                    <p className="text-xs font-body text-gray-400 text-center">Upload proof to enable saving.</p>
                   )}
                   {saveMsg === 'Final payment saved!' && (
                     <span className="text-sm font-sans font-semibold text-green-600 flex items-center justify-center gap-1">
@@ -491,14 +515,14 @@ export function QuotationTab({
         </div>
       ) : (
         <div className="card p-5 flex-1 flex items-center justify-center">
-          <LockedSection message="Pricing details are hidden until the ticket is approved." />
+          <LockedSection message="Hidden until the ticket is approved." />
         </div>
       )}
     </div>
   )
 }
 
-export function SettingsTab({ isManager, deleteConfirm, setDeleteConfirm, onDelete }) {
+export function SettingsTab({ isAdmin, deleteConfirm, setDeleteConfirm, onDelete }) {
   const [pw, setPw]     = useState('')
   const [err, setErr]   = useState('')
   const [busy, setBusy] = useState(false)
@@ -516,7 +540,7 @@ export function SettingsTab({ isManager, deleteConfirm, setDeleteConfirm, onDele
 
   return (
     <div className="space-y-5">
-      {isManager ? (
+      {isAdmin ? (
         <div className="card border border-red-100 p-5">
           <p className="section-title text-red-400 flex items-center gap-2 mb-3">
             <Trash2 className="w-3.5 h-3.5" /> Delete Ticket

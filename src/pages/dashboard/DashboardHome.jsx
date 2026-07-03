@@ -19,7 +19,7 @@ import {
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
-import { STATUS_ORDER, STATUS_DENIED, TASK_ACTIONS, STATUS_COLORS } from '../../lib/utils'
+import { STATUS_ORDER, STATUS_DENIED, TASK_ACTIONS, STATUS_COLORS, taskTab } from '../../lib/utils'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ export default function DashboardHome() {
                 {tasks.map(t => (
                   <Link
                     key={t.id}
-                    to={`tickets/${t.id}`}
+                    to={`tickets/${t.id}?tab=${taskTab(role, t.status)}`}
                     className="group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/80 transition-all border-l-[3px] border-transparent hover:border-brand-400"
                   >
                     <div className="flex-1 min-w-0">

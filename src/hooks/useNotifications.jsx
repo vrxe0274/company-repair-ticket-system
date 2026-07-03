@@ -177,7 +177,7 @@ export function NotificationsProvider({ children }) {
 
     const ok = outcomes.every(Boolean)
     // Roll back the optimistic clear if any role failed to fully clear.
-    if (!ok) fetchNotifications()
+    if (!ok) await fetchNotifications()
     return { ok }
   }, [role, isAdmin, fetchNotifications])
 

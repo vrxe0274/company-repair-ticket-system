@@ -13,7 +13,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import { ClipboardList, CheckCircle, RefreshCw, ChevronRight, Shield, ShieldCheck, Wrench } from 'lucide-react'
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
-import { TASK_ACTIONS, STATUS_COLORS } from '../../lib/utils'
+import { TASK_ACTIONS, STATUS_COLORS, taskTab } from '../../lib/utils'
 
 /** TasksPage — the /tasks route of the staff dashboard. */
 export default function TasksPage() {
@@ -79,7 +79,7 @@ export default function TasksPage() {
               {tasks.map((t, index) => (
                 <Link
                   key={t.id}
-                  to={`/tickets/${t.id}`}
+                  to={`/tickets/${t.id}?tab=${taskTab(role, t.status)}`}
                   className="group flex items-center gap-4 px-5 py-4 hover:bg-gray-50/80 transition-all border-l-[3px] border-transparent hover:border-brand-400"
                 >
                   {/* Position number */}

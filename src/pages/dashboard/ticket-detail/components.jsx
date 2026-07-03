@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { STATUS_ORDER } from '../../../lib/utils'
 
-export function LineItem({ item, onChange, onRemove, canRemove }) {
+export function LineItem({ item, onChange, onRemove, canRemove, disabled = false }) {
   return (
     <div className="flex items-center gap-2 min-w-0">
       <input
@@ -12,7 +12,8 @@ export function LineItem({ item, onChange, onRemove, canRemove }) {
         value={item.description}
         onChange={e => onChange(item.id, 'description', e.target.value)}
         placeholder="Description"
-        className="input-field flex-1 min-w-0 text-sm"
+        disabled={disabled}
+        className="input-field flex-1 min-w-0 text-sm disabled:bg-gray-100 disabled:text-gray-400"
       />
       <div className="relative w-24 sm:w-32 shrink-0">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">₱</span>
@@ -23,13 +24,14 @@ export function LineItem({ item, onChange, onRemove, canRemove }) {
           value={item.amount}
           onChange={e => onChange(item.id, 'amount', e.target.value)}
           placeholder="0.00"
-          className="input-field pl-7 text-sm text-right font-mono w-full"
+          disabled={disabled}
+          className="input-field pl-7 text-sm text-right font-mono w-full disabled:bg-gray-100 disabled:text-gray-400"
         />
       </div>
       <button
         type="button"
         onClick={() => onRemove(item.id)}
-        disabled={!canRemove}
+        disabled={!canRemove || disabled}
         className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-20 disabled:pointer-events-none shrink-0"
         aria-label="Remove line item"
       >
@@ -78,6 +80,11 @@ export function TabButton({ active, onClick, icon: Icon, label, badge }) {
       )}
     </button>
   )
+}
+
+/** Red asterisk marker for a field required at the ticket's current step. */
+export function RequiredMark() {
+  return <span className="text-red-500" aria-label="required for this step"> *</span>
 }
 
 export function LockedSection({ message }) {

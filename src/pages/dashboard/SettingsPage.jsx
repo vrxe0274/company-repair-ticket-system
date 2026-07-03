@@ -11,8 +11,9 @@
 
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User, Bell } from 'lucide-react'
+import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
+import { useAuth } from '../../hooks/useAuth.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useTheme } from '../../hooks/useTheme.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
@@ -25,6 +26,7 @@ const FLUSH_SUCCESS_MS = 4000
 
 export default function SettingsPage() {
   const { isAdmin, isManager, isStaff, isTechnician, role, staffUsername, staffName, setStaffName, setStaffUsername } = useRole()
+  const { renameAttendanceLog } = useAuth()
   const { clearAll } = useNotifications()
   const { isDark, toggleTheme } = useTheme()
 
@@ -176,7 +178,9 @@ export default function SettingsPage() {
       })
       if (error) throw new Error(await fnErrorMessage(error))
       if (!data?.ok) throw new Error(data?.error || 'Failed to update username.')
-      setStaffUsername(newUsernameInput.trim().toLowerCase())
+      const newUsername = newUsernameInput.trim().toLowerCase()
+      setStaffUsername(newUsername)
+      renameAttendanceLog(newUsername)
       setUsernameDone(true)
       closeEditUsername()
       setTimeout(() => setUsernameDone(false), 3500)
@@ -227,31 +231,6 @@ export default function SettingsPage() {
     setShowTerms(false)
   }
 
-  // Clear all notifications, role-wide (admin only). Permanently deletes every
-  // Staff + Technician notification for everyone — distinct from the per-account
-  // "Clear all" on the Notifications page, which only hides one's own inbox.
-  const [showClearNotifs,  setShowClearNotifs]  = useState(false)
-  const [clearingNotifs,   setClearingNotifs]   = useState(false)
-  const [clearNotifsDone,  setClearNotifsDone]  = useState(false)
-  const [clearNotifsError, setClearNotifsError] = useState('')
-
-  async function handleClearNotifs() {
-    setClearingNotifs(true)
-    setClearNotifsError('')
-    try {
-      const { ok } = await clearAll()
-      if (!ok) {
-        setClearNotifsError('Could not clear notifications. Please try again.')
-        return
-      }
-      setShowClearNotifs(false)
-      setClearNotifsDone(true)
-      setTimeout(() => setClearNotifsDone(false), 4000)
-    } finally {
-      setClearingNotifs(false)
-    }
-  }
-
   async function handleFlush() {
     if (flushConfirm !== 'DELETE') { setFlushError('Type DELETE to confirm.'); return }
     if (!flushInput) { setFlushError('Enter the admin password.'); return }
@@ -259,6 +238,9 @@ export default function SettingsPage() {
     setFlushError('')
     try {
       await adminFlushDatabase(flushInput)
+      // Role-wide notification purge rides along with the flush — one
+      // confirmation instead of two separate danger-zone actions.
+      await clearAll()
       setFlushDone(true)
       setShowFlush(false)
       setFlushInput('')
@@ -402,22 +384,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Notifications — admin only (role-wide clear) */}
-        {isAdmin && (
-          <div className="card p-5">
-            <p className="section-title flex items-center gap-2 mb-3">
-              <Bell className="w-3.5 h-3.5" /> Notifications
-            </p>
-            <p className="text-sm font-body text-gray-500 mb-4">
-              Permanently delete <span className="font-semibold text-gray-700">all Staff and Technician notifications</span> for
-              everyone. This clears the shared inbox across every account — not just yours. This cannot be undone.
-            </p>
-            <button onClick={() => { setClearNotifsError(''); setShowClearNotifs(true) }} className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200">
-              <Trash2 className="w-3.5 h-3.5" /> Clear All Notifications
-            </button>
-          </div>
-        )}
-
         {/* Danger zone — admin only */}
         {isAdmin && (
           <div className="card border border-red-100 p-5">
@@ -425,7 +391,7 @@ export default function SettingsPage() {
               <ShieldAlert className="w-3.5 h-3.5" /> Danger Zone
             </p>
             <p className="text-sm font-body text-gray-500 mb-4">
-              Permanently delete <span className="font-semibold text-gray-700">all tickets and repair photos</span>.
+              Permanently delete <span className="font-semibold text-gray-700">all tickets, repair photos, and Staff/Technician notifications</span>.
               This cannot be undone.
             </p>
             <button onClick={() => setShowFlush(true)} className="btn-danger text-sm">
@@ -468,17 +434,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Notifications cleared toast */}
-      {clearNotifsDone && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-brand-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-brand-300 inline-block" /> All notifications cleared
-        </div>
-      )}
-
       {/* Flush success toast */}
       {flushDone && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white text-sm font-sans font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed successfully
+          <span className="w-2 h-2 rounded-full bg-green-300 inline-block" /> Database flushed and notifications cleared
         </div>
       )}
 
@@ -878,45 +837,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Clear notifications confirmation modal — admin role-wide */}
-      {showClearNotifs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                  <Bell className="w-4 h-4 text-red-600" />
-                </div>
-                <h2 className="font-sans font-bold text-gray-900">Clear All Notifications</h2>
-              </div>
-              <button onClick={() => { setShowClearNotifs(false); setClearNotifsError('') }} disabled={clearingNotifs} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50" aria-label="Cancel">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-sm font-body text-gray-600 leading-relaxed">
-              This permanently deletes <span className="font-semibold text-gray-900">all Staff and Technician notifications</span> for
-              every account. This cannot be undone.
-            </p>
-            {clearNotifsError && (
-              <p className="text-sm font-body text-red-600">{clearNotifsError}</p>
-            )}
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => { setShowClearNotifs(false); setClearNotifsError('') }} disabled={clearingNotifs} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button
-                onClick={handleClearNotifs}
-                disabled={clearingNotifs}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-sans font-semibold transition-colors disabled:opacity-50"
-              >
-                {clearingNotifs
-                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <><Trash2 className="w-3.5 h-3.5" /> Delete All</>
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Flush confirmation modal */}
       {showFlush && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -933,7 +853,7 @@ export default function SettingsPage() {
               </button>
             </div>
             <p className="text-sm font-body text-gray-600 leading-relaxed">
-              This will permanently delete <span className="font-semibold text-gray-900">all tickets and repair photos</span>. This action cannot be undone.
+              This will permanently delete <span className="font-semibold text-gray-900">all tickets, repair photos, and Staff/Technician notifications</span>. This action cannot be undone.
             </p>
             <div className="space-y-3">
               <div className="space-y-1.5">

@@ -347,15 +347,6 @@ export function downloadTicketPDF(ticket) {
     if (ticket.quotation_amount != null) {
       SUMMARY_ROWS.push({ label: 'Quotation Total', value: peso(ticket.quotation_amount), color: C.brandPurple, bold: true })
     }
-    // Payment plan chosen by the client (the applied discount, if any, is shown
-    // on its own Discount row above).
-    if (ticket.payment_option) {
-      const planText = ticket.payment_option === 'pay_later' ? 'Pay later'
-        : ticket.payment_option === 'full_now' ? 'Pay full now'
-        : ticket.payment_option === 'half_now' ? 'Pay half now'
-        : ''
-      if (planText) SUMMARY_ROWS.push({ label: 'Payment Plan', value: planText, color: C.gray })
-    }
 
     const boxH = SUMMARY_ROWS.length * 7 + 4
     doc.rect(M, summaryStartY, CW, boxH, 'FD')
