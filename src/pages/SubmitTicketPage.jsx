@@ -20,6 +20,7 @@ import { sendGlobalPush }        from '../lib/push'
 import {
   createTicket, getTrackingUrl, formatUnitLabel,
 } from '../lib/utils'
+import { sumItems, computeQuotation, discountAmount } from './dashboard/ticket-detail/helpers'
 import { PublicHeader } from './submit-ticket/components'
 import {
   COPY_FEEDBACK_MS, FORM_INITIAL, STEPS,
@@ -29,6 +30,37 @@ import {
   Step1ClientInfo, Step2UnitInfo, Step3Issue,
   Step4Appointment, Step5Terms, SuccessScreen,
 } from './submit-ticket/steps'
+
+// ── [DEV] sample data pools for the two dev-only quick-generate buttons ──────
+const DEV_CLIENTS = [
+  { name: 'Juan Dela Cruz',  email: 'juan@vrxe.local'  },
+  { name: 'Maria Santos',    email: 'maria@vrxe.local' },
+  { name: 'Jose Rizal',      email: 'jose@vrxe.local'  },
+  { name: 'Ana Reyes',       email: 'ana@vrxe.local'   },
+  { name: 'Pedro Garcia',    email: 'pedro@vrxe.local' },
+]
+const DEV_UNITS = [
+  { unit_brand: 'Meta',  unit_model: 'Quest 3',       unit_type: 'VR Headset' },
+  { unit_brand: 'HTC',   unit_model: 'Vive Pro 2',    unit_type: 'VR Headset' },
+  { unit_brand: 'Valve', unit_model: 'Index',         unit_type: 'VR Headset' },
+  { unit_brand: 'Sony',  unit_model: 'PSVR2',         unit_type: 'VR Headset' },
+  { unit_brand: 'Pico',  unit_model: '4 Enterprise',  unit_type: 'VR Headset' },
+]
+const DEV_ISSUES = [
+  'Display not working / black screen',
+  'Controller drifting / tracking issues',
+  'Battery drains too fast',
+  'Lens scratched, blurry image',
+  'Strap broken',
+  'Overheating during use',
+]
+const DEV_LABOR_DESCRIPTIONS = ['Screen replacement', 'Controller repair', 'Battery replacement', 'Lens polish', 'Strap replacement', 'Motherboard repair']
+const DEV_PARTS_DESCRIPTIONS = ['Replacement lens', 'Battery pack', 'Strap assembly', 'Ribbon cable', 'Facial interface foam']
+
+const randOf = arr => arr[Math.floor(Math.random() * arr.length)]
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+/** Deterministic-looking placeholder image — good enough for dev sample data. */
+const devImageUrl = () => `https://picsum.photos/seed/${Math.random().toString(36).slice(2)}/640/480`
 
 export default function SubmitTicketPage() {
   const [form, setForm]             = useState(FORM_INITIAL)
@@ -121,7 +153,8 @@ export default function SubmitTicketPage() {
     }
   }
 
-  async function devQuickSubmit() {
+  /** [DEV] Quick-create a fresh Pending ticket — the normal starting point. */
+  async function devQuickSubmitPending() {
     setSubmitting(true)
     try {
       const payload = {
@@ -155,7 +188,94 @@ export default function SubmitTicketPage() {
       setStep(1)
       setTermsAccepted(false)
     } catch (err) {
-      console.error('[DEV] devQuickSubmit failed:', err)
+      console.error('[DEV] devQuickSubmitPending failed:', err)
+      alert('Dev submit failed: ' + (err.message || 'Unknown error'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /**
+   * [DEV] Quick-create a ticket that's already Paid, with random sample data
+   * filled into every field the real workflow would have collected along the
+   * way (diagnosis, repair notes/photos, quotation, payment proof, receipt).
+   * Deliberately leaves commission (technician_usernames / assigned_staff /
+   * tech_commission_pct / staff_commission_pct) unset so it's immediately
+   * usable to test the "Input commission" Admin task.
+   */
+  async function devQuickSubmitPaid() {
+    setSubmitting(true)
+    try {
+      const client = randOf(DEV_CLIENTS)
+      const unit   = randOf(DEV_UNITS)
+
+      const laborItems = Array.from({ length: randInt(1, 3) }, () => ({
+        description: randOf(DEV_LABOR_DESCRIPTIONS),
+        amount:      randInt(300, 3000),
+      }))
+      const partsItems = Math.random() < 0.6
+        ? Array.from({ length: randInt(1, 2) }, () => ({
+            description: randOf(DEV_PARTS_DESCRIPTIONS),
+            amount:      randInt(200, 2000),
+          }))
+        : []
+      const discountPct  = randOf([0, 0, 5, 10, 15])
+      const baseTotal    = sumItems(laborItems) + sumItems(partsItems)
+      const quotation    = computeQuotation(laborItems, partsItems, discountPct)
+
+      const payload = {
+        client_name:          client.name,
+        contact_number:       '09' + randInt(170000000, 999999999),
+        email:                client.email,
+        address:              '123 Test Street, Quezon City, Metro Manila',
+        platform:             randOf(['Facebook', 'Viber', 'Walk-in', 'Phone Call']),
+        unit_brand:           unit.unit_brand,
+        unit_model:           unit.unit_model,
+        unit_type:            unit.unit_type,
+        unit_condition:       randOf(['First Owner', 'Second Owner']),
+        accessories_included: 'Charging cable, carry case',
+        issue_description:    randOf(DEV_ISSUES),
+        preferred_date:       '2026-07-01',
+        preferred_time:       '10:00',
+        mode_of_service:      'Walk-in or Drop-Off',
+        status:               'Paid',
+        diagnosis_notes:      'Opened unit and confirmed reported issue. Root cause identified and parts sourced.',
+        repair_notes:         'Repair completed and unit tested for 30 minutes under normal load. No further issues observed.',
+        repair_photos:        [devImageUrl(), devImageUrl()],
+        labor_items:          laborItems,
+        parts_items:          partsItems,
+        discount_percent:     discountPct,
+        discount_amount:      discountAmount(baseTotal, discountPct),
+        quotation_amount:     quotation,
+        quotation_notes:      'Dev sample quotation — auto-generated for testing.',
+        final_price:          quotation,
+        payment_proof_url:    devImageUrl(),
+        payment_mode:         randOf(['Cash', 'GCash', 'Bank Transfer']),
+        paid_at:              new Date().toISOString(),
+      }
+      const { data, error } = await createTicket(supabase, payload)
+      if (error) throw error
+
+      // receipt_number embeds the final ticket_id, which only exists after insert.
+      const { data: withReceipt, error: receiptError } = await supabase
+        .from('tickets')
+        .update({ receipt_number: `${data.ticket_id}-R` })
+        .eq('id', data.id)
+        .select()
+        .single()
+      if (receiptError) throw receiptError
+
+      sendGlobalPush({
+        title: 'Ticket paid',
+        body:  `${withReceipt.client_name} marked Paid.`,
+        url:   `/tickets/${withReceipt.id}`,
+      })
+      setSubmitted(withReceipt)
+      setForm(FORM_INITIAL)
+      setStep(1)
+      setTermsAccepted(false)
+    } catch (err) {
+      console.error('[DEV] devQuickSubmitPaid failed:', err)
       alert('Dev submit failed: ' + (err.message || 'Unknown error'))
     } finally {
       setSubmitting(false)
@@ -308,14 +428,22 @@ export default function SubmitTicketPage() {
           </p>
 
           {import.meta.env.DEV && step === 1 && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               <button
                 type="button"
-                onClick={devQuickSubmit}
+                onClick={devQuickSubmitPending}
                 disabled={submitting}
                 className="text-xs font-mono px-4 py-2 rounded border border-dashed border-yellow-400 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? '⏳ Submitting…' : '[DEV] Quick Submit Test Ticket'}
+              </button>
+              <button
+                type="button"
+                onClick={devQuickSubmitPaid}
+                disabled={submitting}
+                className="text-xs font-mono px-4 py-2 rounded border border-dashed border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? '⏳ Submitting…' : '[DEV] Quick Submit Paid Ticket'}
               </button>
             </div>
           )}

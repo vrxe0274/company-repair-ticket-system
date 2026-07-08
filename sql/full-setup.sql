@@ -122,9 +122,10 @@ CREATE TABLE tickets (
   representative_name TEXT,
 
   -- Technician and staff assignments — usernames of whoever handled the
-  -- repair, set by Admin when inputting commission after payment.
-  technician_username TEXT,
-  assigned_staff       TEXT[] NOT NULL DEFAULT '{}',
+  -- repair, set by Admin when inputting commission after payment. Multiple
+  -- people of either role can be assigned to one repair.
+  technician_usernames TEXT[] NOT NULL DEFAULT '{}',
+  assigned_staff        TEXT[] NOT NULL DEFAULT '{}',
 
   -- Manual, per-ticket commission percentages (0..1). NULL = not yet
   -- inputted by Admin — there is no default/fallback rate.

@@ -10,7 +10,7 @@ const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigit
 const COLUMNS = [
   'id', 'ticket_id', 'created_at',
   'client_name', 'unit_brand', 'unit_model',
-  'labor_items', 'technician_username', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
+  'labor_items', 'technician_usernames', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
 ].join(', ')
 
 export default function EarningsPage() {
@@ -43,7 +43,7 @@ export default function EarningsPage() {
 
   /** Only jobs actually assigned to me — not every commissionable ticket. */
   const isMine = t => isTechnician
-    ? t.technician_username === staffUsername
+    ? (t.technician_usernames ?? []).includes(staffUsername)
     : (t.assigned_staff ?? []).includes(staffUsername)
 
   const relevantTickets = useMemo(

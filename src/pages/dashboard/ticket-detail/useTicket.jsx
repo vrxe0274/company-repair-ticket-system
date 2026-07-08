@@ -37,10 +37,11 @@ export function useTicket(id) {
   const [undoConfirm,      setUndoConfirm]      = useState(false)
 
   // Commission — assignment + per-repair percentages, editable by Admin only
-  // once the ticket is Paid (see saveCommission below).
+  // once the ticket is Paid (see saveCommission below). Multiple technicians
+  // and/or staff can be assigned to one repair; each earns the same pct.
   const [techAccounts,       setTechAccounts]       = useState([])
   const [staffAccounts,      setStaffAccounts]      = useState([])
-  const [commissionTech,     setCommissionTech]     = useState('')   // username
+  const [commissionTech,     setCommissionTech]     = useState([])  // usernames
   const [commissionStaff,    setCommissionStaff]    = useState([])  // usernames
   const [commissionTechPct,  setCommissionTechPct]  = useState('')  // percent string, e.g. "20"
   const [commissionStaffPct, setCommissionStaffPct] = useState('')
@@ -114,7 +115,7 @@ export function useTicket(id) {
     // Prefill the final price from the quotation total until the admin has
     // explicitly saved one — avoids retyping the same number twice.
     setFinalPrice(data.final_price ?? data.quotation_amount ?? '')
-    setCommissionTech(data.technician_username ?? '')
+    setCommissionTech(data.technician_usernames ?? [])
     setCommissionStaff(data.assigned_staff ?? [])
     setCommissionTechPct(data.tech_commission_pct != null ? (data.tech_commission_pct * 100).toString() : '')
     setCommissionStaffPct(data.staff_commission_pct != null ? (data.staff_commission_pct * 100).toString() : '')
@@ -282,6 +283,11 @@ export function useTicket(id) {
       prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
     )
   }
+  function toggleCommissionTech(username) {
+    setCommissionTech(prev =>
+      prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
+    )
+  }
 
   async function saveCommission() {
     if (!isAdmin || ticket?.status !== 'Paid') return
@@ -296,9 +302,9 @@ export function useTicket(id) {
     }
     setCommissionSaving(true)
     const patch = {
-      technician_username:  commissionTech || null,
+      technician_usernames: commissionTech,
       assigned_staff:       commissionStaff,
-      tech_commission_pct:  commissionTech && techPct   != null ? techPct  / 100 : null,
+      tech_commission_pct:  commissionTech.length  && techPct  != null ? techPct  / 100 : null,
       staff_commission_pct: commissionStaff.length && staffPct != null ? staffPct / 100 : null,
     }
     const { data, error } = await supabase
@@ -443,7 +449,7 @@ export function useTicket(id) {
     uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem, toggleDiagnosis,
     techAccounts, staffAccounts,
-    commissionTech, setCommissionTech,
+    commissionTech, toggleCommissionTech,
     commissionStaff, toggleCommissionStaff,
     commissionTechPct, setCommissionTechPct,
     commissionStaffPct, setCommissionStaffPct,

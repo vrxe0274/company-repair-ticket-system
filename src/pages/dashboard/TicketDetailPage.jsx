@@ -2,10 +2,11 @@
  * @file TicketDetailPage.jsx
  * @description Full detail view and editor for a single repair ticket.
  *
- * Organised into four tabs:
+ * Organised into five tabs:
  *   Overview           — client info, unit info, issue description
  *   Technical Details  — technician notes + documentation (photos)
  *   Quotation & Payment — labor/parts line items, discount, final price (Admin)
+ *   Commission         — who worked the repair + their per-repair cut (Admin edits, others read-only; Paid only)
  *   Settings           — delete ticket (Admin only)
  *
  * Role-based visibility:
@@ -19,7 +20,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { format }                from 'date-fns'
 import {
   ArrowLeft, Download, ExternalLink,
-  Eye, Wrench, CreditCard, Settings,
+  Eye, Wrench, CreditCard, Settings, Percent,
   AlertTriangle, Undo2, FileText, Receipt, MoreHorizontal,
   Search, CheckCircle, XCircle,
 } from 'lucide-react'
@@ -30,7 +31,7 @@ import { downloadQuotationPDF }  from '../../lib/quotation'
 import StatusBadge               from '../../components/ui/StatusBadge.jsx'
 import { useTicket }             from './ticket-detail/useTicket'
 import { TabButton }             from './ticket-detail/components'
-import { OverviewTab, TechTab, QuotationTab, SettingsTab } from './ticket-detail/tabs'
+import { OverviewTab, TechTab, QuotationTab, CommissionTab, SettingsTab } from './ticket-detail/tabs'
 import { sumItems, discountAmount } from './ticket-detail/helpers'
 import { STATUS_GUIDANCE, STATUS_ACTION_LABELS } from './ticket-detail/constants'
 
@@ -47,7 +48,7 @@ export default function TicketDetailPage() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
-  const initialTab = ['overview', 'tech', 'admin', 'settings'].includes(requestedTab) ? requestedTab : 'overview'
+  const initialTab = ['overview', 'tech', 'admin', 'commission', 'settings'].includes(requestedTab) ? requestedTab : 'overview'
   const [activeTab, setActiveTab]     = useState(initialTab)
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsRef                    = useRef(null)
@@ -79,7 +80,7 @@ export default function TicketDetailPage() {
     uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem, toggleDiagnosis,
     techAccounts, staffAccounts,
-    commissionTech, setCommissionTech,
+    commissionTech, toggleCommissionTech,
     commissionStaff, toggleCommissionStaff,
     commissionTechPct, setCommissionTechPct,
     commissionStaffPct, setCommissionStaffPct,
@@ -241,6 +242,7 @@ export default function TicketDetailPage() {
                 <option value="overview">Overview</option>
                 <option value="tech">Technical Details</option>
                 <option value="admin">Quotation &amp; Payment</option>
+                <option value="commission">Commission</option>
                 {isAdmin && <option value="settings">Settings</option>}
               </select>
             </div>
@@ -248,6 +250,7 @@ export default function TicketDetailPage() {
               <TabButton active={effectiveTab === 'overview'}  onClick={() => setActiveTab('overview')}     icon={Eye}        label="Overview" />
               <TabButton active={effectiveTab === 'tech'}      onClick={() => setActiveTab('tech')}         icon={Wrench}     label="Technical Details" />
               <TabButton active={effectiveTab === 'admin'}     onClick={() => setActiveTab('admin')}        icon={CreditCard} label="Quotation & Payment" />
+              <TabButton active={effectiveTab === 'commission'} onClick={() => setActiveTab('commission')}  icon={Percent}    label="Commission" />
               {isAdmin && (
                 <TabButton active={effectiveTab === 'settings'} onClick={() => setActiveTab('settings')}    icon={Settings}   label="Settings" />
               )}
@@ -304,13 +307,20 @@ export default function TicketDetailPage() {
           onUpdatePartsItem={(itemId, f, v) => updateItem(setPartsItems, itemId, f, v)}
           onAddPartsItem={() => addItem(setPartsItems)}
           onRemovePartsItem={itemId => removeItem(setPartsItems, itemId)}
+        />
+      )}
+
+      {effectiveTab === 'commission' && (
+        <CommissionTab
           isAdmin={isAdmin} isPaid={isPaid}
           techAccounts={techAccounts} staffAccounts={staffAccounts}
-          commissionTech={commissionTech} setCommissionTech={setCommissionTech}
+          commissionTech={commissionTech} toggleCommissionTech={toggleCommissionTech}
           commissionStaff={commissionStaff} toggleCommissionStaff={toggleCommissionStaff}
           commissionTechPct={commissionTechPct} setCommissionTechPct={setCommissionTechPct}
           commissionStaffPct={commissionStaffPct} setCommissionStaffPct={setCommissionStaffPct}
           commissionSaving={commissionSaving} commissionError={commissionError}
+          laborTotal={laborTotal}
+          saveMsg={saveMsg}
           onSaveCommission={saveCommission}
         />
       )}

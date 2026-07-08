@@ -2,7 +2,7 @@
  * @file commission.js
  * @description Commission is manual and per-repair — there is no default or
  * fallback rate. After a ticket is marked Paid, Admin assigns who worked it
- * (tickets.technician_username / assigned_staff) and types in that specific
+ * (tickets.technician_usernames / assigned_staff) and types in that specific
  * repair's tech_commission_pct / staff_commission_pct. A null pct means "not
  * yet inputted by Admin" and every function below propagates that as `null`
  * rather than silently substituting a default.
@@ -13,7 +13,12 @@ export function laborFee(ticket) {
   return (ticket.labor_items ?? []).reduce((sum, i) => sum + Number(i.amount || 0), 0)
 }
 
-/** Technician earns techPct of the labor fee, or null if not yet inputted. */
+/**
+ * Technician earns techPct of the labor fee, or null if not yet inputted.
+ * When multiple technicians are assigned to a repair, each one individually
+ * earns this same techPct — it is not split between them (mirrors how
+ * multiple assigned staff each earn the same staffPct).
+ */
 export function technicianCommission(fee, techPct) {
   return techPct == null ? null : fee * techPct
 }
@@ -34,7 +39,7 @@ export function staffCommission(fee, techPct, staffPct) {
  */
 export function ticketNeedsCommissionInput(ticket) {
   if (ticket.status !== 'Paid') return false
-  const needsTech  = !!ticket.technician_username && ticket.tech_commission_pct == null
+  const needsTech  = (ticket.technician_usernames?.length ?? 0) > 0 && ticket.tech_commission_pct == null
   const needsStaff = (ticket.assigned_staff?.length ?? 0) > 0 && ticket.staff_commission_pct == null
   return needsTech || needsStaff
 }

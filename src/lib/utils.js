@@ -200,7 +200,7 @@ export const TASK_TABS = {
     'Pending':            'overview',
     'Inspection & Quote': 'admin',
     'Done':               'admin',
-    'Paid':               'admin',
+    'Paid':               'commission',
   },
   Staff: {
     'Pending':            'overview',

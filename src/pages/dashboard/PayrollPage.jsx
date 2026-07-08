@@ -8,19 +8,22 @@ const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigit
 
 const COLUMNS = [
   'id', 'ticket_id', 'created_at', 'labor_items',
-  'technician_username', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
+  'technician_usernames', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
 ].join(', ')
 
 /**
  * Sum a payee's commission across the tickets actually assigned to them.
- * `pending` counts tickets assigned to them where Admin hasn't input the
- * relevant percentage yet — those contribute 0 to `amount`, not silently.
+ * Multiple technicians/staff can be assigned to one repair; each earns the
+ * full percentage independently (not split), so a job counts fully for
+ * every assigned person. `pending` counts tickets assigned to them where
+ * Admin hasn't input the relevant percentage yet — those contribute 0 to
+ * `amount`, not silently.
  */
 function payeeStats(tickets, role, username) {
   let amount = 0, pending = 0, jobs = 0
   for (const t of tickets) {
     const assigned = role === 'Technician'
-      ? t.technician_username === username
+      ? (t.technician_usernames ?? []).includes(username)
       : (t.assigned_staff ?? []).includes(username)
     if (!assigned) continue
     jobs++
