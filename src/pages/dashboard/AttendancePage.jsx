@@ -7,7 +7,7 @@ import {
 import { Clock, Shield, Wrench, CalendarDays, Users, LogIn, LogOut, AlertTriangle, Pencil, Check, X, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { getShiftHours, saveShiftHours, isOutsideShift, fmtShiftHour, DEFAULT_SHIFT } from '../../lib/shift'
-import { exportAttendanceMonth } from '../../lib/attendanceExport'
+import { exportAttendanceMonth, fetchLiveNames } from '../../lib/attendanceExport'
 import { useRole } from '../../hooks/useRole.jsx'
 
 // Sessions are no longer capped — durations reflect real elapsed time.
@@ -15,19 +15,6 @@ import { useRole } from '../../hooks/useRole.jsx'
 // does NOT cap the displayed hours.
 const BAR_REF_MINUTES = 12 * 60
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
-
-/** Live username → display-name lookup, so renamed accounts show correctly
- *  without waiting for attendance_logs' stored snapshot to catch up. */
-async function fetchLiveNames() {
-  const [staffRes, techRes] = await Promise.all([
-    supabase.functions.invoke('staff-manage', { body: { action: 'list-names' } }),
-    supabase.functions.invoke('tech-manage',  { body: { action: 'list-names' } }),
-  ])
-  const map = { Staff: {}, Technician: {} }
-  for (const row of staffRes.data?.staff ?? []) map.Staff[row.username] = row.name
-  for (const row of techRes.data?.staff ?? [])  map.Technician[row.username] = row.name
-  return map
-}
 
 function sessionDurationMins(loggedInAt, loggedOutAt, now) {
   const end = loggedOutAt ? parseISO(loggedOutAt) : now

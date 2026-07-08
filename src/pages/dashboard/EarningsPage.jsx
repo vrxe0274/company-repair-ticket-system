@@ -1,26 +1,22 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
-import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check } from 'lucide-react'
+import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check, Clock } from 'lucide-react'
 import { supabase }            from '../../lib/supabase'
 import { useRole }             from '../../hooks/useRole.jsx'
-import {
-  laborFee, technicianCommission, staffCommission,
-  getApplicableRate, getCommissionRates,
-} from '../../lib/commission'
+import { laborFee, technicianCommission, staffCommission } from '../../lib/commission'
 
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const COLUMNS = [
   'id', 'ticket_id', 'created_at',
   'client_name', 'unit_brand', 'unit_model',
-  'labor_items',
+  'labor_items', 'technician_username', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
 ].join(', ')
 
 export default function EarningsPage() {
-  const { isTechnician } = useRole()
+  const { isTechnician, staffUsername } = useRole()
 
   const [tickets,       setTickets]       = useState([])
-  const [rateHistory,   setRateHistory]   = useState([])
   const [loading,       setLoading]       = useState(true)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [filterOpen,    setFilterOpen]    = useState(false)
@@ -38,27 +34,23 @@ export default function EarningsPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [{ data }, rates] = await Promise.all([
-        supabase.from('tickets').select(COLUMNS).order('created_at', { ascending: false }),
-        getCommissionRates(),
-      ])
+      const { data } = await supabase.from('tickets').select(COLUMNS).order('created_at', { ascending: false })
       setTickets(data ?? [])
-      setRateHistory(rates)
       setLoading(false)
     }
     load()
   }, [])
 
-  const monthOptions = useMemo(() => {
-    const seen = new Set()
-    tickets.forEach(t => {
-      const d = new Date(t.created_at)
-      if (!isNaN(d)) seen.add(format(d, 'yyyy-MM'))
-    })
-    return [...seen].sort().reverse()
-  }, [tickets])
+  /** Only jobs actually assigned to me — not every commissionable ticket. */
+  const isMine = t => isTechnician
+    ? t.technician_username === staffUsername
+    : (t.assigned_staff ?? []).includes(staffUsername)
 
-  const relevantTickets = useMemo(() => tickets.filter(t => laborFee(t) > 0), [tickets])
+  const relevantTickets = useMemo(
+    () => tickets.filter(t => laborFee(t) > 0 && isMine(t)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickets, isTechnician, staffUsername],
+  )
 
   const filteredTickets = useMemo(() => {
     if (selectedMonth === 'all') return relevantTickets
@@ -68,19 +60,32 @@ export default function EarningsPage() {
     })
   }, [relevantTickets, selectedMonth])
 
+  const monthOptions = useMemo(() => {
+    const seen = new Set()
+    relevantTickets.forEach(t => {
+      const d = new Date(t.created_at)
+      if (!isNaN(d)) seen.add(format(d, 'yyyy-MM'))
+    })
+    return [...seen].sort().reverse()
+  }, [relevantTickets])
+
+  /** This job's commission, or null when Admin hasn't inputted it yet. */
   function myCommission(ticket) {
-    const fee  = laborFee(ticket)
-    const rate = getApplicableRate(ticket.created_at, rateHistory)
+    const fee = laborFee(ticket)
     return isTechnician
-      ? technicianCommission(fee, rate.technician_pct)
-      : staffCommission(fee, rate.technician_pct, rate.staff_pct)
+      ? technicianCommission(fee, ticket.tech_commission_pct)
+      : staffCommission(fee, ticket.tech_commission_pct, ticket.staff_commission_pct)
   }
 
-  const currentRate     = getApplicableRate(new Date().toISOString(), rateHistory)
   const totalCommission = useMemo(
-    () => filteredTickets.reduce((sum, t) => sum + myCommission(t), 0),
+    () => filteredTickets.reduce((sum, t) => sum + (myCommission(t) ?? 0), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredTickets, rateHistory, isTechnician],
+    [filteredTickets],
+  )
+  const pendingCount = useMemo(
+    () => filteredTickets.filter(t => myCommission(t) == null).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredTickets],
   )
 
   const monthLabel = selectedMonth === 'all'
@@ -161,6 +166,9 @@ export default function EarningsPage() {
             </p>
             <p className="text-brand-300 text-sm font-body mt-3">
               {filteredTickets.length} job{filteredTickets.length !== 1 ? 's' : ''}
+              {pendingCount > 0 && (
+                <span className="text-amber-300"> · {pendingCount} not yet inputted</span>
+              )}
             </p>
           </div>
 
@@ -168,21 +176,21 @@ export default function EarningsPage() {
           <div className="hidden sm:block w-px bg-white/10 my-6" />
           <div className="block sm:hidden h-px bg-white/10 mx-7" />
 
-          {/* Right — commission rate info */}
+          {/* Right — pending status, since there's no single rate anymore */}
           <div className="sm:w-64 px-7 py-8 flex flex-col justify-center gap-3">
-            <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">How it's calculated</p>
-            <div>
-              <p className="text-3xl font-display font-bold leading-none">
-                {isTechnician
-                  ? `${+(currentRate.technician_pct * 100).toFixed(1)}%`
-                  : `${+(currentRate.staff_pct * 100).toFixed(1)}%`}
+            <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">Status</p>
+            {pendingCount > 0 ? (
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+                <p className="text-brand-100 text-xs font-body leading-relaxed">
+                  {pendingCount} job{pendingCount !== 1 ? 's' : ''} paid but waiting on Admin to input your commission.
+                </p>
+              </div>
+            ) : (
+              <p className="text-brand-200 text-xs font-body leading-relaxed">
+                Commission is set by Admin per repair after the client pays — every job here is fully resolved.
               </p>
-              <p className="text-brand-200 text-xs font-body mt-2 leading-relaxed">
-                {isTechnician
-                  ? 'of the labor fee on each completed job'
-                  : 'of the net labor fee (after technician cut) on each job'}
-              </p>
-            </div>
+            )}
           </div>
 
         </div>
@@ -198,7 +206,7 @@ export default function EarningsPage() {
             <p className="text-sm font-sans font-semibold text-gray-500">No jobs yet</p>
             <p className="text-xs font-body text-gray-400 mt-1">
               {selectedMonth === 'all'
-                ? 'Jobs appear here once a labor fee is added to a ticket.'
+                ? "Jobs appear here once you're assigned to a paid repair."
                 : 'No commissionable jobs in this month.'}
             </p>
           </div>
@@ -243,7 +251,10 @@ export default function EarningsPage() {
                     </td>
                     <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-700">{PESO(fee)}</td>
                     <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-gray-900">
-                      {PESO(commission)}
+                      {commission == null
+                        ? <span className="font-sans font-semibold text-gray-400 italic">Not yet inputted</span>
+                        : PESO(commission)
+                      }
                     </td>
                   </tr>
                 )

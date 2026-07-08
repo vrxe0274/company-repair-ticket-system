@@ -121,9 +121,17 @@ CREATE TABLE tickets (
   -- Representative who handled the ticket
   representative_name TEXT,
 
-  -- Technician and staff assignments
-  technician_name TEXT,
-  assigned_staff  TEXT[] NOT NULL DEFAULT '{}',
+  -- Technician and staff assignments — usernames of whoever handled the
+  -- repair, set by Admin when inputting commission after payment.
+  technician_username TEXT,
+  assigned_staff       TEXT[] NOT NULL DEFAULT '{}',
+
+  -- Manual, per-ticket commission percentages (0..1). NULL = not yet
+  -- inputted by Admin — there is no default/fallback rate.
+  tech_commission_pct  NUMERIC(5,4)
+    CHECK (tech_commission_pct  IS NULL OR (tech_commission_pct  >= 0 AND tech_commission_pct  <= 1)),
+  staff_commission_pct NUMERIC(5,4)
+    CHECK (staff_commission_pct IS NULL OR (staff_commission_pct >= 0 AND staff_commission_pct <= 1)),
 
   -- Public tracking (unique token per ticket)
   tracking_token TEXT UNIQUE NOT NULL

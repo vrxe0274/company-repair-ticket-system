@@ -5,6 +5,7 @@ import { adminDeleteTicket }             from '../../../lib/adminDelete'
 import { sendGlobalPush }    from '../../../lib/push'
 import { downloadTicketPDF } from '../../../lib/pdf'
 import { generateReceiptNumber, downloadReceiptPDF } from '../../../lib/receipt'
+import { callStaffManage, callTechManage } from '../../../lib/accounts'
 import { useRole }           from '../../../hooks/useRole.jsx'
 import { DIAGNOSIS_FEE }    from '../../../lib/constants'
 import {
@@ -35,17 +36,32 @@ export function useTicket(id) {
   const [deleteConfirm,    setDeleteConfirm]    = useState(false)
   const [undoConfirm,      setUndoConfirm]      = useState(false)
 
+  // Commission — assignment + per-repair percentages, editable by Admin only
+  // once the ticket is Paid (see saveCommission below).
+  const [techAccounts,       setTechAccounts]       = useState([])
+  const [staffAccounts,      setStaffAccounts]      = useState([])
+  const [commissionTech,     setCommissionTech]     = useState('')   // username
+  const [commissionStaff,    setCommissionStaff]    = useState([])  // usernames
+  const [commissionTechPct,  setCommissionTechPct]  = useState('')  // percent string, e.g. "20"
+  const [commissionStaffPct, setCommissionStaffPct] = useState('')
+  const [commissionSaving,   setCommissionSaving]   = useState(false)
+  const [commissionError,    setCommissionError]    = useState('')
+
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('tickets')
-        .select(TICKET_COLUMNS)
-        .eq('id', id)
-        .single()
+      const [{ data, error }, techRes, staffRes] = await Promise.all([
+        supabase.from('tickets').select(TICKET_COLUMNS).eq('id', id).single(),
+        // Fetched for everyone (not just Admin) so a read-only viewer of a Paid
+        // ticket sees display names, not raw usernames, for the assigned people.
+        callTechManage({ action: 'list-names' }).catch(() => ({ staff: [] })),
+        callStaffManage({ action: 'list-names' }).catch(() => ({ staff: [] })),
+      ])
       if (cancelled) return
       if (error || !data) { navigate('/tickets'); return }
+      setTechAccounts(techRes?.staff ?? [])
+      setStaffAccounts(staffRes?.staff ?? [])
       hydrate(data)
       setLoading(false)
     }
@@ -98,6 +114,11 @@ export function useTicket(id) {
     // Prefill the final price from the quotation total until the admin has
     // explicitly saved one — avoids retyping the same number twice.
     setFinalPrice(data.final_price ?? data.quotation_amount ?? '')
+    setCommissionTech(data.technician_username ?? '')
+    setCommissionStaff(data.assigned_staff ?? [])
+    setCommissionTechPct(data.tech_commission_pct != null ? (data.tech_commission_pct * 100).toString() : '')
+    setCommissionStaffPct(data.staff_commission_pct != null ? (data.staff_commission_pct * 100).toString() : '')
+    setCommissionError('')
   }
 
   async function updateStatus(newStatus) {
@@ -250,6 +271,48 @@ export function useTicket(id) {
     setSaving(false)
   }
 
+  /**
+   * Save the technician/staff assignment + per-repair commission percentages.
+   * Admin only, and — unlike every other save function — only allowed while
+   * the ticket IS Paid (everything else locks once Paid; this is the one
+   * thing that only makes sense to fill in after payment).
+   */
+  function toggleCommissionStaff(username) {
+    setCommissionStaff(prev =>
+      prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
+    )
+  }
+
+  async function saveCommission() {
+    if (!isAdmin || ticket?.status !== 'Paid') return
+    setCommissionError('')
+    const techPct   = commissionTechPct.trim()  === '' ? null : parseFloat(commissionTechPct)
+    const staffPct  = commissionStaffPct.trim() === '' ? null : parseFloat(commissionStaffPct)
+    if (techPct != null && (isNaN(techPct) || techPct < 0 || techPct > 100)) {
+      setCommissionError('Technician commission must be between 0 and 100.'); return
+    }
+    if (staffPct != null && (isNaN(staffPct) || staffPct < 0 || staffPct > 100)) {
+      setCommissionError('Staff commission must be between 0 and 100.'); return
+    }
+    setCommissionSaving(true)
+    const patch = {
+      technician_username:  commissionTech || null,
+      assigned_staff:       commissionStaff,
+      tech_commission_pct:  commissionTech && techPct   != null ? techPct  / 100 : null,
+      staff_commission_pct: commissionStaff.length && staffPct != null ? staffPct / 100 : null,
+    }
+    const { data, error } = await supabase
+      .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
+    if (error) {
+      setCommissionError('Failed to save commission. Please try again.')
+    } else {
+      hydrate(data)
+      setSaveMsg('Commission saved!')
+      setTimeout(() => setSaveMsg(''), SAVE_MSG_DURATION_MS)
+    }
+    setCommissionSaving(false)
+  }
+
   function updateItem(setter, itemId, field, value) {
     setter(prev => prev.map(it => it.id === itemId ? { ...it, [field]: value } : it))
   }
@@ -379,5 +442,11 @@ export function useTicket(id) {
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem, toggleDiagnosis,
+    techAccounts, staffAccounts,
+    commissionTech, setCommissionTech,
+    commissionStaff, toggleCommissionStaff,
+    commissionTechPct, setCommissionTechPct,
+    commissionStaffPct, setCommissionStaffPct,
+    commissionSaving, commissionError, saveCommission,
   }
 }

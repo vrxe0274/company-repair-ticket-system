@@ -14,15 +14,19 @@ import { ClipboardList, CheckCircle, RefreshCw, ChevronRight, Shield, ShieldChec
 import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
 import { TASK_ACTIONS, STATUS_COLORS, taskTab } from '../../lib/utils'
+import { ticketNeedsCommissionInput } from '../../lib/commission'
 
 /** TasksPage — the /tasks route of the staff dashboard. */
 export default function TasksPage() {
   const { tickets, loading, refetch: fetchTickets } = useLiveTickets()
-  const { role, getAllowedTransitions } = useRole()
+  const { role, isAdmin, getAllowedTransitions } = useRole()
 
-  // Tickets the current role can act on right now, oldest first.
-  const tasks = tickets
-    .filter(t => getAllowedTransitions(t).length > 0)
+  // Tickets the current role can act on right now — either a normal status
+  // transition, or (Admin only) a Paid ticket still missing its
+  // manually-inputted commission. Oldest first — it's a work queue.
+  const statusTasks     = tickets.filter(t => getAllowedTransitions(t).length > 0)
+  const commissionTasks = isAdmin ? tickets.filter(ticketNeedsCommissionInput) : []
+  const tasks = [...statusTasks, ...commissionTasks]
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
   return (

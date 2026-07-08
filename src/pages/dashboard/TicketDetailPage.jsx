@@ -78,6 +78,12 @@ export default function TicketDetailPage() {
     uploadPhotos, deletePhoto, deleteTicket,
     uploadPaymentProof, deletePaymentProof,
     updateItem, addItem, removeItem, toggleDiagnosis,
+    techAccounts, staffAccounts,
+    commissionTech, setCommissionTech,
+    commissionStaff, toggleCommissionStaff,
+    commissionTechPct, setCommissionTechPct,
+    commissionStaffPct, setCommissionStaffPct,
+    commissionSaving, commissionError, saveCommission,
   } = useTicket(id)
 
   // While Pending, only Overview is available — other tabs need an approved
@@ -298,6 +304,14 @@ export default function TicketDetailPage() {
           onUpdatePartsItem={(itemId, f, v) => updateItem(setPartsItems, itemId, f, v)}
           onAddPartsItem={() => addItem(setPartsItems)}
           onRemovePartsItem={itemId => removeItem(setPartsItems, itemId)}
+          isAdmin={isAdmin} isPaid={isPaid}
+          techAccounts={techAccounts} staffAccounts={staffAccounts}
+          commissionTech={commissionTech} setCommissionTech={setCommissionTech}
+          commissionStaff={commissionStaff} toggleCommissionStaff={toggleCommissionStaff}
+          commissionTechPct={commissionTechPct} setCommissionTechPct={setCommissionTechPct}
+          commissionStaffPct={commissionStaffPct} setCommissionStaffPct={setCommissionStaffPct}
+          commissionSaving={commissionSaving} commissionError={commissionError}
+          onSaveCommission={saveCommission}
         />
       )}
 

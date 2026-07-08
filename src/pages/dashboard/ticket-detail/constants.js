@@ -39,4 +39,5 @@ export const TICKET_COLUMNS = [
   'diagnosis_notes', 'repair_notes', 'repair_photos',
   'labor_items', 'parts_items', 'discount_percent', 'discount_amount', 'quotation_amount', 'quotation_notes', 'final_price',
   'payment_proof_url',
+  'technician_username', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
 ].join(', ')

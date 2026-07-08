@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import {
   User, Package, FileText, Wrench,
   Image as ImageIcon, Upload, ExternalLink, X, Save, CheckCircle,
-  DollarSign, Plus, Trash2, Settings,
+  DollarSign, Plus, Trash2, Settings, Percent, Shield,
 } from 'lucide-react'
 import { InfoBox, LockedSection, ProgressCard, LineItem, SummaryLine, RequiredMark } from './components'
 import { peso } from './helpers'
@@ -212,6 +212,13 @@ export function QuotationTab({
   onUpdateLaborItem, onAddLaborItem, onRemoveLaborItem,
   onUpdatePartsItem, onAddPartsItem, onRemovePartsItem,
   onToggleDiagnosis,
+  isAdmin, isPaid,
+  techAccounts, staffAccounts,
+  commissionTech, setCommissionTech,
+  commissionStaff, toggleCommissionStaff,
+  commissionTechPct, setCommissionTechPct,
+  commissionStaffPct, setCommissionStaffPct,
+  commissionSaving, commissionError, onSaveCommission,
 }) {
   const [discountOpen, setDiscountOpen] = useState(parseFloat(discount) > 0)
   const diagnosisIncluded = laborItems.some(it => it.description === 'Diagnosis')
@@ -510,6 +517,22 @@ export function QuotationTab({
                 </div>
               )}
             </div>
+
+            {/* Commission — Admin assigns who worked the repair + their cut,
+                only actionable once the ticket is Paid. Everyone else sees a
+                read-only summary (or "Not yet inputted"). */}
+            {isPaid && (
+              <CommissionCard
+                isAdmin={isAdmin}
+                techAccounts={techAccounts} staffAccounts={staffAccounts}
+                commissionTech={commissionTech} setCommissionTech={setCommissionTech}
+                commissionStaff={commissionStaff} toggleCommissionStaff={toggleCommissionStaff}
+                commissionTechPct={commissionTechPct} setCommissionTechPct={setCommissionTechPct}
+                commissionStaffPct={commissionStaffPct} setCommissionStaffPct={setCommissionStaffPct}
+                commissionSaving={commissionSaving} commissionError={commissionError}
+                onSaveCommission={onSaveCommission} saveMsg={saveMsg}
+              />
+            )}
           </div>
 
         </div>
@@ -518,6 +541,139 @@ export function QuotationTab({
           <LockedSection message="Hidden until the ticket is approved." />
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Commission — who worked this repair + their per-ticket cut. Only shown once
+ * the ticket is Paid. Admin can assign/edit; everyone else sees a read-only
+ * summary ("Not yet inputted" when a percentage hasn't been set).
+ */
+function CommissionCard({
+  isAdmin,
+  techAccounts, staffAccounts,
+  commissionTech, setCommissionTech,
+  commissionStaff, toggleCommissionStaff,
+  commissionTechPct, setCommissionTechPct,
+  commissionStaffPct, setCommissionStaffPct,
+  commissionSaving, commissionError, onSaveCommission, saveMsg,
+}) {
+  const nameFor = (accounts, username) => accounts.find(a => a.username === username)?.name || username
+
+  if (!isAdmin) {
+    return (
+      <div className="card p-3 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Percent className="w-4 h-4 text-brand-500" />
+          <p className="section-title text-xs mb-0">Commission</p>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-body text-gray-500 flex items-center gap-1.5"><Wrench className="w-3 h-3" /> Technician</span>
+            {commissionTech ? (
+              <span className="font-sans font-semibold text-gray-800">
+                {nameFor(techAccounts, commissionTech)}
+                {' — '}
+                {commissionTechPct !== '' ? `${commissionTechPct}%` : <span className="text-gray-400 italic font-normal">Not yet inputted</span>}
+              </span>
+            ) : <span className="text-gray-300 italic">Not assigned</span>}
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-body text-gray-500 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Staff</span>
+            {commissionStaff.length ? (
+              <span className="font-sans font-semibold text-gray-800 text-right">
+                {commissionStaff.map(u => nameFor(staffAccounts, u)).join(', ')}
+                {' — '}
+                {commissionStaffPct !== '' ? `${commissionStaffPct}%` : <span className="text-gray-400 italic font-normal">Not yet inputted</span>}
+              </span>
+            ) : <span className="text-gray-300 italic">Not assigned</span>}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card p-3 sm:p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Percent className="w-4 h-4 text-brand-500" />
+        <p className="section-title text-xs mb-0">Commission</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="label mb-0 flex items-center gap-1.5"><Wrench className="w-3 h-3" /> Technician</label>
+        <select
+          value={commissionTech}
+          onChange={e => setCommissionTech(e.target.value)}
+          className="input-field text-sm w-full"
+        >
+          <option value="">— None —</option>
+          {techAccounts.map(t => (
+            <option key={t.username} value={t.username}>{t.name || t.username}</option>
+          ))}
+        </select>
+        <div className="relative w-28">
+          <input
+            type="number" min="0" max="100" step="0.1"
+            value={commissionTechPct}
+            onChange={e => setCommissionTechPct(e.target.value)}
+            placeholder="0"
+            disabled={!commissionTech}
+            className="input-field pr-7 text-sm text-right font-mono disabled:bg-gray-100 disabled:text-gray-400"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 border-t border-gray-100 pt-3">
+        <label className="label mb-0 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Staff</label>
+        {staffAccounts.length === 0 ? (
+          <p className="text-xs font-body text-gray-400 italic">No staff accounts.</p>
+        ) : (
+          <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+            {staffAccounts.map(s => (
+              <label key={s.username} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={commissionStaff.includes(s.username)}
+                  onChange={() => toggleCommissionStaff(s.username)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="font-body text-gray-700">{s.name || s.username}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="relative w-28">
+          <input
+            type="number" min="0" max="100" step="0.1"
+            value={commissionStaffPct}
+            onChange={e => setCommissionStaffPct(e.target.value)}
+            placeholder="0"
+            disabled={commissionStaff.length === 0}
+            className="input-field pr-7 text-sm text-right font-mono disabled:bg-gray-100 disabled:text-gray-400"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-mono">%</span>
+        </div>
+      </div>
+
+      {commissionError && <p className="text-xs text-red-500 font-sans">{commissionError}</p>}
+
+      <div className="flex items-center gap-3">
+        <button onClick={onSaveCommission} disabled={commissionSaving} className="btn-primary text-sm">
+          {commissionSaving
+            ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            : <Save className="w-3.5 h-3.5" />
+          }
+          Save Commission
+        </button>
+        {saveMsg === 'Commission saved!' && (
+          <span className="text-sm font-sans font-semibold text-green-600 flex items-center gap-1">
+            <CheckCircle className="w-3.5 h-3.5" /> {saveMsg}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

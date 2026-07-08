@@ -20,6 +20,7 @@ import { useLiveTickets } from '../../hooks/useLiveTickets.jsx'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { STATUS_ORDER, STATUS_DENIED, TASK_ACTIONS, STATUS_COLORS, taskTab } from '../../lib/utils'
+import { ticketNeedsCommissionInput } from '../../lib/commission'
 import StatusBadge from '../../components/ui/StatusBadge.jsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -57,13 +58,15 @@ export default function DashboardHome() {
   // Live data — realtime inserts/updates/deletes keep counts current
   // without a refresh (see useLiveTickets).
   const { tickets, loading } = useLiveTickets()
-  const { role, getAllowedTransitions, staffUsername, staffName } = useRole()
+  const { role, isAdmin, getAllowedTransitions, staffUsername, staffName } = useRole()
   const { notifications, loading: notifLoading } = useNotifications()
 
-  // Tasks: tickets the current role can act on right now (has an allowed
-  // status transition). Oldest first — it's a work queue.
-  const tasks = tickets
-    .filter(t => getAllowedTransitions(t).length > 0)
+  // Tasks: tickets the current role can act on right now — either a normal
+  // status transition, or (Admin only) a Paid ticket still missing its
+  // manually-inputted commission. Oldest first — it's a work queue.
+  const statusTasks     = tickets.filter(t => getAllowedTransitions(t).length > 0)
+  const commissionTasks = isAdmin ? tickets.filter(ticketNeedsCommissionInput) : []
+  const tasks = [...statusTasks, ...commissionTasks]
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
   /**

@@ -176,6 +176,7 @@ export const TASK_ACTIONS = {
     'Pending':            'Review request',
     'Inspection & Quote': 'Add quotation',
     'Done':               'Collect payment',
+    'Paid':               'Input commission',
   },
   Staff: {
     'Pending':            'Review request',
@@ -199,6 +200,7 @@ export const TASK_TABS = {
     'Pending':            'overview',
     'Inspection & Quote': 'admin',
     'Done':               'admin',
+    'Paid':               'admin',
   },
   Staff: {
     'Pending':            'overview',

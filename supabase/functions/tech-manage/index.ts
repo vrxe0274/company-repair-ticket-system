@@ -14,6 +14,10 @@
  *   set-name   — Updates the display name for a technician account.
  *   list-names — Returns only username + name pairs.
  *
+ * NOTE: per-account commission_pct/set-commission has been removed. Commission
+ * is now entered manually per repair (tickets.tech_commission_pct /
+ * staff_commission_pct), set by Admin after the ticket is Paid.
+ *
  * SECURITY: no server-side authorization on any action. Deployed --no-verify-jwt,
  * so all actions are callable by anyone with the (public) anon key. Admin-only in
  * the UI only — add real auth before treating create/delete/reset as protected.
@@ -60,7 +64,6 @@ async function handleRequest(req: Request): Promise<Response> {
     newPassword?: string
     newUsername?: string
     name?: string
-    commission_pct?: number | null
   }
   try {
     body = await req.json()
@@ -179,31 +182,11 @@ async function handleRequest(req: Request): Promise<Response> {
   if (action === 'list-names') {
     const { data, error } = await supabase
       .from('technician_accounts')
-      .select('username, name, commission_pct')
+      .select('username, name')
       .order('name', { ascending: true })
 
     if (error) return json(500, { ok: false, error: 'Failed to fetch technician names.' })
     return json(200, { ok: true, staff: data ?? [] })
-  }
-
-  // ── Set per-account commission override ───────────────────────────────────────
-
-  if (action === 'set-commission') {
-    const targetUser    = (body.username ?? '').trim()
-    const commissionPct = body.commission_pct ?? null
-    if (!targetUser) return json(200, { ok: false, error: 'Username is required.' })
-    if (commissionPct !== null) {
-      const pct = Number(commissionPct)
-      if (isNaN(pct) || pct < 0 || pct > 1) {
-        return json(200, { ok: false, error: 'commission_pct must be between 0 and 1.' })
-      }
-    }
-    const { error } = await supabase
-      .from('technician_accounts')
-      .update({ commission_pct: commissionPct })
-      .eq('username', targetUser)
-    if (error) return json(500, { ok: false, error: 'Failed to update commission rate.' })
-    return json(200, { ok: true })
   }
 
   // ── List (no password required) ──────────────────────────────────────────────
@@ -211,7 +194,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (action === 'list') {
     const { data, error } = await supabase
       .from('technician_accounts')
-      .select('id, username, name, created_at, created_by, commission_pct')
+      .select('id, username, name, created_at, created_by')
       .order('created_at', { ascending: false })
 
     if (error) return json(500, { ok: false, error: 'Failed to fetch accounts.' })
