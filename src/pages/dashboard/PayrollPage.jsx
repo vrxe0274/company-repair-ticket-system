@@ -179,7 +179,7 @@ export default function PayrollPage() {
               </div>
             </div>
 
-            <p className="text-4xl sm:text-6xl font-display font-bold leading-none tracking-tight text-white break-all">
+            <p className="text-[clamp(1.75rem,8vw,3.75rem)] sm:text-6xl font-display font-bold leading-none tracking-tight text-white whitespace-nowrap">
               {PESO(grandTotal)}
             </p>
             <p className="text-brand-300 text-sm font-body mt-3">
