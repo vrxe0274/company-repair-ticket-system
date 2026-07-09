@@ -135,7 +135,7 @@ export default function PayrollPage() {
         <div className="flex flex-col sm:flex-row">
 
           {/* Left — grand total */}
-          <div className="flex-1 px-7 py-8">
+          <div className="flex-1 px-5 sm:px-7 py-6 sm:py-8">
             <div className="flex items-start justify-between gap-4 mb-5">
               <div className="flex items-center gap-1.5">
                 <Users className="w-3 h-3 text-brand-300" />
@@ -179,7 +179,7 @@ export default function PayrollPage() {
               </div>
             </div>
 
-            <p className="text-6xl font-display font-bold leading-none tracking-tight text-white">
+            <p className="text-4xl sm:text-6xl font-display font-bold leading-none tracking-tight text-white break-all">
               {PESO(grandTotal)}
             </p>
             <p className="text-brand-300 text-sm font-body mt-3">
@@ -192,10 +192,10 @@ export default function PayrollPage() {
 
           {/* Divider */}
           <div className="hidden sm:block w-px bg-white/10 my-6" />
-          <div className="block sm:hidden h-px bg-white/10 mx-7" />
+          <div className="block sm:hidden h-px bg-white/10 mx-5" />
 
           {/* Right — per-payee breakdown */}
-          <div className="sm:w-64 px-7 py-8 flex flex-col justify-center gap-4">
+          <div className="sm:w-64 px-5 sm:px-7 py-6 sm:py-8 flex flex-col justify-center gap-4">
             <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">Breakdown</p>
             <div className="space-y-2.5">
               {techs.map(t => (
@@ -243,7 +243,8 @@ export default function PayrollPage() {
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60">
             <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Payees</p>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Name</th>
@@ -352,6 +353,7 @@ export default function PayrollPage() {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       )}
 
