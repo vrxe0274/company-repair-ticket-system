@@ -1,9 +1,11 @@
 import ExcelJS from 'exceljs'
 import {
-  format, parseISO, startOfMonth, endOfMonth, differenceInMinutes, isWeekend, startOfWeek,
+  format, parseISO, startOfMonth, endOfMonth, isWeekend, startOfWeek,
 } from 'date-fns'
 import { supabase } from './supabase'
-import { isOutsideShift } from './shift'
+import {
+  isOutsideShift, atHour, minutesLate, shiftHoursCap, LUNCH_HOURS,
+} from './shift'
 
 /**
  * @file attendanceExport.js
@@ -21,13 +23,38 @@ import { isOutsideShift } from './shift'
  *                       are excluded from the report entirely — no rows, no
  *                       present/late/hours credit.
  *   - Present         = employee has ≥1 session that operating day.
- *   - Late            = employee's first login hour is later than the shift
- *                       start hour (shift is configured hour-granular).
  *   - Absent          = operating day with no session for that employee.
+ *   - Late            = NOT a status — the daily Status is only Present or
+ *                       Absent. Lateness is indicated by the Minutes Late
+ *                       column (minute-exact, highlighted when > 0); the
+ *                       Summary's Late column tallies days with Minutes
+ *                       Late > 0.
  *   - Off-shift       = a session started before shift start / after shift end
  *                       (reuses the app's isOutsideShift rule).
- *   - Hours           = sum of real session durations (no cap — sessions run
- *                       until an explicit logout).
+ *   - Hours           = the first-in → last-out SPAN (not a sum of individual
+ *                       session durations — a gap between two sessions in the
+ *                       same day, other than the fixed lunch deduction below,
+ *                       is absorbed into the span and counted as worked time)
+ *                       clamped to the shift window (shift.start–shift.end),
+ *                       minus a fixed lunch deduction (shift.js LUNCH_HOURS),
+ *                       capped at shiftHoursCap(shift), floored at 0. Early
+ *                       time-in counts from shift start; late time-out counts
+ *                       up to shift end; a first login after shift end earns
+ *                       0. Overnight sessions (logout past midnight) count
+ *                       only up to shift end of the LOGIN day. A day whose
+ *                       last session never closed has no Hours (blank).
+ *   - Minutes Late    = minutes between shift start and the first login
+ *                       (0 when on-time/early, blank on absent days).
+ *
+ * Time In / Time Out are written as real Excel date+time serials (not just a
+ * time-of-day fraction — the date is kept so a live formula can tell an
+ * overnight logout apart from a same-day one by real date order), and Hours /
+ * Minutes Late as live formulas over them (with cached results), so the sheet
+ * recalculates if a time is hand-corrected after export. The JS-computed
+ * cached values (windowedHours/minutesLate in this file, sharing LUNCH_HOURS/
+ * shiftHoursCap from shift.js with the formula strings below) and the Excel
+ * formulas encode the same rule independently — keep both in sync when either
+ * changes.
  *
  * "Leave" is intentionally omitted — the schema stores nothing that could
  * distinguish a leave day from a plain absence.
@@ -49,14 +76,15 @@ const SUMMARY_HEADER_BG = 'FF37474F'
 
 const STATUS_FILL = {
   Present: 'FFE8F5E9', // green tint
-  Late:    'FFFFF8E1', // amber tint
   Absent:  'FFFDECEA', // red tint
 }
 const STATUS_FONT = {
   Present: 'FF2E7D32',
-  Late:    'FFB26A00',
   Absent:  'FFC62828',
 }
+// Lateness is not a status — a nonzero Minutes Late cell gets this amber accent.
+const LATE_FILL = 'FFFFF8E1'
+const LATE_FONT = 'FFB26A00'
 
 const THIN = { style: 'thin', color: { argb: 'FFD8D8D8' } }
 const ALL_BORDERS = { top: THIN, left: THIN, bottom: THIN, right: THIN }
@@ -89,11 +117,38 @@ export async function fetchLiveNames() {
   return map
 }
 
-/** Real session length in minutes (uncapped); null when the session never closed. */
-function sessionMinutes(l) {
-  if (!l.logged_out_at) return null
-  const mins = differenceInMinutes(parseISO(l.logged_out_at), parseISO(l.logged_in_at))
-  return Math.max(mins, 0)
+/**
+ * Excel serial (days since 1899-12-30) for a Date's local wall-clock value.
+ * Unlike a time-of-day-only fraction, this carries the calendar date too, so
+ * a formula comparing two of these serials can tell an overnight logout
+ * (next calendar day) apart from a same-day one by real date order rather
+ * than by guessing from the time-of-day numbers alone.
+ */
+const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30)
+const toExcelSerial = d => (
+  Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds())
+  - EXCEL_EPOCH_UTC
+) / 86400000
+
+/**
+ * Payable hours for one day: first-in → last-out clamped to the shift window,
+ * minus a fixed lunch deduction (LUNCH_HOURS), capped at shiftHoursCap(shift),
+ * floored at 0. Overnight logouts count only up to shift end of the login day
+ * (lastOut past shift end — including next-day timestamps — clamps to it).
+ * Null when the day's last session never closed (no last-out to measure
+ * against).
+ *
+ * @param {Date} shiftStart  `atHour(firstIn, shift.start)` — passed in so the
+ *                           caller (which also needs it for minutesLate)
+ *                           only builds it once per row.
+ * @param {Date} dayEnd      `atHour(firstIn, shift.end)`
+ */
+function windowedHours(firstIn, lastOut, shiftStart, dayEnd, cap) {
+  if (!lastOut) return null
+  const start = firstIn < shiftStart ? shiftStart : firstIn
+  const end   = lastOut > dayEnd ? dayEnd : lastOut
+  const hrs   = (end - start) / 3600000 - LUNCH_HOURS
+  return Number(Math.min(cap, Math.max(0, hrs)).toFixed(2))
 }
 
 /**
@@ -101,6 +156,7 @@ function sessionMinutes(l) {
  * company operating days.
  */
 function aggregate(logs, shift, liveNames = null) {
+  const cap = shiftHoursCap(shift) // invariant across every row for this export
   const operatingDays = new Set()
   const people = new Map() // key -> { name, username, role, days: Map<dayKey, log[]> }
 
@@ -136,7 +192,7 @@ function aggregate(logs, shift, liveNames = null) {
   const summaryRows = []
 
   for (const p of sortedPeople) {
-    let present = 0, late = 0, absent = 0, offShift = 0, totalMins = 0
+    let present = 0, late = 0, absent = 0, offShift = 0, totalHours = 0
 
     for (const dayKey of sortedDays) {
       const dayLogs = p.days.get(dayKey)
@@ -147,7 +203,7 @@ function aggregate(logs, shift, liveNames = null) {
         dailyRows.push({
           name: p.name, username: p.username, role: p.role,
           date: dayKey, day: format(dateObj, 'EEE'), week: weekKey(dateObj),
-          status: 'Absent', timeIn: '', timeOut: '', hours: '',
+          status: 'Absent', timeIn: '', timeOut: '', hours: '', minsLate: '',
         })
         continue
       }
@@ -160,22 +216,28 @@ function aggregate(logs, shift, liveNames = null) {
         ? closed.reduce((m, l) => (parseISO(l.logged_out_at) > m ? parseISO(l.logged_out_at) : m), parseISO(closed[0].logged_out_at))
         : null
 
-      const dayMins = day.reduce((s, l) => s + (sessionMinutes(l) ?? 0), 0)
-      const isLate  = firstIn.getHours() > shift.start
+      const shiftStart = atHour(firstIn, shift.start)
+      const dayEnd     = atHour(firstIn, shift.end)
+      const hours   = windowedHours(firstIn, lastOut, shiftStart, dayEnd, cap) // null while unclosed
+      const minsLate = minutesLate(firstIn, shiftStart)
       const isOff   = day.some(l => isOutsideShift(l.logged_in_at, shift))
 
       present++
-      if (isLate) late++
+      if (minsLate > 0) late++ // summary tally only — lateness is not a status
       if (isOff) offShift++
-      totalMins += dayMins
+      if (hours != null) totalHours += hours
 
       dailyRows.push({
         name: p.name, username: p.username, role: p.role,
         date: dayKey, day: format(dateObj, 'EEE'), week: weekKey(dateObj),
-        status: isLate ? 'Late' : 'Present',
-        timeIn: format(firstIn, 'hh:mm a'),
-        timeOut: lastOut ? format(lastOut, 'hh:mm a') : '—',
-        hours: Number((dayMins / 60).toFixed(2)),
+        status: 'Present',
+        // Full date+time serial, not just time-of-day — lets the Excel Hours
+        // formula anchor to the login's real calendar day instead of guessing
+        // overnight from clock-time comparison alone.
+        timeIn: toExcelSerial(firstIn),
+        timeOut: lastOut ? toExcelSerial(lastOut) : '—',
+        hours: hours ?? '',
+        minsLate,
         offShift: isOff,
       })
     }
@@ -185,7 +247,7 @@ function aggregate(logs, shift, liveNames = null) {
       username: p.username ?? '',
       role: p.role,
       present, late, absent, offShift,
-      totalHours: Number((totalMins / 60).toFixed(2)),
+      totalHours: Number(totalHours.toFixed(2)),
     })
   }
 
@@ -200,7 +262,13 @@ function autoSize(sheet, skipRows = new Set(), min = 6, max = 30) {
     let longest = 0
     col.eachCell({ includeEmpty: true }, (cell, rowNum) => {
       if (skipRows.has(rowNum)) return
-      const v = cell.value == null ? '' : String(cell.value?.richText ? '' : cell.value)
+      const raw = cell.value
+      let v = ''
+      if (raw != null) {
+        if (typeof raw === 'object') v = raw.richText ? '' : String(raw.result ?? '') // formula cell → measure its cached result
+        else if (typeof raw === 'number') v = String(Math.round(raw * 100) / 100)     // time serial ≈ rendered "hh:mm AM" width
+        else v = String(raw)
+      }
       if (v.length > longest) longest = v.length
     })
     col.width = Math.min(Math.max(longest + 2, min), max)
@@ -250,15 +318,33 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
   })
 
   const COLUMNS = [
-    { header: 'Employee',  key: 'name',     width: 22 },
-    { header: 'Date',      key: 'date',     width: 12 },
-    { header: 'Day',       key: 'day',      width: 8  },
-    { header: 'Status',    key: 'status',   width: 10 },
-    { header: 'Time In',   key: 'timeIn',   width: 11 },
-    { header: 'Time Out',  key: 'timeOut',  width: 11 },
-    { header: 'Hours',     key: 'hours',    width: 9  },
+    { header: 'Employee',     key: 'name',     width: 22 },
+    { header: 'Date',         key: 'date',     width: 12 },
+    { header: 'Day',          key: 'day',      width: 8  },
+    { header: 'Status',       key: 'status',   width: 10 },
+    { header: 'Time In',      key: 'timeIn',   width: 11 },
+    { header: 'Time Out',     key: 'timeOut',  width: 11 },
+    { header: 'Hours',        key: 'hours',    width: 9  },
+    { header: 'Minutes Late', key: 'minsLate', width: 13 },
   ]
   sheet.columns = COLUMNS
+
+  // Live formulas over the Time In (E) / Time Out (F) date+time serials.
+  // ISNUMBER guards skip absent rows ('' in E/F) and unclosed sessions ('—'
+  // in F). E/F carry the real calendar date (see toExcelSerial), so the
+  // shift-start/end anchors are built as INT(cell)+TIME(h) — the same
+  // calendar day as the login — rather than bare TIME(h) literals. That lets
+  // MIN/MAX clamp a next-day logout down to shift-end of the login day by
+  // real date order, instead of needing a fragile "is the time-of-day number
+  // smaller" heuristic to guess it's overnight.
+  const t = h => `TIME(${h},0,0)`
+  const dayAnchor = (n, h) => `(INT(E${n})+${t(h)})`
+  const HOURS_CAP = shiftHoursCap(shift)
+  const hoursFormula = n =>
+    `IF(AND(ISNUMBER(E${n}),ISNUMBER(F${n})),` +
+    `MIN(${HOURS_CAP},MAX(0,(MIN(F${n},${dayAnchor(n, shift.end)})-MAX(E${n},${dayAnchor(n, shift.start)}))*24-${LUNCH_HOURS})),"")`
+  const minsLateFormula = n =>
+    `IF(ISNUMBER(E${n}),MAX(0,ROUND((E${n}-${dayAnchor(n, shift.start)})*1440,0)),"")`
 
   // ── Row 1: title (merged across all columns) ────────────────────────────────
   sheet.mergeCells(1, 1, 1, COLUMNS.length)
@@ -314,6 +400,7 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
       timeIn: r.timeIn,
       timeOut: r.timeOut,
       hours: r.hours,
+      minsLate: r.minsLate,
     })
     if (isNewEmployee) {
       blockStart = row.number
@@ -345,8 +432,30 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
       inCell.font = { size: 10, name: 'Calibri', color: { argb: 'FFB26A00' }, italic: true }
       inCell.note = 'Off-shift login'
     }
+    // Render time serials as clock times.
+    for (const key of ['timeIn', 'timeOut']) {
+      const cell = row.getCell(key)
+      if (typeof cell.value === 'number') cell.numFmt = 'hh:mm AM/PM'
+    }
+    // Hours / Minutes Late as formulas with cached results (blank rows carry
+    // the guarded formula alone; Excel/Sheets recalculate on open).
+    const n = row.number
     const hoursCell = row.getCell('hours')
-    if (typeof hoursCell.value === 'number') hoursCell.numFmt = '0.00'
+    hoursCell.value = typeof r.hours === 'number'
+      ? { formula: hoursFormula(n), result: r.hours }
+      : { formula: hoursFormula(n) }
+    hoursCell.numFmt = '0.00'
+    const lateCell = row.getCell('minsLate')
+    lateCell.value = typeof r.minsLate === 'number'
+      ? { formula: minsLateFormula(n), result: r.minsLate }
+      : { formula: minsLateFormula(n) }
+    lateCell.numFmt = '0'
+    // Amber accent marks a late day — Minutes Late is the lateness indicator
+    // (Status stays Present/Absent).
+    if (typeof r.minsLate === 'number' && r.minsLate > 0) {
+      lateCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LATE_FILL } }
+      lateCell.font = { size: 10, name: 'Calibri', bold: true, color: { argb: LATE_FONT } }
+    }
   })
   mergeEmployeeBlock(sheet.rowCount) // close the final employee's block
 
