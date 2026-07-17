@@ -34,12 +34,20 @@ export function staffCommission(fee, techPct, staffPct) {
 }
 
 /**
- * True when a Paid ticket has an assigned technician/staff whose commission
- * percentage hasn't been inputted yet — drives the Admin task-list item.
+ * True when a Paid ticket still needs Admin action on commission — either
+ * nobody has been assigned to it yet, or someone's assigned but their
+ * percentage hasn't been inputted yet. Drives the Admin task-list item.
+ * `commission_not_applicable` is Admin's explicit "nothing to assign here"
+ * — without it, an intentionally-empty assignment is indistinguishable from
+ * one nobody has touched yet, and the task would never clear.
  */
 export function ticketNeedsCommissionInput(ticket) {
   if (ticket.status !== 'Paid') return false
-  const needsTech  = (ticket.technician_usernames?.length ?? 0) > 0 && ticket.tech_commission_pct == null
-  const needsStaff = (ticket.assigned_staff?.length ?? 0) > 0 && ticket.staff_commission_pct == null
-  return needsTech || needsStaff
+  if (ticket.commission_not_applicable) return false
+  const techCount  = ticket.technician_usernames?.length ?? 0
+  const staffCount = ticket.assigned_staff?.length ?? 0
+  const needsAssignment = techCount === 0 && staffCount === 0
+  const needsTechPct  = techCount > 0 && ticket.tech_commission_pct == null
+  const needsStaffPct = staffCount > 0 && ticket.staff_commission_pct == null
+  return needsAssignment || needsTechPct || needsStaffPct
 }

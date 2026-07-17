@@ -134,6 +134,13 @@ CREATE TABLE tickets (
   staff_commission_pct NUMERIC(5,4)
     CHECK (staff_commission_pct IS NULL OR (staff_commission_pct >= 0 AND staff_commission_pct <= 1)),
 
+  -- Admin-set escape hatch for tickets that genuinely need no commission
+  -- payout (e.g. no repair labor was performed). Distinguishes "not yet
+  -- assigned" (task list should nag) from "explicitly nothing to assign"
+  -- (task list should stop nagging) — both states otherwise look identical
+  -- as empty technician_usernames/assigned_staff arrays.
+  commission_not_applicable BOOLEAN NOT NULL DEFAULT false,
+
   -- Public tracking (unique token per ticket)
   tracking_token TEXT UNIQUE NOT NULL
 );
@@ -198,7 +205,8 @@ ALTER TABLE tickets
   ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS payment_option TEXT,
   ADD COLUMN IF NOT EXISTS payment_partial_high_pct NUMERIC(5,2) DEFAULT 40,
-  ADD COLUMN IF NOT EXISTS payment_partial_low_pct  NUMERIC(5,2) DEFAULT 20;
+  ADD COLUMN IF NOT EXISTS payment_partial_low_pct  NUMERIC(5,2) DEFAULT 20,
+  ADD COLUMN IF NOT EXISTS commission_not_applicable BOOLEAN NOT NULL DEFAULT false;
 
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_payment_option_check;
 UPDATE tickets

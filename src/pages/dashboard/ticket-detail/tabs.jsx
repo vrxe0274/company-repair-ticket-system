@@ -538,6 +538,7 @@ export function CommissionTab({
   commissionStaff, toggleCommissionStaff,
   commissionTechPct, setCommissionTechPct,
   commissionStaffPct, setCommissionStaffPct,
+  commissionNotApplicable, setCommissionNotApplicable,
   commissionSaving, commissionError, onSaveCommission, saveMsg,
   laborTotal,
 }) {
@@ -551,6 +552,7 @@ export function CommissionTab({
           commissionStaff={commissionStaff} toggleCommissionStaff={toggleCommissionStaff}
           commissionTechPct={commissionTechPct} setCommissionTechPct={setCommissionTechPct}
           commissionStaffPct={commissionStaffPct} setCommissionStaffPct={setCommissionStaffPct}
+          commissionNotApplicable={commissionNotApplicable} setCommissionNotApplicable={setCommissionNotApplicable}
           commissionSaving={commissionSaving} commissionError={commissionError}
           onSaveCommission={onSaveCommission} saveMsg={saveMsg}
           laborTotal={laborTotal}
@@ -646,9 +648,11 @@ function CommissionCard({
   commissionStaff, toggleCommissionStaff,
   commissionTechPct, setCommissionTechPct,
   commissionStaffPct, setCommissionStaffPct,
+  commissionNotApplicable, setCommissionNotApplicable,
   commissionSaving, commissionError, onSaveCommission, saveMsg,
   laborTotal,
 }) {
+  const noOneAssigned = commissionTech.length === 0 && commissionStaff.length === 0
   const nameFor = (accounts, username) => accounts.find(a => a.username === username)?.name || username
 
   const techPctNum   = commissionTechPct  === '' ? null : parseFloat(commissionTechPct)  / 100
@@ -767,6 +771,17 @@ function CommissionCard({
 
         {isAdmin && (
           <div className="flex flex-col gap-2">
+            {noOneAssigned && (
+              <label className="flex items-center gap-2 text-xs font-sans font-medium text-gray-600 select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={commissionNotApplicable}
+                  onChange={e => setCommissionNotApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                No commission needed for this ticket
+              </label>
+            )}
             {commissionError && <p className="text-xs text-red-500 font-sans">{commissionError}</p>}
             <button onClick={onSaveCommission} disabled={commissionSaving} className="btn-primary text-sm justify-center">
               {commissionSaving

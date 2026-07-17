@@ -47,6 +47,9 @@ export function useTicket(id) {
   const [commissionStaffPct, setCommissionStaffPct] = useState('')
   const [commissionSaving,   setCommissionSaving]   = useState(false)
   const [commissionError,    setCommissionError]    = useState('')
+  // Explicit "no commission needed on this ticket" — separate from an
+  // untouched empty assignment, so the task-list item can actually clear.
+  const [commissionNotApplicable, setCommissionNotApplicable] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -119,6 +122,7 @@ export function useTicket(id) {
     setCommissionStaff(data.assigned_staff ?? [])
     setCommissionTechPct(data.tech_commission_pct != null ? (data.tech_commission_pct * 100).toString() : '')
     setCommissionStaffPct(data.staff_commission_pct != null ? (data.staff_commission_pct * 100).toString() : '')
+    setCommissionNotApplicable(!!data.commission_not_applicable)
     setCommissionError('')
   }
 
@@ -282,11 +286,13 @@ export function useTicket(id) {
     setCommissionStaff(prev =>
       prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
     )
+    setCommissionNotApplicable(false)
   }
   function toggleCommissionTech(username) {
     setCommissionTech(prev =>
       prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
     )
+    setCommissionNotApplicable(false)
   }
 
   async function saveCommission() {
@@ -301,11 +307,15 @@ export function useTicket(id) {
       setCommissionError('Staff commission must be between 0 and 100.'); return
     }
     setCommissionSaving(true)
+    // "Not applicable" only means anything when nobody's assigned — if the
+    // admin has picked people since checking it, the assignment wins.
+    const notApplicable = commissionNotApplicable && commissionTech.length === 0 && commissionStaff.length === 0
     const patch = {
       technician_usernames: commissionTech,
       assigned_staff:       commissionStaff,
       tech_commission_pct:  commissionTech.length  && techPct  != null ? techPct  / 100 : null,
       staff_commission_pct: commissionStaff.length && staffPct != null ? staffPct / 100 : null,
+      commission_not_applicable: notApplicable,
     }
     const { data, error } = await supabase
       .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
@@ -453,6 +463,7 @@ export function useTicket(id) {
     commissionStaff, toggleCommissionStaff,
     commissionTechPct, setCommissionTechPct,
     commissionStaffPct, setCommissionStaffPct,
+    commissionNotApplicable, setCommissionNotApplicable,
     commissionSaving, commissionError, saveCommission,
   }
 }

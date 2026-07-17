@@ -84,6 +84,7 @@ export default function TicketDetailPage() {
     commissionStaff, toggleCommissionStaff,
     commissionTechPct, setCommissionTechPct,
     commissionStaffPct, setCommissionStaffPct,
+    commissionNotApplicable, setCommissionNotApplicable,
     commissionSaving, commissionError, saveCommission,
   } = useTicket(id)
 
@@ -318,6 +319,7 @@ export default function TicketDetailPage() {
           commissionStaff={commissionStaff} toggleCommissionStaff={toggleCommissionStaff}
           commissionTechPct={commissionTechPct} setCommissionTechPct={setCommissionTechPct}
           commissionStaffPct={commissionStaffPct} setCommissionStaffPct={setCommissionStaffPct}
+          commissionNotApplicable={commissionNotApplicable} setCommissionNotApplicable={setCommissionNotApplicable}
           commissionSaving={commissionSaving} commissionError={commissionError}
           laborTotal={laborTotal}
           saveMsg={saveMsg}
