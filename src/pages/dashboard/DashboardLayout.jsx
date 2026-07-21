@@ -34,6 +34,7 @@ import Logo                 from '../../components/ui/Logo.jsx'
 import PushPermissionPrompt from '../../components/ui/PushPermissionPrompt.jsx'
 import { getSession }       from '../../lib/session'
 import { clearMustChangePassword } from '../../lib/session'
+import { ticketNeedsCommissionInput } from '../../lib/commission'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -146,8 +147,12 @@ export default function DashboardLayout() {
     if (!role) { setTaskCount(0); return }
 
     async function fetchCount() {
-      const { data } = await supabase.from('tickets').select('status, diagnosis_notes, quotation_amount')
-      if (data) setTaskCount(data.filter(t => getAllowedTransitions(t).length > 0).length)
+      const { data } = await supabase.from('tickets').select('status, diagnosis_notes, quotation_amount, commission_not_applicable, technician_usernames, assigned_staff, tech_commission_pct, staff_commission_pct')
+      if (data) {
+        const statusCount     = data.filter(t => getAllowedTransitions(t).length > 0).length
+        const commissionCount = isAdmin ? data.filter(ticketNeedsCommissionInput).length : 0
+        setTaskCount(statusCount + commissionCount)
+      }
     }
     fetchCount()
 
@@ -157,7 +162,7 @@ export default function DashboardLayout() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [role, getAllowedTransitions])
+  }, [role, getAllowedTransitions, isAdmin])
 
   /**
    * Clear auth and role state, then redirect to login.

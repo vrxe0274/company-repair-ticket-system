@@ -555,7 +555,7 @@ CREATE TABLE push_subscriptions (
   endpoint     TEXT        NOT NULL UNIQUE,
   p256dh       TEXT        NOT NULL,
   auth         TEXT        NOT NULL,
-  role         TEXT        CHECK (role IN ('Admin', 'Technician')),
+  role         TEXT        CHECK (role IN ('Admin', 'Staff', 'Technician')),
   user_agent   TEXT,
   active       BOOLEAN     NOT NULL DEFAULT TRUE,
   last_seen_at TIMESTAMPTZ DEFAULT NOW()
@@ -563,6 +563,13 @@ CREATE TABLE push_subscriptions (
 
 CREATE INDEX idx_push_subscriptions_active
   ON push_subscriptions (active);
+
+-- Migration for installs that ran this script before 'Staff' was added to
+-- the allowed roles (Settings page push toggle is now available to Staff
+-- accounts too, not just Admin/Technician). No-op on a fresh setup.
+ALTER TABLE push_subscriptions DROP CONSTRAINT IF EXISTS push_subscriptions_role_check;
+ALTER TABLE push_subscriptions ADD CONSTRAINT push_subscriptions_role_check
+  CHECK (role IN ('Admin', 'Staff', 'Technician'));
 
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 

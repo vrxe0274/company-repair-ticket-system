@@ -9,9 +9,9 @@
  * destructive password server-side (see lib/adminDelete.js).
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User } from 'lucide-react'
+import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User, Bell, BellOff } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
@@ -20,6 +20,11 @@ import { adminFlushDatabase } from '../../lib/adminDelete'
 import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '../../lib/terms'
 import { changePassword } from '../../lib/changePassword'
 import { supabase, fnErrorMessage } from '../../lib/supabase'
+import {
+  isPushSupported, getPushPermission, isPushSubscribed,
+  subscribeToPush, unsubscribeFromPush, isIos,
+} from '../../lib/push'
+import { isStandalone } from '../../lib/session'
 
 /** How long the "flushed" success toast stays up. */
 const FLUSH_SUCCESS_MS = 4000
@@ -29,6 +34,38 @@ export default function SettingsPage() {
   const { renameAttendanceLog } = useAuth()
   const { clearAll } = useNotifications()
   const { isDark, toggleTheme } = useTheme()
+
+  // Push notifications toggle — available to every role
+  const [pushSupported]   = useState(isPushSupported())
+  const [pushPermission,  setPushPermission]  = useState(getPushPermission())
+  const [pushOn,          setPushOn]          = useState(false)
+  const [pushLoading,     setPushLoading]     = useState(true)
+  const [pushError,       setPushError]       = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!pushSupported) { setPushLoading(false); return }
+    isPushSubscribed().then(subscribed => {
+      if (!cancelled) { setPushOn(pushPermission === 'granted' && subscribed); setPushLoading(false) }
+    })
+    return () => { cancelled = true }
+  }, [pushSupported, pushPermission])
+
+  async function handleTogglePush() {
+    setPushError(false)
+    setPushLoading(true)
+    if (pushOn) {
+      await unsubscribeFromPush()
+      setPushOn(false)
+      setPushLoading(false)
+    } else {
+      const result = await subscribeToPush(role)
+      setPushPermission(getPushPermission())
+      if (result.ok) setPushOn(true)
+      else setPushError(true)
+      setPushLoading(false)
+    }
+  }
 
   // Flush DB state (admin only)
   const [showFlush,    setShowFlush]    = useState(false)
@@ -312,6 +349,51 @@ export default function SettingsPage() {
                 style={{ backgroundColor: '#ffffff' }}
                 className={`inline-block h-5 w-5 transform rounded-full shadow transition-transform
                   ${isDark ? 'translate-x-5' : 'translate-x-0.5'}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Push notifications — available to all roles */}
+        <div className="card p-5">
+          <p className="section-title mb-4">Notifications</p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                {pushOn ? <Bell className="w-4 h-4 text-brand-500" /> : <BellOff className="w-4 h-4 text-gray-400" />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-sans font-semibold text-gray-900">Push notifications</p>
+                <p className="text-xs font-body text-gray-500">
+                  {!pushSupported
+                    ? (isIos() && !isStandalone()
+                        ? 'Add this app to your Home Screen to enable (iOS 16.4+).'
+                        : 'Not supported on this device.')
+                    : pushPermission === 'denied'
+                      ? 'Blocked — allow notifications in your browser settings for this app.'
+                      : pushOn
+                        ? 'Enabled on this device.'
+                        : 'Get ticket alerts on this device, even when the app is closed.'}
+                </p>
+                {pushError && <p className="text-xs text-red-500 font-sans mt-0.5">Couldn&apos;t update. Please try again.</p>}
+              </div>
+            </div>
+
+            {/* Toggle switch */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pushOn}
+              aria-label="Toggle push notifications"
+              onClick={handleTogglePush}
+              disabled={!pushSupported || pushPermission === 'denied' || pushLoading}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed
+                ${pushOn ? 'bg-brand-600' : 'bg-gray-300'}`}
+            >
+              <span
+                style={{ backgroundColor: '#ffffff' }}
+                className={`inline-block h-5 w-5 transform rounded-full shadow transition-transform
+                  ${pushOn ? 'translate-x-5' : 'translate-x-0.5'}`}
               />
             </button>
           </div>

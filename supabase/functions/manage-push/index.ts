@@ -17,7 +17,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders, json } from '../_shared/auth.ts'
 
-const VALID_ROLES = new Set(['Admin', 'Technician'])
+const VALID_ROLES = new Set(['Admin', 'Staff', 'Technician'])
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })

@@ -40,6 +40,18 @@ export function getPushPermission() {
   return isPushSupported() ? Notification.permission : 'unsupported'
 }
 
+/** True if this device already holds an active push subscription. */
+export async function isPushSubscribed() {
+  if (!isPushSupported()) return false
+  try {
+    const registration = await navigator.serviceWorker.getRegistration()
+    const subscription = await registration?.pushManager.getSubscription()
+    return !!subscription
+  } catch {
+    return false
+  }
+}
+
 /** True on iOS devices — used to hint "install to Home Screen" when push is unavailable. */
 export function isIos() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
