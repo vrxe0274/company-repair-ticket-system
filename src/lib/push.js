@@ -26,6 +26,27 @@ import { softFail } from './errors'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
+/**
+ * Per-device flag set when the user explicitly turns push off (Settings
+ * toggle) — checked by PushPermissionPrompt so it doesn't silently
+ * resubscribe a device on the next app load just because permission is
+ * still 'granted' (permission and subscription are independent: revoking
+ * the subscription doesn't revoke the browser permission).
+ */
+const OPT_OUT_KEY = 'vrxe_push_opt_out'
+
+export function isPushOptedOut() {
+  return localStorage.getItem(OPT_OUT_KEY) === '1'
+}
+
+export function setPushOptedOut() {
+  localStorage.setItem(OPT_OUT_KEY, '1')
+}
+
+export function clearPushOptedOut() {
+  localStorage.removeItem(OPT_OUT_KEY)
+}
+
 /** Feature-detect Web Push (false on iOS Safari unless installed to Home Screen). */
 export function isPushSupported() {
   return (
@@ -120,22 +141,31 @@ export async function subscribeToPush(role = null) {
 }
 
 /**
- * Remove this device's subscription — called on explicit logout and when a
- * persistent session is found expired. Deletes the DB row first, then
- * unsubscribes from the push service.
+ * Remove this device's subscription — called on explicit logout, when a
+ * persistent session is found expired, and from the Settings toggle.
+ * Deletes the DB row first; only unsubscribes locally once that succeeds,
+ * so a failed server call leaves the local subscription (and UI state)
+ * intact instead of silently orphaning the DB row.
+ * @returns {Promise<{ok: boolean}>}
  */
 export async function unsubscribeFromPush() {
-  if (!isPushSupported()) return
+  if (!isPushSupported()) return { ok: true }
   try {
     const registration = await navigator.serviceWorker.getRegistration()
     const subscription = await registration?.pushManager.getSubscription()
-    if (!subscription) return
-    await supabase.functions.invoke('manage-push', {
+    if (!subscription) return { ok: true }
+    const { error } = await supabase.functions.invoke('manage-push', {
       body: { action: 'unsubscribe', endpoint: subscription.endpoint },
     })
+    if (error) {
+      softFail('unsubscribeFromPush', error)
+      return { ok: false }
+    }
     await subscription.unsubscribe()
+    return { ok: true }
   } catch (err) {
     softFail('unsubscribeFromPush', err)
+    return { ok: false }
   }
 }
 

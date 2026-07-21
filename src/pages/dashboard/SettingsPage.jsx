@@ -9,21 +9,19 @@
  * destructive password server-side (see lib/adminDelete.js).
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { Sun, Moon, Trash2, X, ShieldAlert, Lock, FileText, RotateCcw, Eye, EyeOff, Pencil, User, Bell, BellOff } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { useNotifications } from '../../hooks/useNotifications.jsx'
 import { useTheme } from '../../hooks/useTheme.jsx'
+import { usePushSubscription } from '../../hooks/usePushSubscription.jsx'
 import { adminFlushDatabase } from '../../lib/adminDelete'
 import { getTerms, saveTerms, resetTerms, hasCustomTerms, DEFAULT_TERMS } from '../../lib/terms'
 import { changePassword } from '../../lib/changePassword'
 import { supabase, fnErrorMessage } from '../../lib/supabase'
-import {
-  isPushSupported, getPushPermission, isPushSubscribed,
-  subscribeToPush, unsubscribeFromPush, isIos,
-} from '../../lib/push'
+import { isIos } from '../../lib/push'
 import { isStandalone } from '../../lib/session'
 
 /** How long the "flushed" success toast stays up. */
@@ -36,35 +34,14 @@ export default function SettingsPage() {
   const { isDark, toggleTheme } = useTheme()
 
   // Push notifications toggle — available to every role
-  const [pushSupported]   = useState(isPushSupported())
-  const [pushPermission,  setPushPermission]  = useState(getPushPermission())
-  const [pushOn,          setPushOn]          = useState(false)
-  const [pushLoading,     setPushLoading]     = useState(true)
-  const [pushError,       setPushError]       = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    if (!pushSupported) { setPushLoading(false); return }
-    isPushSubscribed().then(subscribed => {
-      if (!cancelled) { setPushOn(pushPermission === 'granted' && subscribed); setPushLoading(false) }
-    })
-    return () => { cancelled = true }
-  }, [pushSupported, pushPermission])
+  const {
+    supported: pushSupported, permission: pushPermission, subscribed: pushOn,
+    loading: pushLoading, error: pushError, enable: enablePush, disable: disablePush,
+  } = usePushSubscription(role)
 
   async function handleTogglePush() {
-    setPushError(false)
-    setPushLoading(true)
-    if (pushOn) {
-      await unsubscribeFromPush()
-      setPushOn(false)
-      setPushLoading(false)
-    } else {
-      const result = await subscribeToPush(role)
-      setPushPermission(getPushPermission())
-      if (result.ok) setPushOn(true)
-      else setPushError(true)
-      setPushLoading(false)
-    }
+    if (pushOn) await disablePush()
+    else await enablePush()
   }
 
   // Flush DB state (admin only)

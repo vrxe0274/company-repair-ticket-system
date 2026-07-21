@@ -5,7 +5,9 @@
  *
  * Behavior by permission state:
  *   'granted'     → no UI; silently re-subscribes on mount (idempotent upsert
- *                   refreshes role/last_seen_at and reactivates the row).
+ *                   refreshes role/last_seen_at and reactivates the row) —
+ *                   unless the user explicitly opted out via the Settings
+ *                   toggle (see usePushSubscription's autoRefresh option).
  *   'default'     → banner with an Enable button. requestPermission() runs
  *                   inside the click handler — required by iOS Safari, which
  *                   only allows the prompt from a user gesture.
@@ -18,15 +20,11 @@
  * Dismissals are snoozed for 7 days via localStorage — the gentle re-prompt UI.
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Bell, BellOff, X, Share } from 'lucide-react'
 import { useRole } from '../../hooks/useRole.jsx'
-import {
-  isPushSupported,
-  getPushPermission,
-  subscribeToPush,
-  isIos,
-} from '../../lib/push'
+import { usePushSubscription } from '../../hooks/usePushSubscription.jsx'
+import { isIos } from '../../lib/push'
 import { isStandalone } from '../../lib/session'
 
 const SNOOZE_KEY = 'vrxe_push_prompt_snooze'
@@ -43,17 +41,8 @@ function snooze() {
 
 export default function PushPermissionPrompt() {
   const { role } = useRole()
-  const [permission, setPermission] = useState(getPushPermission())
-  const [dismissed,  setDismissed]  = useState(isSnoozed())
-  const [enabling,   setEnabling]   = useState(false)
-  const [failed,     setFailed]     = useState(false)
-
-  // Already granted (returning device) → keep the subscription row fresh.
-  useEffect(() => {
-    if (role && permission === 'granted') {
-      subscribeToPush(role)
-    }
-  }, [role, permission])
+  const [dismissed, setDismissed] = useState(isSnoozed())
+  const { supported, permission, loading, error, enable } = usePushSubscription(role, { autoRefresh: true })
 
   if (!role || dismissed || permission === 'granted') return null
 
@@ -63,17 +52,12 @@ export default function PushPermissionPrompt() {
   }
 
   async function handleEnable() {
-    setEnabling(true)
-    setFailed(false)
-    const result = await subscribeToPush(role)
-    setPermission(getPushPermission())
-    if (!result.ok && result.reason !== 'denied') setFailed(true)
+    const result = await enable()
     if (result.ok) setDismissed(true)
-    setEnabling(false)
   }
 
   // ── iOS browser (not installed): push is impossible until installed ──────
-  if (!isPushSupported()) {
+  if (!supported) {
     if (!(isIos() && !isStandalone())) return null
     return (
       <div className="fixed top-4 left-1/2 lg:left-[calc(50%+8rem)] -translate-x-1/2 z-40 w-full max-w-md lg:max-w-xl px-4 pointer-events-none">
@@ -118,7 +102,7 @@ export default function PushPermissionPrompt() {
         <p className="flex-1 min-w-[200px] text-sm font-body text-gray-700">
           Enable push notifications to get ticket alerts on this device — even
           when the app is closed.
-          {failed && (
+          {error && (
             <span className="block text-red-500 mt-0.5">
               Couldn&apos;t enable notifications. Please try again.
             </span>
@@ -127,10 +111,10 @@ export default function PushPermissionPrompt() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleEnable}
-            disabled={enabling}
+            disabled={loading}
             className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-sans font-semibold tracking-wide transition-colors disabled:opacity-50"
           >
-            {enabling ? 'Enabling…' : 'Enable'}
+            {loading ? 'Enabling…' : 'Enable'}
           </button>
           <button
             onClick={handleDismiss}

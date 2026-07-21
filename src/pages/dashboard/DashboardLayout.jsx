@@ -146,8 +146,12 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (!role) { setTaskCount(0); return }
 
+    const columns = isAdmin
+      ? 'status, diagnosis_notes, quotation_amount, commission_not_applicable, technician_usernames, assigned_staff, tech_commission_pct, staff_commission_pct'
+      : 'status, diagnosis_notes, quotation_amount'
+
     async function fetchCount() {
-      const { data } = await supabase.from('tickets').select('status, diagnosis_notes, quotation_amount, commission_not_applicable, technician_usernames, assigned_staff, tech_commission_pct, staff_commission_pct')
+      const { data } = await supabase.from('tickets').select(columns)
       if (data) {
         const statusCount     = data.filter(t => getAllowedTransitions(t).length > 0).length
         const commissionCount = isAdmin ? data.filter(ticketNeedsCommissionInput).length : 0
