@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
-import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check, Clock } from 'lucide-react'
+import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check, Clock, AlertTriangle } from 'lucide-react'
 import { supabase }            from '../../lib/supabase'
 import { useRole }             from '../../hooks/useRole.jsx'
 import { laborFee, technicianCommission, staffCommission } from '../../lib/commission'
@@ -8,7 +8,7 @@ import { laborFee, technicianCommission, staffCommission } from '../../lib/commi
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const COLUMNS = [
-  'id', 'ticket_id', 'created_at',
+  'id', 'ticket_id', 'created_at', 'status', 'commission_not_applicable',
   'client_name', 'unit_brand', 'unit_model',
   'labor_items', 'technician_usernames', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
 ].join(', ')
@@ -47,7 +47,7 @@ export default function EarningsPage() {
     : (t.assigned_staff ?? []).includes(staffUsername)
 
   const relevantTickets = useMemo(
-    () => tickets.filter(t => laborFee(t) > 0 && isMine(t)),
+    () => tickets.filter(t => t.status === 'Paid' && !t.commission_not_applicable && laborFee(t) > 0 && isMine(t)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tickets, isTechnician, staffUsername],
   )
@@ -68,6 +68,22 @@ export default function EarningsPage() {
     })
     return [...seen].sort().reverse()
   }, [relevantTickets])
+
+  /** Paid jobs nobody's been assigned to yet — visible to everyone, not just "my jobs", since anyone could still be credited once Admin assigns it. */
+  const unassignedTickets = useMemo(
+    () => tickets.filter(t =>
+      t.status === 'Paid' && !t.commission_not_applicable && laborFee(t) > 0 &&
+      (t.technician_usernames ?? []).length === 0 && (t.assigned_staff ?? []).length === 0,
+    ),
+    [tickets],
+  )
+  const filteredUnassigned = useMemo(() => {
+    if (selectedMonth === 'all') return unassignedTickets
+    return unassignedTickets.filter(t => {
+      const d = new Date(t.created_at)
+      return !isNaN(d) && format(d, 'yyyy-MM') === selectedMonth
+    })
+  }, [unassignedTickets, selectedMonth])
 
   /** This job's commission, or null when Admin hasn't inputted it yet. */
   function myCommission(ticket) {
@@ -272,6 +288,51 @@ export default function EarningsPage() {
             </tfoot>
           </table>
 
+        </div>
+      )}
+
+      {/* ── Paid jobs with no commission given yet — visible to everyone, no "mine" filter ── */}
+      {filteredUnassigned.length > 0 && (
+        <div className="card overflow-hidden border-amber-200">
+          <div className="px-4 py-3 border-b border-amber-100 bg-amber-50/60 flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            <p className="text-xs font-sans font-semibold text-amber-700 uppercase tracking-wide">
+              Commission Not Yet Assigned
+            </p>
+          </div>
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col style={{ width: '20%' }} />
+              <col style={{ width: '50%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '15%' }} />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="px-4 py-2.5 text-left text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Ticket</th>
+                <th className="px-4 py-2.5 text-left text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Client / Unit</th>
+                <th className="px-4 py-2.5 text-left text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Date</th>
+                <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Labor Fee</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredUnassigned.map(t => (
+                <tr key={t.id} className="hover:bg-gray-50/70 transition-colors">
+                  <td className="px-4 py-3.5 font-mono text-xs font-semibold text-gray-500 truncate">
+                    {t.ticket_id}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <p className="text-xs font-sans font-semibold text-gray-800 truncate">{t.client_name}</p>
+                    <p className="text-xs font-body text-gray-400 truncate mt-0.5">{t.unit_brand} {t.unit_model}</p>
+                  </td>
+                  <td className="px-4 py-3.5 text-xs font-body text-gray-500">
+                    {format(new Date(t.created_at), 'MMM d, yyyy')}
+                  </td>
+                  <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-700">{PESO(laborFee(t))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
