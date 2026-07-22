@@ -130,6 +130,7 @@ export default function SubmitTicketPage() {
         status:               'Pending',
         labor_items:          [],
         quotation_amount:     null,
+        terms_accepted_at:    new Date().toISOString(),
       }
       // createTicket generates the ticket_id + tracking_token and retries on a
       // concurrent ticket_id collision (see lib/utils.js).
@@ -175,6 +176,7 @@ export default function SubmitTicketPage() {
         status:               'Pending',
         labor_items:          [],
         quotation_amount:     null,
+        terms_accepted_at:    new Date().toISOString(),
       }
       const { data, error } = await createTicket(supabase, payload)
       if (error) throw error

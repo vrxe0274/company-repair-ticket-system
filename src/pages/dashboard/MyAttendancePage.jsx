@@ -9,12 +9,14 @@ import { supabase } from '../../lib/supabase'
 import { useRole } from '../../hooks/useRole.jsx'
 import { getShiftHours, isOutsideShift, DEFAULT_SHIFT } from '../../lib/shift'
 
-const MAX_MINUTES = 9 * 60
+// Sessions are not capped — durations reflect real elapsed time (matches
+// AttendancePage.jsx). This only scales the little progress bar visually.
+const BAR_REF_MINUTES = 9 * 60
 
 function sessionMins(loggedInAt, loggedOutAt) {
   if (!loggedOutAt) return null
   const ms = new Date(loggedOutAt) - new Date(loggedInAt)
-  return Math.min(Math.max(Math.floor(ms / 60000), 0), MAX_MINUTES)
+  return Math.max(Math.floor(ms / 60000), 0)
 }
 
 function fmtDuration(mins) {
@@ -71,7 +73,7 @@ function MonthCalendar({ monthDate, presentDays, offShiftDays, presentColor, rin
             >
               {date.getDate()}
               {present && offShiftDays.has(key) && (
-                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" title="All logins outside shift hours" />
+                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" title="At least one login outside shift hours" />
               )}
             </div>
           )
@@ -115,11 +117,10 @@ export default function MyAttendancePage() {
   const presentDays = new Set(logs.map(l => format(parseISO(l.logged_in_at), 'yyyy-MM-dd')))
   const daysPresent = presentDays.size
 
-  // Days where every login was outside shift hours (no in-shift login at all)
+  // Days with at least one off-shift login
   const dayShiftMap = logs.reduce((acc, l) => {
     const day = format(parseISO(l.logged_in_at), 'yyyy-MM-dd')
-    if (!acc[day]) acc[day] = true          // assume all-off-shift until proven otherwise
-    if (!isOutsideShift(l.logged_in_at, shift)) acc[day] = false
+    if (isOutsideShift(l.logged_in_at, shift)) acc[day] = true
     return acc
   }, {})
   const offShiftDays = new Set(Object.entries(dayShiftMap).filter(([, v]) => v).map(([d]) => d))
@@ -254,8 +255,7 @@ export default function MyAttendancePage() {
                     {logs.map(log => {
                       const mins    = sessionMins(log.logged_in_at, log.logged_out_at)
                       const dur     = fmtDuration(mins)
-                      const capped  = mins !== null && mins >= MAX_MINUTES
-                      const pct     = mins !== null ? Math.min((mins / MAX_MINUTES) * 100, 100) : 0
+                      const pct     = mins !== null ? Math.min((mins / BAR_REF_MINUTES) * 100, 100) : 0
                       const isToday = format(parseISO(log.logged_in_at), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
 
                       return (
@@ -299,13 +299,12 @@ export default function MyAttendancePage() {
                           <td className="px-5 py-3.5">
                             {dur ? (
                               <div className="flex flex-col gap-1.5">
-                                <span className={`font-mono text-xs tabular-nums font-semibold ${capped ? 'text-brand-600' : 'text-gray-700'}`}>
+                                <span className="font-mono text-xs tabular-nums font-semibold text-gray-700">
                                   {dur}
-                                  {capped && <span className="ml-1 text-[9px] font-sans font-bold text-brand-500 tracking-wider">MAX</span>}
                                 </span>
                                 <div className="h-1 w-16 bg-gray-100 rounded-full overflow-hidden">
                                   <div
-                                    className={`h-full rounded-full ${capped ? 'bg-brand-400' : palette.bar}`}
+                                    className={`h-full rounded-full ${palette.bar}`}
                                     style={{ width: `${pct}%` }}
                                   />
                                 </div>

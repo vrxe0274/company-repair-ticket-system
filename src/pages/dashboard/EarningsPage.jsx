@@ -263,7 +263,7 @@ export default function EarningsPage() {
                       <p className="text-xs font-body text-gray-400 truncate mt-0.5">{t.unit_brand} {t.unit_model}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs font-body text-gray-500">
-                      {format(new Date(t.created_at), 'MMM d, yyyy')}
+                      {t.created_at ? format(new Date(t.created_at), 'MMM d, yyyy') : '—'}
                     </td>
                     <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-700">{PESO(fee)}</td>
                     <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-gray-900">
@@ -326,7 +326,7 @@ export default function EarningsPage() {
                     <p className="text-xs font-body text-gray-400 truncate mt-0.5">{t.unit_brand} {t.unit_model}</p>
                   </td>
                   <td className="px-4 py-3.5 text-xs font-body text-gray-500">
-                    {format(new Date(t.created_at), 'MMM d, yyyy')}
+                    {t.created_at ? format(new Date(t.created_at), 'MMM d, yyyy') : '—'}
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-700">{PESO(laborFee(t))}</td>
                 </tr>

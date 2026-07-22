@@ -28,3 +28,7 @@ export const STEP_REQUIRED = {
 }
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// PH mobile number, e.g. "09XX XXX XXXX" or "+639XX XXX XXXX" — spaces/dashes
+// allowed and stripped before testing.
+export const PHONE_REGEX = /^(\+63|0)9\d{9}$/

@@ -58,8 +58,11 @@ self.addEventListener('push', (event) => {
     icon:  data.icon  || DEFAULT_ICON,
     badge: data.badge || DEFAULT_BADGE,
     data:  { url: data.url || '/' },
-    // Collapse repeated pushes for the same ticket/url into one notification
-    tag:   data.tag || data.url || 'vrxe-global',
+    // Collapse repeated pushes for the same ticket/url into one notification.
+    // Only fall back to a shared tag when there's truly nothing to group by
+    // (no explicit tag AND no specific url) — otherwise two unrelated pushes
+    // that both happen to omit url would silently replace one another.
+    tag:   data.tag || data.url || `vrxe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   }
 
   event.waitUntil(self.registration.showNotification(title, options))

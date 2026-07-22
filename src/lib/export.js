@@ -95,8 +95,9 @@ const COMMISSION_COLOR = { bg: 'FF7B5E08', fg: 'FFFFFFFF' }
 
 /**
  * Build commission column definitions from the full staff account list.
- * One column per staff member (every staff earns commission on every repair)
- * plus one generic technician commission column.
+ * One column per staff member (populated only for repairs that staff member
+ * was actually assigned to, per ticket.assigned_staff) plus one generic
+ * technician commission column.
  *
  * @param {Array<{username: string, name: string}>} staffAccounts
  */
@@ -114,6 +115,7 @@ function buildCommissionColumns(staffAccounts) {
     width:  24,
     isCommission: true,
     staffName: name,
+    staffUsername: username,
   }))
 
   // Fallback: if no staff accounts exist yet, keep a generic staff column
@@ -124,6 +126,7 @@ function buildCommissionColumns(staffAccounts) {
       width:  24,
       isCommission: true,
       staffName: null,
+      staffUsername: null,
     })
   }
 
@@ -163,14 +166,25 @@ function buildSheet(sheet, tickets, commCols) {
       fgColor: { argb: isEven ? 'FFFFF8E1' : 'FFFFF3CC' },
     }
 
-    const fee        = laborFee(t)
+    const fee            = laborFee(t)
+    const techAssigned   = (t.technician_usernames ?? []).length > 0
+    const assignedStaff  = t.assigned_staff ?? []
     const commValues = {}
     commCols.forEach(col => {
       if (col.key === '_tech_commission') {
-        commValues[col.key] = fee > 0 ? technicianCommission(fee) : ''
+        const val = fee > 0 && techAssigned ? technicianCommission(fee, t.tech_commission_pct) : null
+        commValues[col.key] = val ?? ''
       } else {
-        // Every staff member earns commission on every repair
-        commValues[col.key] = fee > 0 ? staffCommission(fee) : ''
+        // Only fill this staff member's column for repairs they were
+        // actually assigned to (or, for the generic fallback column with no
+        // known username, any repair with at least one staff assigned).
+        const isAssigned = col.staffUsername
+          ? assignedStaff.includes(col.staffUsername)
+          : assignedStaff.length > 0
+        const val = fee > 0 && isAssigned
+          ? staffCommission(fee, t.tech_commission_pct, t.staff_commission_pct)
+          : null
+        commValues[col.key] = val ?? ''
       }
     })
 

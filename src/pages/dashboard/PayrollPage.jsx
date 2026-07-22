@@ -7,7 +7,7 @@ import { laborFee, technicianCommission, staffCommission } from '../../lib/commi
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const COLUMNS = [
-  'id', 'ticket_id', 'created_at', 'labor_items',
+  'id', 'ticket_id', 'created_at', 'status', 'commission_not_applicable', 'labor_items',
   'technician_usernames', 'assigned_staff', 'tech_commission_pct', 'staff_commission_pct',
 ].join(', ')
 
@@ -80,7 +80,10 @@ export default function PayrollPage() {
     return [...seen].sort().reverse()
   }, [tickets])
 
-  const relevantTickets = useMemo(() => tickets.filter(t => laborFee(t) > 0), [tickets])
+  const relevantTickets = useMemo(
+    () => tickets.filter(t => t.status === 'Paid' && !t.commission_not_applicable && laborFee(t) > 0),
+    [tickets],
+  )
 
   const filteredTickets = useMemo(() => {
     if (selectedMonth === 'all') return relevantTickets

@@ -1,4 +1,4 @@
-import { STEP_REQUIRED, EMAIL_REGEX } from './constants'
+import { STEP_REQUIRED, EMAIL_REGEX, PHONE_REGEX } from './constants'
 
 /**
  * Validate one step of the ticket submission form.
@@ -30,6 +30,10 @@ export function validateStep(form, s) {
 
   if (s === 2 && form.email && !EMAIL_REGEX.test(form.email)) {
     errs.email = 'Invalid email'
+  }
+
+  if (s === 2 && form.contact_number && !PHONE_REGEX.test(form.contact_number.replace(/[\s-]/g, ''))) {
+    errs.contact_number = 'Enter a valid PH mobile number, e.g. 09XX XXX XXXX'
   }
 
   return errs

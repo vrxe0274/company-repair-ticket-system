@@ -142,7 +142,12 @@ CREATE TABLE tickets (
   commission_not_applicable BOOLEAN NOT NULL DEFAULT false,
 
   -- Public tracking (unique token per ticket)
-  tracking_token TEXT UNIQUE NOT NULL
+  tracking_token TEXT UNIQUE NOT NULL,
+
+  -- When the submitting client accepted the Terms & Conditions (step 1 of the
+  -- public wizard). NULL would mean a ticket was created without ever going
+  -- through acceptance, which the wizard should never allow.
+  terms_accepted_at TIMESTAMPTZ
 );
 
 ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
@@ -222,6 +227,9 @@ ALTER TABLE tickets
 
 ALTER TABLE tickets
   ADD COLUMN IF NOT EXISTS payment_mode TEXT;
+
+ALTER TABLE tickets
+  ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_payment_mode_check;
 ALTER TABLE tickets ADD CONSTRAINT tickets_payment_mode_check
   CHECK (payment_mode IS NULL OR payment_mode IN ('Cash', 'GCash', 'Bank Transfer'));

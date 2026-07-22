@@ -123,8 +123,8 @@ export function downloadTicketPDF(ticket) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   text(doc, [180, 180, 200])
-  doc.text(`Submitted: ${format(new Date(ticket.created_at), 'MMM d, yyyy')}`, PW - M, 21, { align: 'right' })
-  doc.text(`Updated:   ${format(new Date(ticket.updated_at), 'MMM d, yyyy')}`, PW - M, 27, { align: 'right' })
+  doc.text(`Submitted: ${ticket.created_at ? format(new Date(ticket.created_at), 'MMM d, yyyy') : '—'}`, PW - M, 21, { align: 'right' })
+  doc.text(`Updated:   ${ticket.updated_at ? format(new Date(ticket.updated_at), 'MMM d, yyyy') : '—'}`, PW - M, 27, { align: 'right' })
 
   // Status pill (right-aligned)
   const statusLabel = ticket.status.toUpperCase()
@@ -202,7 +202,7 @@ export function downloadTicketPDF(ticket) {
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
   text(doc, C.darkMid)
-  const issueLines = doc.splitTextToSize(ticket.issue_description, CW - 4)
+  const issueLines = doc.splitTextToSize(ticket.issue_description || '—', CW - 4)
   doc.text(issueLines, lx, y)
   y += issueLines.length * 5 + 6
 

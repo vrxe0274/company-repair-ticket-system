@@ -148,10 +148,15 @@ export async function createSession(supabase: any, id: SessionIdentity): Promise
   // when the account logs in on a new device (desktop). Shared roles (no
   // username, e.g. Admin) are left alone so concurrent shared logins still work.
   if (username) {
+    // Scoped by role too — staff_accounts and technician_accounts are separate
+    // tables that can independently contain the same username string, and
+    // matching on username alone would revoke/close an unrelated account's
+    // session and attendance row just because it happens to share the string.
     const { data: prior } = await supabase
       .from('sessions')
       .select('token, attendance_log_id')
       .eq('username', username)
+      .eq('role', role)
     if (prior?.length) {
       const openIds = prior.map((p: any) => p.attendance_log_id).filter(Boolean)
       if (openIds.length) {
@@ -161,7 +166,7 @@ export async function createSession(supabase: any, id: SessionIdentity): Promise
           .in('id', openIds)
           .is('logged_out_at', null)
       }
-      await supabase.from('sessions').delete().eq('username', username)
+      await supabase.from('sessions').delete().eq('username', username).eq('role', role)
     }
   }
 

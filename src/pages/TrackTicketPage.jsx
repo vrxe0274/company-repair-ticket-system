@@ -231,7 +231,7 @@ export default function TrackTicketPage() {
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1.5 gap-0.5">
                   <p className="text-xs font-body text-gray-400">
-                    Submitted {format(new Date(ticket.created_at), 'MMM d, yyyy · h:mm a')}
+                    Submitted {ticket.created_at ? format(new Date(ticket.created_at), 'MMM d, yyyy · h:mm a') : '—'}
                   </p>
                   {ticket.receipt_number && (
                     <>

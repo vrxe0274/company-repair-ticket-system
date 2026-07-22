@@ -120,7 +120,14 @@ export function useTicket(id) {
     setFinalPrice(data.final_price ?? data.quotation_amount ?? '')
     setCommissionTech(data.technician_usernames ?? [])
     setCommissionStaff(data.assigned_staff ?? [])
-    setCommissionTechPct(data.tech_commission_pct != null ? (data.tech_commission_pct * 100).toString() : '')
+    // Only display a tech pct when a technician is actually assigned — a
+    // staff-only ticket stores 0 here (nothing for a nonexistent technician
+    // to deduct), which must read back as blank, not "0%ed by Admin".
+    setCommissionTechPct(
+      (data.technician_usernames ?? []).length && data.tech_commission_pct != null
+        ? (data.tech_commission_pct * 100).toString()
+        : ''
+    )
     setCommissionStaffPct(data.staff_commission_pct != null ? (data.staff_commission_pct * 100).toString() : '')
     setCommissionNotApplicable(!!data.commission_not_applicable)
     setCommissionError('')
@@ -153,7 +160,7 @@ export function useTicket(id) {
     // Gate 3: final price + payment proof must be saved before marking paid
     if (newStatus === 'Paid' && ticket.status === 'Done') {
       const errs = []
-      if (ticket.final_price == null || ticket.final_price <= 0) {
+      if (ticket.final_price == null || ticket.final_price < 0) {
         errs.push('A saved final price is required before marking as paid. Fill in the final price in the Quotation & Payment tab and save.')
       }
       if (!ticket.payment_proof_url) {
@@ -202,7 +209,18 @@ export function useTicket(id) {
     setTransitionErrors([])
     setStatusUpdating(true)
     const patch = { status: ticket.previous_status, previous_status: null }
-    if (ticket.status === 'Paid') patch.paid_at = null
+    if (ticket.status === 'Paid') {
+      // Stepping back out of Paid invalidates whatever commission was
+      // resolved against the old payment — clear it so re-marking Paid later
+      // (possibly against a different final price) forces a fresh review
+      // instead of silently reapplying stale assignment/percentages.
+      patch.paid_at = null
+      patch.technician_usernames = []
+      patch.assigned_staff = []
+      patch.tech_commission_pct = null
+      patch.staff_commission_pct = null
+      patch.commission_not_applicable = false
+    }
     const { data, error } = await supabase
       .from('tickets').update(patch).eq('id', id).select(TICKET_COLUMNS).single()
     if (error) {
@@ -313,7 +331,10 @@ export function useTicket(id) {
     const patch = {
       technician_usernames: commissionTech,
       assigned_staff:       commissionStaff,
-      tech_commission_pct:  commissionTech.length  && techPct  != null ? techPct  / 100 : null,
+      // No technician assigned means there's nothing for a technician to
+      // deduct — store 0 (not null) so staffCommission (net-of-technician)
+      // can resolve once staffPct is set, instead of staying pending forever.
+      tech_commission_pct:  commissionTech.length === 0 ? 0 : (techPct != null ? techPct / 100 : null),
       staff_commission_pct: commissionStaff.length && staffPct != null ? staffPct / 100 : null,
       commission_not_applicable: notApplicable,
     }

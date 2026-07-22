@@ -325,10 +325,10 @@ function EmployeeCalendarModal({ target, shift, onClose }) {
     : { icon: 'text-accent-600 bg-accent-50',   present: 'bg-accent-100 text-accent-700',   ring: 'ring-accent-400',   bar: 'bg-accent-400',   stat: 'text-accent-700' }
 
   const presentDays  = new Set(logs.map(l => format(parseISO(l.logged_in_at), 'yyyy-MM-dd')))
+  // Days with at least one off-shift login (matches anyOffShift below)
   const dayShiftMap  = logs.reduce((acc, l) => {
     const day = format(parseISO(l.logged_in_at), 'yyyy-MM-dd')
-    if (acc[day] === undefined) acc[day] = true
-    if (!isOutsideShift(l.logged_in_at, shift)) acc[day] = false
+    if (isOutsideShift(l.logged_in_at, shift)) acc[day] = true
     return acc
   }, {})
   const offShiftDays = new Set(Object.entries(dayShiftMap).filter(([, v]) => v).map(([d]) => d))
