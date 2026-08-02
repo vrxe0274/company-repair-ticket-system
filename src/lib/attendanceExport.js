@@ -6,6 +6,10 @@ import { supabase } from './supabase'
 import {
   isOutsideShift, atHour, minutesLate, shiftHoursCap, LUNCH_HOURS,
 } from './shift'
+import {
+  computeRegularSalary, resolveDailyRate, getDailyRates, personKey,
+} from './salary'
+import { autoSize, fitToScreenWidth } from './xlsxStyle'
 
 /**
  * @file attendanceExport.js
@@ -45,6 +49,17 @@ import {
  *                       last session never closed has no Hours (blank).
  *   - Minutes Late    = minutes between shift start and the first login
  *                       (0 when on-time/early, blank on absent days).
+ *   - Pay columns     = Daily Rate / Late Deduction / Undertime Mins /
+ *                       Undertime Deduction / Daily Pay, from lib/salary.js.
+ *                       These are the REGULAR-salary branch only; commission
+ *                       is a separate branch and is never added in here (see
+ *                       salary.js's combinePay for the one place they meet).
+ *                       Pay is docked per late/undertime minute off the daily
+ *                       rate rather than derived from the Hours column, but the
+ *                       two agree by construction: Hours = 8 − (late +
+ *                       undertime)/60 over the same clamped window. Blank
+ *                       whenever pay is unknown — absent days, and days whose
+ *                       last session never closed — never 0.00.
  *
  * Time In / Time Out are written as real Excel date+time serials (not just a
  * time-of-day fraction — the date is kept so a live formula can tell an
@@ -96,8 +111,6 @@ const WEEK_BAND = ['FFFFFFFF', 'FFF2F2F2']
 
 /** Monday-anchored week key so day rows group by calendar week (Mon–Fri). */
 const weekKey = dateObj => format(startOfWeek(dateObj, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-
-const personKey = l => (l.username ?? l.name ?? '').toLowerCase().trim()
 
 /**
  * Live username → display-name lookup, keyed by role. Lets exports/pages show
@@ -155,7 +168,7 @@ function windowedHours(firstIn, lastOut, shiftStart, dayEnd, cap) {
  * Reduce raw event rows into per-employee, per-day aggregates plus the set of
  * company operating days.
  */
-function aggregate(logs, shift, liveNames = null) {
+function aggregate(logs, shift, liveNames = null, rates = {}) {
   const cap = shiftHoursCap(shift) // invariant across every row for this export
   const operatingDays = new Set()
   const people = new Map() // key -> { name, username, role, days: Map<dayKey, log[]> }
@@ -193,6 +206,9 @@ function aggregate(logs, shift, liveNames = null) {
 
   for (const p of sortedPeople) {
     let present = 0, late = 0, absent = 0, offShift = 0, totalHours = 0
+    // Regular-salary tallies (commission is a separate branch — not summed here).
+    let regularPay = 0, totalLateMins = 0, totalUndertimeMins = 0
+    const dailyRate = resolveDailyRate(p, rates)
 
     for (const dayKey of sortedDays) {
       const dayLogs = p.days.get(dayKey)
@@ -204,6 +220,7 @@ function aggregate(logs, shift, liveNames = null) {
           name: p.name, username: p.username, role: p.role,
           date: dayKey, day: format(dateObj, 'EEE'), week: weekKey(dateObj),
           status: 'Absent', timeIn: '', timeOut: '', hours: '', minsLate: '',
+          dailyRate: '', lateDeduction: '', undertimeMins: '', undertimeDeduction: '', dailyPay: '',
         })
         continue
       }
@@ -212,7 +229,11 @@ function aggregate(logs, shift, liveNames = null) {
       const day = [...dayLogs].sort((a, b) => parseISO(a.logged_in_at) - parseISO(b.logged_in_at))
       const firstIn = parseISO(day[0].logged_in_at)
       const closed  = day.filter(l => l.logged_out_at)
-      const lastOut = closed.length
+      // The day's end is known only if its LAST session closed — same rule as
+      // salary.js's groupWorkDays. Falling back to an earlier session's logout
+      // reads a lunch break as an early departure and charges hours of phantom
+      // undertime against someone who is in fact still clocked in.
+      const lastOut = day[day.length - 1].logged_out_at
         ? closed.reduce((m, l) => (parseISO(l.logged_out_at) > m ? parseISO(l.logged_out_at) : m), parseISO(closed[0].logged_out_at))
         : null
 
@@ -222,10 +243,24 @@ function aggregate(logs, shift, liveNames = null) {
       const minsLate = minutesLate(firstIn, shiftStart)
       const isOff   = day.some(l => isOutsideShift(l.logged_in_at, shift))
 
+      // Regular-salary branch — null while the day's last session is unclosed,
+      // in which case every pay cell stays blank rather than reading as ₱0.00.
+      const pay = computeRegularSalary(dailyRate, firstIn, lastOut, shift)
+
       present++
       if (minsLate > 0) late++ // summary tally only — lateness is not a status
       if (isOff) offShift++
       if (hours != null) totalHours += hours
+      // Lateness is known from the clock-in alone, so it is tallied on every
+      // present day — including one that never closed, where pay is unknown.
+      // Gating it on `pay` would make the Late and Late Mins columns of the
+      // same summary row contradict each other, and would stop Late Mins from
+      // totalling its own detail sheet's Minutes Late column.
+      totalLateMins += minsLate
+      if (pay) {
+        regularPay         += pay.dailyPay
+        totalUndertimeMins += pay.undertimeMinutes
+      }
 
       dailyRows.push({
         name: p.name, username: p.username, role: p.role,
@@ -239,6 +274,11 @@ function aggregate(logs, shift, liveNames = null) {
         hours: hours ?? '',
         minsLate,
         offShift: isOff,
+        dailyRate:          pay ? pay.dailyRate          : '',
+        lateDeduction:      pay ? pay.lateDeduction      : '',
+        undertimeMins:      pay ? pay.undertimeMinutes   : '',
+        undertimeDeduction: pay ? pay.undertimeDeduction : '',
+        dailyPay:           pay ? pay.dailyPay           : '',
       })
     }
 
@@ -248,45 +288,14 @@ function aggregate(logs, shift, liveNames = null) {
       role: p.role,
       present, late, absent, offShift,
       totalHours: Number(totalHours.toFixed(2)),
+      dailyRate,
+      totalLateMins,
+      totalUndertimeMins,
+      regularPay: Number(regularPay.toFixed(2)),
     })
   }
 
   return { dailyRows, summaryRows, operatingDayCount: sortedDays.length }
-}
-
-/** Auto-size columns from content, clamped to sane min/max.
- *  Title rows (merged across every column) are skipped so their long text
- *  doesn't inflate column A — pass their row numbers in skipRows. */
-function autoSize(sheet, skipRows = new Set(), min = 6, max = 30) {
-  sheet.columns.forEach(col => {
-    let longest = 0
-    col.eachCell({ includeEmpty: true }, (cell, rowNum) => {
-      if (skipRows.has(rowNum)) return
-      const raw = cell.value
-      let v = ''
-      if (raw != null) {
-        if (typeof raw === 'object') v = raw.richText ? '' : String(raw.result ?? '') // formula cell → measure its cached result
-        else if (typeof raw === 'number') v = String(Math.round(raw * 100) / 100)     // time serial ≈ rendered "hh:mm AM" width
-        else v = String(raw)
-      }
-      if (v.length > longest) longest = v.length
-    })
-    col.width = Math.min(Math.max(longest + 2, min), max)
-  })
-}
-
-/**
- * Scale every column proportionally so the sheet fills a 1080p screen
- * (~1920 px). Excel renders a column at roughly width × 7 + 5 px, so the
- * width units to distribute are (1920 − cols × 5) / 7.
- */
-function fitToScreenWidth(sheet, screenPx = 1920) {
-  const cols = sheet.columns
-  const target = (screenPx - cols.length * 5) / 7
-  const current = cols.reduce((s, c) => s + (c.width ?? 9), 0)
-  if (current <= 0) return
-  const factor = target / current
-  cols.forEach(c => { c.width = Math.round((c.width ?? 9) * factor * 100) / 100 })
 }
 
 /**
@@ -305,9 +314,17 @@ function fitToScreenWidth(sheet, screenPx = 1920) {
  * @param {Date}   monthDate  any date within the target month
  * @returns {ExcelJS.Workbook}
  */
-export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null) {
-  const { dailyRows, summaryRows, operatingDayCount } = aggregate(logs, shift, liveNames)
+export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null, rates = {}) {
+  return buildFromAggregate(aggregate(logs, shift, liveNames, rates), shift, monthDate)
+}
 
+/**
+ * The rendering half, split from aggregation so a caller that also needs the
+ * aggregated rows (to report what was written) computes them once instead of
+ * running the whole pass a second time — each pass now costs a resolveDailyRate
+ * per person plus a computeRegularSalary per person-day.
+ */
+function buildFromAggregate({ dailyRows, summaryRows, operatingDayCount }, shift, monthDate) {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'VRXE Repair Services'
   workbook.created = new Date()
@@ -326,6 +343,12 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
     { header: 'Time Out',     key: 'timeOut',  width: 11 },
     { header: 'Hours',        key: 'hours',    width: 9  },
     { header: 'Minutes Late', key: 'minsLate', width: 13 },
+    // ── Regular-salary columns (appended; the columns above are unchanged) ──
+    { header: 'Daily Rate',          key: 'dailyRate',          width: 12 },
+    { header: 'Late Deduction',      key: 'lateDeduction',      width: 14 },
+    { header: 'Undertime Mins',      key: 'undertimeMins',      width: 14 },
+    { header: 'Undertime Deduction', key: 'undertimeDeduction', width: 18 },
+    { header: 'Daily Pay',           key: 'dailyPay',           width: 12 },
   ]
   sheet.columns = COLUMNS
 
@@ -345,6 +368,32 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
     `MIN(${HOURS_CAP},MAX(0,(MIN(F${n},${dayAnchor(n, shift.end)})-MAX(E${n},${dayAnchor(n, shift.start)}))*24-${LUNCH_HOURS})),"")`
   const minsLateFormula = n =>
     `IF(ISNUMBER(E${n}),MAX(0,ROUND((E${n}-${dayAnchor(n, shift.start)})*1440,0)),"")`
+
+  // ── Regular-salary formulas (columns I–M) ───────────────────────────────────
+  // Same live-formula treatment as Hours/Minutes Late: a hand-corrected time in
+  // E/F must flow through to pay, otherwise a fixed timestamp leaves the money
+  // column silently stale. Deductions are left unrounded in the formula (numFmt
+  // renders 2 dp) so Daily Pay = rate − late − undertime matches the JS figure
+  // in salary.js to the centavo rather than drifting on pre-rounded parts.
+  //   I = Daily Rate, H = Minutes Late, K = Undertime Mins.
+  // A shift window no wider than the unpaid lunch has no payable minutes to
+  // divide by. computeRegularSalary refuses to price that day at all, so the
+  // formulas must stay blank too rather than emit a /0 the JS side disagrees
+  // with — BLANK_FORMULA keeps the columns present but empty.
+  const PAID_MINUTES = shiftHoursCap(shift) * 60
+  const BLANK_FORMULA = '""'
+  const lateDeductionFormula = n => PAID_MINUTES > 0
+    ? `IF(AND(ISNUMBER(H${n}),ISNUMBER(I${n})),H${n}*I${n}/${PAID_MINUTES},"")`
+    : BLANK_FORMULA
+  const undertimeMinsFormula = n => PAID_MINUTES > 0
+    ? `IF(AND(ISNUMBER(E${n}),ISNUMBER(F${n})),MAX(0,ROUND((${dayAnchor(n, shift.end)}-MIN(F${n},${dayAnchor(n, shift.end)}))*1440,0)),"")`
+    : BLANK_FORMULA
+  const undertimeDeductionFormula = n => PAID_MINUTES > 0
+    ? `IF(AND(ISNUMBER(K${n}),ISNUMBER(I${n})),K${n}*I${n}/${PAID_MINUTES},"")`
+    : BLANK_FORMULA
+  const dailyPayFormula = n => PAID_MINUTES > 0
+    ? `IF(AND(ISNUMBER(I${n}),ISNUMBER(J${n}),ISNUMBER(L${n})),MAX(0,I${n}-J${n}-L${n}),"")`
+    : BLANK_FORMULA
 
   // ── Row 1: title (merged across all columns) ────────────────────────────────
   sheet.mergeCells(1, 1, 1, COLUMNS.length)
@@ -401,6 +450,14 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
       timeOut: r.timeOut,
       hours: r.hours,
       minsLate: r.minsLate,
+      // The four pay columns are filled in below as formulas, but they must be
+      // present in the row NOW: eachCell only visits cells that already exist,
+      // so cells created afterwards would miss the borders and week banding.
+      dailyRate: r.dailyRate,
+      lateDeduction: '',
+      undertimeMins: '',
+      undertimeDeduction: '',
+      dailyPay: '',
     })
     if (isNewEmployee) {
       blockStart = row.number
@@ -456,17 +513,53 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
       lateCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LATE_FILL } }
       lateCell.font = { size: 10, name: 'Calibri', bold: true, color: { argb: LATE_FONT } }
     }
+
+    // ── Regular-salary cells ──
+    // Daily Rate is config, so it stays a plain number; everything downstream
+    // of it is a formula over it and the time cells. On days with no payable
+    // figure (absent, or an unclosed session) the rate is left blank too, which
+    // is what makes the guarded formulas below fall through to "".
+    const rateCell = row.getCell('dailyRate')
+    if (typeof r.dailyRate === 'number') rateCell.numFmt = '#,##0.00'
+    const payFormulas = [
+      ['lateDeduction',      lateDeductionFormula,      '#,##0.00', r.lateDeduction],
+      ['undertimeMins',      undertimeMinsFormula,      '0',        r.undertimeMins],
+      ['undertimeDeduction', undertimeDeductionFormula, '#,##0.00', r.undertimeDeduction],
+      ['dailyPay',           dailyPayFormula,           '#,##0.00', r.dailyPay],
+    ]
+    for (const [key, formulaFor, numFmt, cached] of payFormulas) {
+      const cell = row.getCell(key)
+      cell.value = typeof cached === 'number'
+        ? { formula: formulaFor(n), result: cached }
+        : { formula: formulaFor(n) }
+      cell.numFmt = numFmt
+    }
+    const dailyPayCell = row.getCell('dailyPay')
+    dailyPayCell.font = { size: 10, name: 'Calibri', bold: true }
+    // A deduction is money the employee lost that day — flag it like lateness.
+    for (const key of ['lateDeduction', 'undertimeDeduction']) {
+      if (typeof r[key] === 'number' && r[key] > 0) {
+        const cell = row.getCell(key)
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LATE_FILL } }
+        cell.font = { size: 10, name: 'Calibri', bold: true, color: { argb: LATE_FONT } }
+      }
+    }
   })
   mergeEmployeeBlock(sheet.rowCount) // close the final employee's block
 
-  autoSize(sheet, new Set([1]))
+  autoSize(sheet)
   fitToScreenWidth(sheet) // stretch proportionally to fill a 1080p screen
 
   // ── Summary sheet (per employee) ─────────────────────────────────────────────
   const summarySheet = workbook.addWorksheet('Summary', {
     views: [{ state: 'frozen', ySplit: 2 }],
   })
-  const SUMMARY_COLUMNS = ['Employee', 'Present', 'Late', 'Absent', 'Off-shift', 'Total Hours']
+  const SUMMARY_COLUMNS = [
+    'Employee', 'Present', 'Late', 'Absent', 'Off-shift', 'Total Hours',
+    // ── Regular-salary columns (appended; the columns above are unchanged) ──
+    'Daily Rate', 'Late Mins', 'Undertime Mins', 'Regular Pay',
+  ]
+  const CURRENCY_SUMMARY_COLS = new Set([7, 10]) // Daily Rate, Regular Pay
 
   summarySheet.mergeCells(1, 1, 1, SUMMARY_COLUMNS.length)
   const sumTitle = summarySheet.getCell(1, 1)
@@ -488,20 +581,26 @@ export function buildAttendanceWorkbook(logs, shift, monthDate, liveNames = null
   summaryRows.forEach(s => {
     const row = summarySheet.addRow([
       s.name, s.present, s.late, s.absent, s.offShift, s.totalHours,
+      s.dailyRate, s.totalLateMins, s.totalUndertimeMins, s.regularPay,
     ])
     row.eachCell({ includeEmpty: true }, (cell, colNum) => {
       cell.font = { size: 10, name: 'Calibri' }
       cell.alignment = { vertical: 'middle', horizontal: colNum === 1 ? 'left' : 'center' }
       cell.border = ALL_BORDERS
+      if (CURRENCY_SUMMARY_COLS.has(colNum) && typeof cell.value === 'number') cell.numFmt = '#,##0.00'
     })
-    const totalCell = row.getCell(SUMMARY_COLUMNS.length)
-    if (typeof totalCell.value === 'number') {
-      totalCell.numFmt = '0.00'
-      totalCell.font = { size: 10, name: 'Calibri', bold: true }
+    const hoursCell = row.getCell(6)
+    if (typeof hoursCell.value === 'number') {
+      hoursCell.numFmt = '0.00'
+      hoursCell.font = { size: 10, name: 'Calibri', bold: true }
+    }
+    const regularPayCell = row.getCell(SUMMARY_COLUMNS.length)
+    if (typeof regularPayCell.value === 'number') {
+      regularPayCell.font = { size: 10, name: 'Calibri', bold: true }
     }
   })
 
-  autoSize(summarySheet, new Set([1]))
+  autoSize(summarySheet)
   fitToScreenWidth(summarySheet)
   return workbook
 }
@@ -527,14 +626,24 @@ export async function exportAttendanceMonth(monthDate, shift) {
 
   if (error) throw new Error('Could not load attendance data. Please try again.')
 
-  // Live account names so renamed employees export under their CURRENT name,
-  // not the snapshot stored on each log row. Non-fatal — falls back to snapshots.
-  let liveNames = null
-  try { liveNames = await fetchLiveNames() } catch { /* snapshot fallback */ }
+  // Two reads issued together rather than costing a round trip each:
+  //   - live account names, so renamed employees export under their CURRENT
+  //     name and not the snapshot stored on each log row. Best-effort: a
+  //     failure just falls back to the row snapshots.
+  //   - daily rates for the regular-salary columns. NOT best-effort: an empty
+  //     map is what tells resolveDailyRate "Admin has never saved rates", so a
+  //     swallowed failure would price every day at the first-run seed and hand
+  //     out a sheet of money nobody configured. Fail the export instead.
+  const [liveNames, rates] = await Promise.all([
+    fetchLiveNames().then(v => v, () => null),
+    getDailyRates(),
+  ])
 
-  const logs = data ?? []
-  const workbook = buildAttendanceWorkbook(logs, shift, monthDate, liveNames)
-  const stats = aggregate(logs, shift, liveNames)
+  const logs  = data ?? []
+  // Aggregate once and render from the result: the counts reported back are
+  // then necessarily the same rows the workbook was built from.
+  const stats = aggregate(logs, shift, liveNames, rates)
+  const workbook = buildFromAggregate(stats, shift, monthDate)
 
   // ── Download ────────────────────────────────────────────────────────────────
   const buffer = await workbook.xlsx.writeBuffer()

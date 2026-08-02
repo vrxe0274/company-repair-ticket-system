@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { TrendingUp, Calendar, Wrench, Shield, ChevronDown, Check, Clock, AlertTriangle } from 'lucide-react'
 import { supabase }            from '../../lib/supabase'
 import { useRole }             from '../../hooks/useRole.jsx'
-import { laborFee, technicianCommission, staffCommission } from '../../lib/commission'
+import { laborFee, payeeJobs } from '../../lib/commission'
 
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -41,33 +41,35 @@ export default function EarningsPage() {
     load()
   }, [])
 
-  /** Only jobs actually assigned to me — not every commissionable ticket. */
-  const isMine = t => isTechnician
-    ? (t.technician_usernames ?? []).includes(staffUsername)
-    : (t.assigned_staff ?? []).includes(staffUsername)
+  /**
+   * Only jobs actually assigned to me, with each repair's own rate and cut.
+   * Shares commission.js's payeeJobs with the Admin Commission page and the
+   * payroll export, so the same ticket can never show one cut here and a
+   * different one there.
+   */
+  const myJobs = useMemo(() => {
+    const commissionable = tickets.filter(
+      t => t.status === 'Paid' && !t.commission_not_applicable && laborFee(t) > 0,
+    )
+    return payeeJobs(commissionable, isTechnician ? 'Technician' : 'Staff', staffUsername)
+  }, [tickets, isTechnician, staffUsername])
 
-  const relevantTickets = useMemo(
-    () => tickets.filter(t => t.status === 'Paid' && !t.commission_not_applicable && laborFee(t) > 0 && isMine(t)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickets, isTechnician, staffUsername],
-  )
-
-  const filteredTickets = useMemo(() => {
-    if (selectedMonth === 'all') return relevantTickets
-    return relevantTickets.filter(t => {
-      const d = new Date(t.created_at)
+  const filteredJobs = useMemo(() => {
+    if (selectedMonth === 'all') return myJobs
+    return myJobs.filter(({ ticket }) => {
+      const d = new Date(ticket.created_at)
       return !isNaN(d) && format(d, 'yyyy-MM') === selectedMonth
     })
-  }, [relevantTickets, selectedMonth])
+  }, [myJobs, selectedMonth])
 
   const monthOptions = useMemo(() => {
     const seen = new Set()
-    relevantTickets.forEach(t => {
-      const d = new Date(t.created_at)
+    myJobs.forEach(({ ticket }) => {
+      const d = new Date(ticket.created_at)
       if (!isNaN(d)) seen.add(format(d, 'yyyy-MM'))
     })
     return [...seen].sort().reverse()
-  }, [relevantTickets])
+  }, [myJobs])
 
   /** Paid jobs nobody's been assigned to yet — visible to everyone, not just "my jobs", since anyone could still be credited once Admin assigns it. */
   const unassignedTickets = useMemo(
@@ -85,23 +87,13 @@ export default function EarningsPage() {
     })
   }, [unassignedTickets, selectedMonth])
 
-  /** This job's commission, or null when Admin hasn't inputted it yet. */
-  function myCommission(ticket) {
-    const fee = laborFee(ticket)
-    return isTechnician
-      ? technicianCommission(fee, ticket.tech_commission_pct)
-      : staffCommission(fee, ticket.tech_commission_pct, ticket.staff_commission_pct)
-  }
-
   const totalCommission = useMemo(
-    () => filteredTickets.reduce((sum, t) => sum + (myCommission(t) ?? 0), 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredTickets],
+    () => filteredJobs.reduce((sum, j) => sum + (j.commission ?? 0), 0),
+    [filteredJobs],
   )
   const pendingCount = useMemo(
-    () => filteredTickets.filter(t => myCommission(t) == null).length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredTickets],
+    () => filteredJobs.filter(j => j.commission == null).length,
+    [filteredJobs],
   )
 
   const monthLabel = selectedMonth === 'all'
@@ -181,7 +173,7 @@ export default function EarningsPage() {
               {PESO(totalCommission)}
             </p>
             <p className="text-brand-300 text-sm font-body mt-3">
-              {filteredTickets.length} job{filteredTickets.length !== 1 ? 's' : ''}
+              {filteredJobs.length} job{filteredJobs.length !== 1 ? 's' : ''}
               {pendingCount > 0 && (
                 <span className="text-amber-300"> · {pendingCount} not yet inputted</span>
               )}
@@ -213,7 +205,7 @@ export default function EarningsPage() {
       </div>
 
       {/* ── Job breakdown ── */}
-      {filteredTickets.length === 0 ? (
+      {filteredJobs.length === 0 ? (
         <div className="card p-12 flex flex-col items-center gap-3 text-center">
           <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-gray-300" />
@@ -250,9 +242,7 @@ export default function EarningsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTickets.map(t => {
-                const fee        = laborFee(t)
-                const commission = myCommission(t)
+              {filteredJobs.map(({ ticket: t, fee, commission }) => {
                 return (
                   <tr key={t.id} className="hover:bg-gray-50/70 transition-colors">
                     <td className="px-4 py-3.5 font-mono text-xs font-semibold text-gray-500 truncate">

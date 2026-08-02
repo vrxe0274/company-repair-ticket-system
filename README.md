@@ -37,7 +37,7 @@ A full-stack repair ticket management system built for **VRXE Repair Services**.
 ### Admin-only tools
 - **Accounts** — create, rename, reset-password, and delete individual Staff and Technician accounts
 - **Analytics** — ticket volume and status/revenue breakdowns
-- **Payroll** — staff/technician commission earnings per period (technician earns a % of labor; staff earns a % of the remainder; rates are versioned in `app_settings`)
+- **Commission** — payroll across both pay branches, reported as three separate columns per employee: **Commission Pay** (technician earns a % of labor; staff earns a % of the remainder), **Regular Pay** (daily rate, docked per late/undertime minute against the 10 AM–7 PM shift), and **Total Pay**. Click a payee for a popup listing every job they're on with that repair's rate and cut, **All Jobs** for every job broken down per employee, or **Daily Rates** to set each employee's daily rate. **Export** prompts for a month, then downloads a 3-sheet `.xlsx` — Payroll totals, per-job commission breakdown, and per-day regular pay
 - **Earnings** — per-user commission view for Staff/Technician (Admin is blocked from this page)
 - **Commissions** — configurable technician/staff rates with effective-dated history, applied per the rate active when each ticket was created
 
@@ -109,7 +109,9 @@ Service Worker (Workbox)
 │   ├── lib/
 │   │   ├── adminDelete.js       # Admin flush via Edge Function
 │   │   ├── changePassword.js    # Self-service password change
-│   │   ├── commission.js        # Technician/staff commission math + rate history
+│   │   ├── commission.js        # Technician/staff commission math (pay branch 1)
+│   │   ├── salary.js            # Daily-rate regular salary math (pay branch 2)
+│   │   ├── commissionExport.js  # Monthly payroll XLSX (3 sheets)
 │   │   ├── constants.js         # Diagnosis fee, polling intervals
 │   │   ├── errors.js            # Error helpers (softFail, etc.)
 │   │   ├── export.js            # ExcelJS XLSX export
@@ -128,7 +130,7 @@ Service Worker (Workbox)
 │   │   │   ├── AccountsPage.jsx      # Admin: manage staff/tech accounts
 │   │   │   ├── AnalyticsPage.jsx     # Admin: ticket/revenue analytics
 │   │   │   ├── EarningsPage.jsx      # Staff/Tech: own commission
-│   │   │   ├── PayrollPage.jsx       # Admin: commission payroll
+│   │   │   ├── CommissionPage.jsx    # Admin: commission payroll
 │   │   │   ├── DashboardHome.jsx
 │   │   │   ├── DashboardLayout.jsx
 │   │   │   ├── NotificationsPage.jsx
@@ -243,7 +245,7 @@ npm run dev
 | `/` | Staff dashboard — Overview (auth required) |
 | `/tickets`, `/tickets/:id` | Ticket list & detail |
 | `/tasks`, `/notifications`, `/settings` | Tasks, notifications, settings |
-| `/analytics`, `/payroll`, `/accounts` | Admin-only |
+| `/analytics`, `/commission`, `/accounts` | Admin-only (`/payroll` redirects to `/commission`) |
 | `/earnings` | Staff / Technician only |
 
 ### 6. Deploy to Vercel

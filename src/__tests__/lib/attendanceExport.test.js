@@ -62,8 +62,13 @@ describe('buildAttendanceWorkbook — file validity & formatting', () => {
 
   it('has a bold, filled header row on row 2 without Username or Role columns', () => {
     const header = ws.getRow(2)
-    expect(header.values.slice(1)).toEqual(
+    // The attendance columns keep their original order and position — the
+    // regular-salary columns are appended after them, never interleaved.
+    expect(header.values.slice(1, 9)).toEqual(
       ['Employee', 'Date', 'Day', 'Status', 'Time In', 'Time Out', 'Hours', 'Minutes Late']
+    )
+    expect(header.values.slice(9)).toEqual(
+      ['Daily Rate', 'Late Deduction', 'Undertime Mins', 'Undertime Deduction', 'Daily Pay']
     )
     expect(header.getCell(1).font.bold).toBe(true)
     expect(header.getCell(1).fill.fgColor.argb).toBe('FF7317E8')
@@ -295,8 +300,11 @@ describe('buildAttendanceWorkbook — derived attendance logic', () => {
   it('puts the per-employee Summary on its own worksheet with totals', () => {
     expect(summarySheet).toBeTruthy()
     expect(String(summarySheet.getCell(1, 1).value)).toContain('Summary')
-    expect(summarySheet.getRow(2).values.slice(1)).toEqual(
+    expect(summarySheet.getRow(2).values.slice(1, 7)).toEqual(
       ['Employee', 'Present', 'Late', 'Absent', 'Off-shift', 'Total Hours']
+    )
+    expect(summarySheet.getRow(2).values.slice(7)).toEqual(
+      ['Daily Rate', 'Late Mins', 'Undertime Mins', 'Regular Pay']
     )
 
     const summary = []
@@ -334,6 +342,44 @@ describe('buildAttendanceWorkbook — derived attendance logic', () => {
   })
 })
 
+describe('buildAttendanceWorkbook — a day whose last session is still open', () => {
+  // Clocked out 13:00 for lunch, clocked back in 14:00, still on shift. Reading
+  // the 13:00 logout as the day's end would charge 5 hours of phantom
+  // undertime — the case salary.js's groupWorkDays exists to prevent, and the
+  // attendance sheet has to agree with it or payroll carries two numbers for
+  // one day.
+  const openLogs = [
+    { username: 'open', role: 'Staff', name: 'Open Session', logged_in_at: iso(1, 11, 30), logged_out_at: iso(1, 13, 0) },
+    { username: 'open', role: 'Staff', name: 'Open Session', logged_in_at: iso(1, 14, 0),  logged_out_at: null },
+  ]
+  const RATE = 704.55
+  let sheet, summary
+
+  beforeAll(() => {
+    const wb = buildAttendanceWorkbook(openLogs, shift, new Date(2026, 6, 15), null, { open: RATE })
+    sheet   = wb.getWorksheet(1)
+    summary = wb.getWorksheet('Summary')
+  })
+
+  it('leaves the day unpaid rather than docking undertime to an earlier logout', () => {
+    expect(sheet.getCell(3, 6).value).toBe('—') // Time Out — unknown, not 13:00
+    expect(sheet.getCell(3, 9).value).toBe('')  // Daily Rate blank ⇒ pay formulas blank
+    expect(summary.getCell(3, 10).value).toBe(0) // Regular Pay — nothing payable
+  })
+
+  it('leaves Hours blank too, instead of spanning to the earlier logout', () => {
+    expect(sheet.getCell(3, 7).value.result).toBeUndefined()
+  })
+
+  it('still tallies the lateness, which the clock-in alone establishes', () => {
+    // Summary columns: [Employee, Present, Late, Absent, Off-shift, Total Hours,
+    //                   Daily Rate, Late Mins, Undertime Mins, Regular Pay]
+    expect(summary.getCell(3, 3).value).toBe(1)  // Late (days)
+    expect(summary.getCell(3, 8).value).toBe(90) // Late Mins — agrees with the day count
+    expect(sheet.getCell(3, 8).value.result).toBe(90) // and with the detail row
+  })
+})
+
 describe('buildAttendanceWorkbook — live account names', () => {
   const liveFile = join(tmpdir(), `vrxe-attendance-live-test-${Date.now()}.xlsx`)
   afterAll(async () => { await unlink(liveFile).catch(() => {}) })
@@ -358,5 +404,130 @@ describe('buildAttendanceWorkbook — live account names', () => {
     expect(names.has('Ariel Mina Lumbuan')).toBe(true)   // live name used
     expect(names.has('Aria Mina Lumbao')).toBe(false)    // stale snapshot gone
     expect(names.has('Kurt Tristan Rain Mina')).toBe(true) // snapshot fallback intact
+  })
+})
+
+describe('buildAttendanceWorkbook — regular-salary columns', () => {
+  const payFile = join(tmpdir(), `vrxe-attendance-pay-test-${Date.now()}.xlsx`)
+  const RATE = 704.55
+  let paySheet, paySummary
+
+  beforeAll(async () => {
+    const wb = buildAttendanceWorkbook(logs, shift, new Date(2026, 6, 15), null, {
+      kurt: RATE, aria: RATE, zed: 0,
+    })
+    await wb.xlsx.writeFile(payFile)
+    const reopened = new ExcelJS.Workbook()
+    await reopened.xlsx.readFile(payFile)
+    paySheet   = reopened.getWorksheet(1)
+    paySummary = reopened.getWorksheet('Summary')
+  })
+  afterAll(async () => { await unlink(payFile).catch(() => {}) })
+
+  /**
+   * Daily rows for one employee, keyed by date. Columns I–M carry the pay
+   * figures. ExcelJS drops a cached `result: 0`, so a formula cell reading back
+   * as undefined is a genuine 0 — `payable` (does the row carry a Daily Rate?)
+   * is what actually distinguishes a paid ₱0.00 day from a blank one.
+   */
+  function payRows(namePart) {
+    const out = {}
+    let current = null
+    paySheet.eachRow((row, n) => {
+      if (n <= 2) return
+      const name = row.values[1]
+      if (typeof name === 'string' && name.trim()) current = name
+      const date = row.getCell(2).value
+      if (!date || !current || !String(current).includes(namePart)) return
+      const rate = row.getCell(9).value
+      const payable = typeof rate === 'number'
+      const num = c => {
+        if (!payable) return null
+        const v = c?.value
+        return (typeof v === 'object' && v !== null ? v.result : v) ?? 0
+      }
+      out[String(date)] = {
+        status:             row.getCell(4).value,
+        payable,
+        dailyRate:          rate,
+        lateDeduction:      num(row.getCell(10)),
+        undertimeMins:      num(row.getCell(11)),
+        undertimeDeduction: num(row.getCell(12)),
+        dailyPay:           num(row.getCell(13)),
+      }
+    })
+    return out
+  }
+
+  it('pays a full day when the employee is on time and stays to shift end', () => {
+    // Kurt Jul 2: in 11:30 (90 late), out 19:00 (no undertime).
+    const jul2 = payRows('Kurt')['2026-07-02']
+    expect(jul2.dailyRate).toBe(RATE)
+    expect(jul2.undertimeMins).toBe(0)
+    expect(jul2.lateDeduction).toBeCloseTo(132.10, 2) // 90 × 1.4678125
+    expect(jul2.dailyPay).toBeCloseTo(572.45, 2)
+  })
+
+  it('charges undertime for leaving before shift end', () => {
+    // Kurt Jul 1: first in 10:05 (5 late), last out 18:30 (30 undertime).
+    const jul1 = payRows('Kurt')['2026-07-01']
+    expect(jul1.undertimeMins).toBe(30)
+    expect(jul1.lateDeduction).toBeCloseTo(7.34, 2)       // 5 × 1.4678125
+    expect(jul1.undertimeDeduction).toBeCloseTo(44.03, 2) // 30 × 1.4678125
+    expect(jul1.dailyPay).toBeCloseTo(653.18, 2)
+  })
+
+  it('grants no bonus for an early clock-in and no overtime for a late clock-out', () => {
+    // Zed Jul 1: in 08:00, out 20:00 — both ends clamp to the shift window.
+    const jul1 = payRows('Zed')['2026-07-01']
+    expect(jul1.lateDeduction).toBe(0)
+    expect(jul1.undertimeMins).toBe(0)
+    expect(jul1.dailyPay).toBe(0) // Zed's daily rate is 0 — commission-only
+  })
+
+  it('leaves every pay cell blank on absent days and unclosed sessions', () => {
+    const kurtJul3 = payRows('Kurt')['2026-07-03'] // absent
+    expect(kurtJul3.status).toBe('Absent')
+    expect(kurtJul3.payable).toBe(false)
+    expect(kurtJul3.dailyRate).toBe('')
+
+    const ariaJul3 = payRows('Aria')['2026-07-03'] // present but never clocked out
+    expect(ariaJul3.status).toBe('Present')
+    expect(ariaJul3.payable).toBe(false) // unknown pay, not ₱0.00
+  })
+
+  it('recomputes pay from the time cells — Daily Pay is a live formula, not a frozen number', () => {
+    const row = paySheet.getRow(3)
+    expect(row.getCell(13).formula).toContain('I3-J3-L3')
+    expect(row.getCell(10).formula).toContain('H3*I3/480') // late mins × minute rate
+  })
+
+  it('borders and bands the appended pay columns like the rest of the row', () => {
+    const row = paySheet.getRow(3)
+    for (const col of [10, 11, 12, 13]) {
+      expect(row.getCell(col).border, `column ${col}`).toBeTruthy()
+      expect(row.getCell(col).fill, `column ${col}`).toBeTruthy()
+    }
+  })
+
+  it('leaves the pay formulas blank rather than dividing by zero on a shift with no payable hours', async () => {
+    // A 10 AM–11 AM window is entirely consumed by the unpaid lunch.
+    const wb = buildAttendanceWorkbook(logs, { start: 10, end: 11 }, new Date(2026, 6, 15), null, { kurt: RATE })
+    const sheet = wb.getWorksheet(1)
+    for (const col of [10, 12, 13]) {
+      expect(sheet.getRow(3).getCell(col).formula).toBe('""')
+    }
+  })
+
+  it('totals Regular Pay per employee on the Summary sheet', () => {
+    const rows = []
+    paySummary.eachRow((row, n) => { if (n > 2) rows.push(row.values.slice(1)) })
+    // [name, present, late, absent, offShift, totalHours, dailyRate, lateMins, undertimeMins, regularPay]
+    const kurt = rows.find(r => String(r[0]).includes('Kurt'))
+    expect(kurt[6]).toBe(RATE)
+    expect(kurt[7]).toBe(95)  // 5 (Jul1) + 90 (Jul2) + 0 (Jul8)
+    expect(kurt[8]).toBe(330) // 30 (Jul1) + 0 (Jul2) + 300 (Jul8, out 14:00)
+    // Jul1 653.18 + Jul2 572.45 + Jul8 264.21
+    expect(kurt[9]).toBeCloseTo(1489.84, 2)
   })
 })

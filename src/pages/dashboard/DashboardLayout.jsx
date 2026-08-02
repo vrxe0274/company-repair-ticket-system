@@ -53,7 +53,7 @@ const NAV = [
   { to: 'analytics',     label: 'Analytics',     icon: BarChart2,      adminOnly: true },
   { to: 'accounts',      label: 'Accounts',      icon: Users,          adminOnly: true },
   { to: 'attendance',    label: 'Attendance',    icon: Clock,          adminOnly: true },
-  { to: 'payroll',       label: 'Payroll',       icon: Banknote,       adminOnly: true },
+  { to: 'commission',    label: 'Commission',    icon: Banknote,       adminOnly: true },
   // ── Staff / Technician only ──────────────────────────────────
   { to: 'earnings',      label: 'Earnings',      icon: TrendingUp,     staffOrTech: true },
   { to: 'my-attendance', label: 'My Attendance', icon: Clock,          staffOrTech: true },

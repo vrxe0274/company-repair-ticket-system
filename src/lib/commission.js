@@ -8,6 +8,28 @@
  * rather than silently substituting a default.
  */
 
+/**
+ * The date a repair's commission belongs to: when the money was COLLECTED
+ * (tickets.paid_at, stamped by the status trigger), not when the job was
+ * booked. A repair created Jun 28 and paid Jul 5 is owed in the July payroll
+ * run — bucketing it by created_at would credit it to a period that has
+ * already been paid out and hide it from the one that hasn't.
+ *
+ * Falls back to created_at so a Paid ticket with no stamp (rows predating the
+ * column, or a hand-edited status) still lands in some month rather than
+ * vanishing from every payroll sheet.
+ *
+ * @returns {Date|null} null only when neither timestamp parses
+ */
+export function commissionDate(ticket) {
+  for (const iso of [ticket?.paid_at, ticket?.created_at]) {
+    if (!iso) continue
+    const d = new Date(iso)
+    if (!isNaN(d)) return d
+  }
+  return null
+}
+
 /** Sum all labor_items amounts for a ticket. Returns 0 if none. */
 export function laborFee(ticket) {
   return (ticket.labor_items ?? []).reduce((sum, i) => sum + Number(i.amount || 0), 0)
@@ -31,6 +53,39 @@ export function technicianCommission(fee, techPct) {
 export function staffCommission(fee, techPct, staffPct) {
   if (techPct == null || staffPct == null) return null
   return (fee - technicianCommission(fee, techPct)) * staffPct
+}
+
+/**
+ * Every ticket assigned to one payee, with that repair's own rate and cut.
+ *
+ * `commission: null` means Admin hasn't inputted the percentage this payee's
+ * cut depends on yet — for Staff that includes the *technician* percentage,
+ * since staff's cut is net-of-technician. Shared by the Commission page and
+ * its Excel export so both show the same jobs and the same figures.
+ *
+ * @param {Array}  tickets   already filtered to paid, commissionable repairs
+ * @param {'Technician'|'Staff'} role
+ * @param {string} username
+ * @returns {Array<{ticket: object, fee: number, pct: number|null, commission: number|null}>}
+ */
+export function payeeJobs(tickets, role, username) {
+  const rows = []
+  for (const t of tickets) {
+    const assigned = role === 'Technician'
+      ? (t.technician_usernames ?? []).includes(username)
+      : (t.assigned_staff ?? []).includes(username)
+    if (!assigned) continue
+    const fee = laborFee(t)
+    rows.push({
+      ticket:     t,
+      fee,
+      pct:        role === 'Technician' ? t.tech_commission_pct : t.staff_commission_pct,
+      commission: role === 'Technician'
+        ? technicianCommission(fee, t.tech_commission_pct)
+        : staffCommission(fee, t.tech_commission_pct, t.staff_commission_pct),
+    })
+  }
+  return rows
 }
 
 /**

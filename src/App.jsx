@@ -32,7 +32,7 @@ const SettingsPage      = lazy(() => import('./pages/dashboard/SettingsPage.jsx'
 const AccountsPage      = lazy(() => import('./pages/dashboard/AccountsPage.jsx'))
 const AnalyticsPage     = lazy(() => import('./pages/dashboard/AnalyticsPage.jsx'))
 const EarningsPage      = lazy(() => import('./pages/dashboard/EarningsPage.jsx'))
-const PayrollPage       = lazy(() => import('./pages/dashboard/PayrollPage.jsx'))
+const CommissionPage    = lazy(() => import('./pages/dashboard/CommissionPage.jsx'))
 const AttendancePage    = lazy(() => import('./pages/dashboard/AttendancePage.jsx'))
 const MyAttendancePage  = lazy(() => import('./pages/dashboard/MyAttendancePage.jsx'))
 
@@ -108,13 +108,15 @@ export default function App() {
           }
         />
         <Route
-          path="payroll"
+          path="commission"
           element={
             <ProtectedRoute requiredRole="Admin">
-              <PayrollPage />
+              <CommissionPage />
             </ProtectedRoute>
           }
         />
+        {/* Old name — keeps bookmarks and installed-PWA shortcuts working. */}
+        <Route path="payroll" element={<Navigate to="/commission" replace />} />
         <Route
           path="attendance"
           element={
