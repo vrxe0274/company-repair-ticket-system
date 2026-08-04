@@ -92,6 +92,11 @@ function bodyRows(sheet) {
   return out
 }
 
+// Mirrors commissionExport.js's private SUBTOTAL_FILL — the subtotal row is
+// the only row painted this colour, so it's a stable way to spot it now that
+// its label text can be empty (no pending input to flag).
+const SUBTOTAL_FILL = 'FFEFEFEF'
+
 /**
  * Detail sheets are written as per-employee blocks with the name in a single
  * merged column-A cell. ExcelJS reports the master's value on every merged
@@ -107,8 +112,8 @@ function blocks(sheet) {
     const key = nameCell.master?.address ?? nameCell.address
     if (!byBlock.has(key)) byBlock.set(key, { name: nameCell.value, lines: [], subtotal: null })
     const rest = row.values.slice(2)
-    // The block's last row is its subtotal — "2 jobs …" / "2 days paid …".
-    if (rest.some(v => typeof v === 'string' && /^\d+ (job|day)/.test(v))) {
+    const isSubtotal = sheet.getCell(n, 2).fill?.fgColor?.argb === SUBTOTAL_FILL
+    if (isSubtotal) {
       byBlock.get(key).subtotal = rest
     } else {
       byBlock.get(key).lines.push(rest)
@@ -136,6 +141,7 @@ describe('buildCommissionWorkbook — structure', () => {
     expect(payroll.getRow(2).values.slice(1)).toEqual([
       'Employee', 'Role', 'Jobs', 'Commission Pay',
       'Daily Rate', 'Days Worked', 'Late Mins', 'Undertime Mins', 'Regular Pay',
+      '1st Cutoff Pay', '2nd Cutoff Pay',
       'Total Pay',
     ])
   })
@@ -149,21 +155,51 @@ describe('buildCommissionWorkbook — Payroll summary', () => {
     // Commission: 400 (t1) + nothing yet for t2. Regular: 704.55 + 594.46.
     expect(kurt[3]).toBeCloseTo(400, 2)
     expect(kurt[8]).toBeCloseTo(1299.01, 2)
+    expect(kurt[11]).toBeCloseTo(1699.01, 2)
+    expect(kurt[11]).toBeCloseTo(kurt[3] + kurt[8], 2)
+  })
+
+  it('splits Total Pay into the two cutoffs, which add back up to it', () => {
+    const kurt = rowFor('Kurt')
+    // Every July row in this fixture falls on the 1st–3rd — all 1st cutoff.
     expect(kurt[9]).toBeCloseTo(1699.01, 2)
-    expect(kurt[9]).toBeCloseTo(kurt[3] + kurt[8], 2)
+    expect(kurt[10]).toBe(0)
+    expect(kurt[9] + kurt[10]).toBeCloseTo(kurt[11], 2)
   })
 
   it('keeps a commission-only employee on a zero daily rate at zero regular pay', () => {
     const ariel = rowFor('Ariel')
-    expect(ariel[4]).toBe(0)             // daily rate
-    expect(ariel[5]).toBe(1)             // still credited the day worked
-    expect(ariel[8]).toBe(0)             // regular pay
-    expect(ariel[9]).toBeCloseTo(160, 2) // commission only
+    expect(ariel[4]).toBe(0)              // daily rate
+    expect(ariel[5]).toBe(1)              // still credited the day worked
+    expect(ariel[8]).toBe(0)              // regular pay
+    expect(ariel[11]).toBeCloseTo(160, 2) // commission only
   })
 
   it('counts only days that produced a payable figure', () => {
     // Kurt worked 3 days in July but never clocked out on the 3rd.
     expect(rowFor('Kurt')[5]).toBe(2)
+  })
+
+  it('tints Commission Pay and Regular Pay to match Total Pay, so the three read as one family', () => {
+    // Ariel's row (no pending commission, so nothing overrides the tint):
+    // col 4 = Commission Pay, col 9 = Regular Pay, col 12 = Total Pay. The
+    // columns between them (Daily Rate, Days Worked, minute counts) stay
+    // unfilled — only the figures that ARE the sum share its tint.
+    const arielRow = bodyRows(payroll).findIndex(r => String(r[0]).includes('Ariel')) + 3
+    const MONEY_FILL = 'FFF3E5F5'
+    expect(payroll.getCell(arielRow, 4).fill.fgColor.argb).toBe(MONEY_FILL)
+    expect(payroll.getCell(arielRow, 9).fill.fgColor.argb).toBe(MONEY_FILL)
+    expect(payroll.getCell(arielRow, 12).fill.fgColor.argb).toBe(MONEY_FILL)
+    // ExcelJS's default (never explicitly filled) cell reports pattern:'none'.
+    expect(payroll.getCell(arielRow, 5).fill.pattern).toBe('none') // Daily Rate
+    expect(payroll.getCell(arielRow, 6).fill.pattern).toBe('none') // Days Worked
+  })
+
+  it('still flags Commission Pay amber when a job is pending, overriding the money tint', () => {
+    // Kurt's t2 has no percentage yet, so Commission Pay is the flagged cell,
+    // not the shared money tint — a low figure must never look final here.
+    const kurtRow = bodyRows(payroll).findIndex(r => String(r[0]).includes('Kurt')) + 3
+    expect(payroll.getCell(kurtRow, 4).fill.fgColor.argb).toBe('FFFFF8E1')
   })
 
   it('totals Total Pay alone, matching the page', () => {
@@ -201,28 +237,61 @@ describe('buildCommissionWorkbook — Commission sheet', () => {
     expect(ids).not.toContain('VR-2607-003') // marked not applicable
   })
 
-  it('combines client and unit into one column', () => {
+  it('keeps client and unit in separate columns', () => {
+    // Joined into one cell they can't be sorted or filtered on independently.
     const line = blockFor(commission, 'Kurt').lines.find(l => l[0] === 'VR-2607-001')
-    expect(line[1]).toBe('Juan Dela Cruz — Meta Quest 3')
+    expect(line[1]).toBe('Juan Dela Cruz')
+    expect(line[2]).toBe('Meta Quest 3')
+    expect(commission.getRow(2).values.slice(1, 5))
+      .toEqual(['Employee', 'Ticket', 'Client', 'Unit'])
+  })
+
+  it('leaves the Unit cell empty rather than borrowing the client column', () => {
+    const wb = buildCommissionWorkbook({
+      tickets: [{
+        ...tickets[0], id: 'nb', ticket_id: 'VR-2607-099',
+        unit_brand: null, unit_model: null,
+      }],
+      logs: [], techs, staff, rates: {}, shift, monthDate: new Date(2026, 6, 15),
+    })
+    const line = blockFor(wb.getWorksheet('Commission'), 'Kurt').lines[0]
+    expect(line[1]).toBe('Juan Dela Cruz')
+    expect(line[2] === '' || line[2] == null).toBe(true)
   })
 
   it('writes a not-yet-inputted cut as text, never as 0.00', () => {
     const line = blockFor(commission, 'Kurt').lines.find(l => l[0] === 'VR-2607-002')
-    expect(line[4]).toBe('Not yet inputted') // rate
-    expect(line[5]).toBe('Not yet inputted') // cut
+    expect(line[5]).toBe('Not yet inputted') // rate
+    expect(line[6]).toBe('Not yet inputted') // cut
   })
 
   it('stores the rate as a real percentage so Excel can recompute the cut', () => {
     const line = blockFor(commission, 'Kurt').lines.find(l => l[0] === 'VR-2607-001')
-    expect(line[4]).toBeCloseTo(0.2, 5)
-    expect(line[5]).toBeCloseTo(400, 2)
+    expect(line[5]).toBeCloseTo(0.2, 5)
+    expect(line[6]).toBeCloseTo(400, 2)
   })
 
-  it('closes each block with a subtotal that flags outstanding input', () => {
+  it('tags each job with the cutoff it is paid in', () => {
+    const line = blockFor(commission, 'Kurt').lines.find(l => l[0] === 'VR-2607-001')
+    expect(line[3]).toBe('1st') // paid Jul 1 → days 1–15
+  })
+
+  it('closes each block with a subtotal that flags outstanding input, no job count', () => {
     const kurt = blockFor(commission, 'Kurt')
-    expect(kurt.subtotal[0]).toBe('2 jobs · 1 not yet inputted')
-    expect(kurt.subtotal.at(-3)).toBeCloseTo(3000, 2) // labor fee subtotal
-    expect(kurt.subtotal.at(-1)).toBeCloseTo(400, 2)  // commission subtotal
+    expect(kurt.subtotal[0]).toBe('1 not yet inputted')
+    expect(kurt.subtotal.at(-1)).toBeCloseTo(400, 2) // commission (Cut) subtotal
+  })
+
+  it('leaves the subtotal label blank when nothing is pending', () => {
+    const ariel = blockFor(commission, 'Ariel')
+    expect(ariel.subtotal[0]).toBe('')
+  })
+
+  it('does not subtotal Labor Fee — only Cut, the money actually owed', () => {
+    // Labor Fee is what the client was charged, not this employee's pay; the
+    // label now spans through Rate instead of leaving a stray fee sum there.
+    const kurt = blockFor(commission, 'Kurt')
+    expect(kurt.subtotal.slice(0, -1).every(v => typeof v !== 'number')).toBe(true)
   })
 })
 
@@ -240,23 +309,40 @@ describe('buildCommissionWorkbook — Regular Pay sheet', () => {
 
   it('shows the deductions behind the worked example', () => {
     const jul2 = blockFor(regular, 'Kurt').lines.find(l => l[0] === '2026-07-02')
-    expect(jul2[4]).toBe(30)              // late mins
-    expect(jul2[5]).toBeCloseTo(44.03, 2) // late deduction
-    expect(jul2[6]).toBe(45)              // undertime mins
-    expect(jul2[7]).toBeCloseTo(66.05, 2)
-    expect(jul2[8]).toBeCloseTo(594.46, 2)
+    expect(jul2[5]).toBe(30)              // late mins
+    expect(jul2[6]).toBeCloseTo(44.03, 2) // late deduction
+    expect(jul2[7]).toBe(45)              // undertime mins
+    expect(jul2[8]).toBeCloseTo(66.05, 2)
+    expect(jul2[9]).toBeCloseTo(594.46, 2)
   })
 
   it('marks an unclosed day as text instead of paying it out as zero', () => {
     const jul3 = blockFor(regular, 'Kurt').lines.find(l => l[0] === '2026-07-03')
-    expect(jul3[3]).toBe('Not clocked out') // time out
+    expect(jul3[4]).toBe('Not clocked out') // time out
     expect(jul3.at(-1)).toBe('Not clocked out')
   })
 
-  it('subtotals the block and separates paid days from unclosed ones', () => {
+  it('tags each working day with the cutoff it is paid in', () => {
+    const jul2 = blockFor(regular, 'Kurt').lines.find(l => l[0] === '2026-07-02')
+    expect(jul2[2]).toBe('1st')
+  })
+
+  it('subtotals the block and flags an unclosed day, with no paid-days count', () => {
     const kurt = blockFor(regular, 'Kurt')
-    expect(kurt.subtotal[0]).toBe('2 days paid · 1 not clocked out')
-    expect(kurt.subtotal.at(-1)).toBeCloseTo(1299.01, 2)
+    expect(kurt.subtotal[0]).toBe('1 not clocked out')
+    expect(kurt.subtotal.at(-1)).toBeCloseTo(1299.01, 2) // Daily Pay subtotal
+  })
+
+  it('leaves the subtotal label blank when every day closed', () => {
+    const ariel = blockFor(regular, 'Ariel')
+    expect(ariel.subtotal[0]).toBe('')
+  })
+
+  it('does not subtotal late/undertime minutes or deductions — only Daily Pay', () => {
+    // Each day's late/undertime figures are already visible above; summing
+    // minutes across a month isn't a money total the way Daily Pay is.
+    const kurt = blockFor(regular, 'Kurt')
+    expect(kurt.subtotal.slice(0, -1).every(v => typeof v !== 'number')).toBe(true)
   })
 
   it('excludes attendance from other months', () => {
@@ -295,9 +381,12 @@ describe('buildCommissionWorkbook — pay period', () => {
       .toContain('VR-2606-020')
   })
 
-  it('dates each commission line by when it was paid', () => {
+  it('tags the line with the cutoff it was paid in, not booked in', () => {
+    // Booked June 28, collected July 5 — 1st cutoff of July (days 1–15), not
+    // any cutoff of June. There's no Date Paid column to check directly; the
+    // Cutoff badge is what stands in for "when this line was bucketed."
     const line = blockFor(build(new Date(2026, 6, 15)).getWorksheet('Commission'), 'Kurt').lines[0]
-    expect(line[2]).toBe('Jul 5, 2026')
+    expect(line[3]).toBe('1st')
   })
 })
 
@@ -306,7 +395,7 @@ describe('buildCommissionWorkbook — provisional totals', () => {
     // Kurt's t2 has no percentage yet and Jul 3 never closed, so his Total Pay
     // can only be too low — the cell an employer reads as "what I owe".
     const kurtRow = bodyRows(payroll).findIndex(r => String(r[0]).includes('Kurt')) + 3
-    const totalCell = payroll.getCell(kurtRow, 10)
+    const totalCell = payroll.getCell(kurtRow, 12)
     expect(totalCell.font.color.argb).toBe('FFB26A00')
     expect(String(totalCell.note)).toContain('awaiting a commission percentage')
     expect(String(totalCell.note)).toContain('never clocked out')
@@ -329,6 +418,58 @@ describe('buildCommissionWorkbook — empty month', () => {
     expect(blocks(sheet)).toHaveLength(0) // no employee blocks at all
     // Every employee still appears on the summary, at zero.
     const summaryRows = bodyRows(wb.getWorksheet('Payroll'))
-    expect(summaryRows.find(r => String(r[0]).includes('Kurt'))[9]).toBe(0)
+    expect(summaryRows.find(r => String(r[0]).includes('Kurt'))[11]).toBe(0)
+  })
+})
+
+describe('buildCommissionWorkbook — cutoffs', () => {
+  // Aug 2026 has 31 days. Jul 31 is paid in Aug's 1st cutoff; Aug 31 is not in
+  // Aug's 2nd cutoff at all — it belongs to September.
+  const job = (id, day, month = 7) => ({
+    id, ticket_id: id, status: 'Paid',
+    created_at: new Date(2026, month, day, 12).toISOString(),
+    client_name: 'C', unit_brand: 'Meta', unit_model: 'Quest 3',
+    labor_items: [{ amount: 1000 }],
+    technician_usernames: ['kurt'], assigned_staff: [],
+    tech_commission_pct: 0.2, staff_commission_pct: null,
+  })
+  const augTickets = [
+    job('AUG-05', 5),            // 1st cutoff
+    job('AUG-20', 20),           // 2nd cutoff
+    job('AUG-31', 31),           // rolls into September
+    job('JUL-31', 31, 6),        // rolls INTO August's 1st cutoff
+  ]
+  const build = (cutoff = 'all') => buildCommissionWorkbook({
+    tickets: augTickets, logs: [], techs, staff, rates: { kurt: 0 }, shift,
+    monthDate: new Date(2026, 7, 1), cutoff,
+  })
+  const ids = wb => blocks(wb.getWorksheet('Commission')).flatMap(b => b.lines.map(l => l[0]))
+
+  it('pays a 31st in the next month, and inherits the previous month\'s 31st', () => {
+    expect(ids(build())).toEqual(expect.arrayContaining(['AUG-05', 'AUG-20', 'JUL-31']))
+    expect(ids(build())).not.toContain('AUG-31')
+  })
+
+  it('exports one cutoff on its own', () => {
+    expect(ids(build(1))).toEqual(expect.arrayContaining(['JUL-31', 'AUG-05']))
+    expect(ids(build(1))).not.toContain('AUG-20')
+    expect(ids(build(2))).toEqual(['AUG-20'])
+  })
+
+  it('drops the cutoff columns when only one cutoff is exported', () => {
+    const headers = build(2).getWorksheet('Payroll').getRow(2).values.slice(1)
+    expect(headers).not.toContain('1st Cutoff Pay')
+    expect(headers.at(-1)).toBe('Total Pay')
+    // …and names the period it actually covers.
+    expect(String(build(2).getWorksheet('Payroll').getCell(1, 1).value)).toContain('2nd cutoff')
+  })
+
+  it('splits the month total across the two cutoffs', () => {
+    const summary = build().getWorksheet('Payroll')
+    const kurt = summary.getRow(3).values.slice(1)
+    // Jul 31 + Aug 5 = 2 jobs × 200; Aug 20 = 200.
+    expect(kurt[9]).toBeCloseTo(400, 2)
+    expect(kurt[10]).toBeCloseTo(200, 2)
+    expect(kurt[11]).toBeCloseTo(600, 2)
   })
 })

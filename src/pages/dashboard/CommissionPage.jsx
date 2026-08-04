@@ -14,7 +14,11 @@ import {
   hourlyRate, minuteRate, personKey, rateKey,
   getDailyRates, saveDailyRates, resolveDailyRate, fetchAllAttendance,
 } from '../../lib/salary'
-import { getShiftHours, shiftHoursCap, fmtShiftHour, DEFAULT_SHIFT } from '../../lib/shift'
+import {
+  cutoffOf, monthCutoffKeys, payoutByCutoff, inPeriod, payMonthOf, halfOrdinal, cutoffName,
+  cutoffRangeLabel, cutoffPayDateLabel,
+} from '../../lib/cutoff'
+import { getShiftHours, shiftHoursCap, DEFAULT_SHIFT } from '../../lib/shift'
 
 const PESO = n => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const PCT  = p => p == null ? '—' : `${(p * 100).toLocaleString('en-PH', { maximumFractionDigits: 2 })}%`
@@ -106,7 +110,7 @@ export default function CommissionPage() {
   const [loading,       setLoading]       = useState(true)
   // Payroll is run per month, so the page opens on the current one rather than
   // All Time — the all-time figure is a lookback, not the working view.
-  const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'))
+  const [selectedMonth, setSelectedMonth] = useState(() => payMonthOf(new Date()))
   const [filterOpen,    setFilterOpen]    = useState(false)
   const [payeeModal,    setPayeeModal]    = useState(null)   // { username, name, role } | null
   const [allJobsOpen,   setAllJobsOpen]   = useState(false)
@@ -197,9 +201,12 @@ export default function CommissionPage() {
   // tickets still has salary to report, and vice versa. The current month is
   // always listed even when it has neither yet, since it's the default
   // selection and would otherwise be missing from its own filter.
+  //
+  // Listed by PAY month, not calendar month: work on a 31st is paid in the
+  // next month's 1st cutoff, so that day belongs to the next month's payroll.
   const monthOptions = useMemo(() => {
-    const seen = new Set([format(new Date(), 'yyyy-MM')])
-    const add = d => { if (d && !isNaN(d)) seen.add(format(d, 'yyyy-MM')) }
+    const seen = new Set([payMonthOf(new Date())])
+    const add = d => { const m = payMonthOf(d); if (m) seen.add(m) }
     tickets.forEach(t => add(commissionDate(t)))
     attendance.forEach(l => add(new Date(l.logged_in_at)))
     return [...seen].sort().reverse()
@@ -212,12 +219,13 @@ export default function CommissionPage() {
 
   // Bucketed by when the repair was PAID, not when it was booked — a job
   // created in June and paid in July is owed in the July run. See commission.js.
+  //
+  // Always the WHOLE pay month: the page reconciles a month, and the per-cutoff
+  // figures an Admin actually hands over are shown per employee in the payee
+  // popup rather than by filtering everything on screen down to one half.
   const filteredTickets = useMemo(() => {
     if (selectedMonth === 'all') return relevantTickets
-    return relevantTickets.filter(t => {
-      const d = commissionDate(t)
-      return d != null && format(d, 'yyyy-MM') === selectedMonth
-    })
+    return relevantTickets.filter(t => inPeriod(commissionDate(t), selectedMonth))
   }, [relevantTickets, selectedMonth])
 
   const monthLabel = selectedMonth === 'all'
@@ -237,10 +245,7 @@ export default function CommissionPage() {
   // ticket. The two branches only meet in `payFor` below (combinePay).
   const filteredLogs = useMemo(() => {
     if (selectedMonth === 'all') return attendance
-    return attendance.filter(l => {
-      const d = new Date(l.logged_in_at)
-      return !isNaN(d) && format(d, 'yyyy-MM') === selectedMonth
-    })
+    return attendance.filter(l => inPeriod(new Date(l.logged_in_at), selectedMonth))
   }, [attendance, selectedMonth])
 
   /**
@@ -271,6 +276,7 @@ export default function CommissionPage() {
   /** The three reported figures for one payee. */
   const payFor = (payee, commissionAmount) =>
     combinePay(commissionAmount, regularStats[personKey(payee)]?.amount ?? 0)
+
 
   const payeeCount     = techs.length + staff.length
   const totalPending   = Object.values(techStats).reduce((a, s) => a + s.pending, 0)
@@ -324,20 +330,39 @@ export default function CommissionPage() {
             <h1 className="font-display text-4xl sm:text-5xl tracking-widest text-gray-900 leading-none">COMMISSION</h1>
             <p className="text-sm font-body text-gray-400 mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setRatesOpen(true)} className="btn-secondary text-sm">
-              <Coins className="w-3.5 h-3.5" />
-              <span>Daily Rates</span>
-            </button>
-            <button onClick={() => setAllJobsOpen(true)} className="btn-secondary text-sm">
-              <ListTree className="w-3.5 h-3.5" />
-              <span>All Jobs</span>
-            </button>
-            {/* An export must never be short a month of attendance the page
-                simply hadn't fetched yet — pull the rest before opening. */}
+          <div className="flex items-center gap-2.5">
+            {/* Daily Rates and All Jobs are reference views — grouped into one
+                segmented control instead of two identical floating boxes, so
+                they read as a pair of related lookups rather than competing
+                with Export for the same visual weight. */}
+            <div className="inline-flex items-center rounded-lg border border-gray-300 divide-x divide-gray-300 overflow-hidden bg-white">
+              <button
+                onClick={() => setRatesOpen(true)}
+                className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-sans font-semibold text-gray-700
+                  hover:bg-gray-50 active:bg-gray-100 transition-colors
+                  focus:outline-none focus:relative focus:ring-2 focus:ring-inset focus:ring-brand-400"
+              >
+                <Coins className="w-3.5 h-3.5 text-gray-400" />
+                <span>Daily Rates</span>
+              </button>
+              <button
+                onClick={() => setAllJobsOpen(true)}
+                className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-sans font-semibold text-gray-700
+                  hover:bg-gray-50 active:bg-gray-100 transition-colors
+                  focus:outline-none focus:relative focus:ring-2 focus:ring-inset focus:ring-brand-400"
+              >
+                <ListTree className="w-3.5 h-3.5 text-gray-400" />
+                <span>All Jobs</span>
+              </button>
+            </div>
+            {/* Export is the action this header exists for, so it carries the
+                page's one primary-button treatment — everything else here is a
+                lookup, this is the thing you came to do. An export must never
+                be short a month of attendance the page simply hadn't fetched
+                yet, so pull the rest before opening. */}
             <button
               onClick={() => { loadFullHistory(); setExportOpen(true) }}
-              className="btn-secondary text-sm"
+              className="btn-primary text-sm"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Export</span>
@@ -368,115 +393,80 @@ export default function CommissionPage() {
           positioned inside this card and was being clipped by it. Nothing in
           here bleeds past the rounded corners, so there's nothing to clip. */}
       <div className="rounded-2xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 text-white">
-        <div className="flex flex-col sm:flex-row">
-
-          {/* Left — grand total */}
-          <div className="flex-1 px-5 sm:px-7 py-6 sm:py-8">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div className="flex items-center gap-1.5">
-                <Users className="w-3 h-3 text-brand-300" />
-                <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">
-                  Total Pay
-                </p>
-              </div>
-
-              {/* Month filter */}
-              <div className="relative shrink-0" ref={filterRef}>
-                <button
-                  onClick={() => setFilterOpen(o => !o)}
-                  aria-expanded={filterOpen}
-                  className="btn-secondary text-sm"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{monthLabel}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filterOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {filterOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 w-48 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1 animate-fade-in">
-                    {['all', ...monthOptions].map(m => {
-                      const label  = m === 'all' ? 'All Time' : format(new Date(m + '-01'), 'MMMM yyyy')
-                      const active = selectedMonth === m
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => {
-                            // All Time is the one view that can reach past the
-                            // window the initial load fetched.
-                            if (m === 'all') loadFullHistory()
-                            setSelectedMonth(m)
-                            setFilterOpen(false)
-                          }}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-left transition-colors
-                            ${active ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                        >
-                          <Calendar className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                          <span className="flex-1">{label}</span>
-                          {active && <Check className="w-3.5 h-3.5 text-brand-500 shrink-0" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <p className="text-[clamp(1.75rem,8vw,3.75rem)] sm:text-6xl font-display font-bold leading-none tracking-tight text-white whitespace-nowrap">
-              {PESO(grandTotal.totalPay)}
+        {/* Banner header — spans the full card, so the period selector sits at
+            the shape's own top-right corner rather than at the right edge of
+            the grand-total column. */}
+        <div className="px-5 sm:px-7 pt-6 sm:pt-8 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3 h-3 text-brand-300" />
+            <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">
+              Total Pay
             </p>
-            <p className="text-brand-300 text-sm font-body mt-3">
-              {filteredTickets.length} job{filteredTickets.length !== 1 ? 's' : ''} · {payeeCount} payee{payeeCount !== 1 ? 's' : ''}
-              {totalPending > 0 && (
-                <span className="text-amber-300"> · {totalPending} commission{totalPending !== 1 ? 's' : ''} not yet inputted</span>
-              )}
-              {totalUnclosed > 0 && (
-                <span className="text-amber-300"> · {totalUnclosed} day{totalUnclosed !== 1 ? 's' : ''} not clocked out</span>
-              )}
-              {loadingHistory && <span> · loading earlier months…</span>}
-            </p>
-            {totalProvisional && (
-              <p className="text-amber-300 text-xs font-sans font-semibold mt-1.5">
-                Provisional — this total is missing figures that haven't been inputted yet.
-              </p>
+          </div>
+
+          {/* Pay-month filter */}
+          <div className="relative shrink-0" ref={filterRef}>
+            <button
+              onClick={() => setFilterOpen(o => !o)}
+              aria-expanded={filterOpen}
+              className="btn-secondary text-sm"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{monthLabel}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${filterOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {filterOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-48 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1 animate-fade-in">
+                {['all', ...monthOptions].map(m => {
+                  const label  = m === 'all' ? 'All Time' : format(new Date(m + '-01'), 'MMMM yyyy')
+                  const active = selectedMonth === m
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        // All Time is the one view that can reach past the
+                        // window the initial load fetched.
+                        if (m === 'all') loadFullHistory()
+                        setSelectedMonth(m)
+                        setFilterOpen(false)
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans text-left transition-colors
+                        ${active ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                      <span className="flex-1">{label}</span>
+                      {active && <Check className="w-3.5 h-3.5 text-brand-500 shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </div>
+        </div>
 
-          {/* Divider */}
-          <div className="hidden sm:block w-px bg-white/10 my-6" />
-          <div className="block sm:hidden h-px bg-white/10 mx-5" />
-
-          {/* Right — per-payee breakdown */}
-          <div className="sm:w-64 px-5 sm:px-7 py-6 sm:py-8 flex flex-col justify-center gap-4">
-            <p className="text-brand-300 text-xs font-sans font-semibold uppercase tracking-wider">Breakdown · Total Pay</p>
-            <div className="space-y-2.5">
-              {techs.map(t => (
-                <div key={t.username} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Wrench className="w-3.5 h-3.5 text-accent-400 shrink-0" />
-                    <span className="text-brand-200 text-sm font-body truncate">{t.name || t.username}</span>
-                  </div>
-                  <span className="font-mono text-sm text-white shrink-0">
-                    {PESO(payFor(t, techStats[t.username]?.amount ?? 0).totalPay)}
-                  </span>
-                </div>
-              ))}
-              {staff.map(s => (
-                <div key={s.username} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="text-brand-200 text-sm font-body truncate">{s.name || s.username}</span>
-                  </div>
-                  <span className="font-mono text-sm text-white shrink-0">
-                    {PESO(payFor(s, staffStats[s.username]?.amount ?? 0).totalPay)}
-                  </span>
-                </div>
-              ))}
-              {payeeCount === 0 && (
-                <p className="text-brand-400 text-xs font-body">No staff or technician accounts yet.</p>
-              )}
-            </div>
-          </div>
-
+        {/* Grand total. The per-payee split used to sit in a second column
+            here; it lives in the Payees table below, which carries the same
+            figures per person alongside the two branches they came from. */}
+        <div className="px-5 sm:px-7 pt-4 pb-6 sm:pb-8">
+          <p className="text-[clamp(1.75rem,8vw,3.75rem)] sm:text-6xl font-display font-bold leading-none tracking-tight text-white whitespace-nowrap">
+            {PESO(grandTotal.totalPay)}
+          </p>
+            <p className="text-brand-300 text-sm font-body mt-3">
+            {filteredTickets.length} job{filteredTickets.length !== 1 ? 's' : ''}
+            {totalPending > 0 && (
+              <span className="text-amber-300"> · {totalPending} commission{totalPending !== 1 ? 's' : ''} not yet inputted</span>
+            )}
+            {totalUnclosed > 0 && (
+              <span className="text-amber-300"> · {totalUnclosed} day{totalUnclosed !== 1 ? 's' : ''} not clocked out</span>
+            )}
+            {loadingHistory && <span> · loading earlier months…</span>}
+          </p>
+          {totalProvisional && (
+            <p className="text-amber-300 text-xs font-sans font-semibold mt-1.5">
+              Provisional — this total is missing figures that haven't been inputted yet.
+            </p>
+          )}
         </div>
       </div>
 
@@ -495,9 +485,8 @@ export default function CommissionPage() {
         </div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60">
             <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Payees</p>
-            <p className="text-xs font-body text-gray-400">Tap a row for that person's jobs</p>
           </div>
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[780px]">
@@ -541,26 +530,6 @@ export default function CommissionPage() {
               ))}
 
             </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-200 bg-gray-50">
-                {/* Only Total Pay is totalled — the per-branch columns stay
-                    per-employee figures, with no column subtotal. */}
-                <td colSpan={5} className="px-4 py-3.5 text-xs font-sans font-semibold text-gray-500 uppercase tracking-wider text-right">
-                  Total Pay{totalProvisional && ' (provisional)'}
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  <span className="font-mono text-sm font-bold bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-transparent">
-                    {PESO(grandTotal.totalPay)}
-                  </span>
-                  {totalProvisional && (
-                    <span className="block text-[11px] font-sans font-semibold text-amber-600 mt-0.5">
-                      missing inputs
-                    </span>
-                  )}
-                </td>
-                <td className="px-2 py-3.5" />
-              </tr>
-            </tfoot>
           </table>
           </div>
         </div>
@@ -575,6 +544,11 @@ export default function CommissionPage() {
           // from, so the day rows always sum to the footer's Regular Pay.
           workDays={workDays.get(personKey(payeeModal))}
           monthLabel={monthLabel}
+          // The cutoff split lives here — it is the whole reason the page no
+          // longer filters itself down to one half. All Time spans many months,
+          // so there are no two cutoffs to divide it into.
+          monthKey={selectedMonth}
+          showCutoff={selectedMonth !== 'all'}
           regular={regularStats[personKey(payeeModal)]}
           dailyRate={rateFor(payeeModal)}
           shift={shift}
@@ -583,7 +557,7 @@ export default function CommissionPage() {
       )}
       {exportOpen && (
         <ExportMonthModal
-          defaultMonth={selectedMonth === 'all' ? format(new Date(), 'yyyy-MM') : selectedMonth}
+          defaultMonth={selectedMonth === 'all' ? payMonthOf(new Date()) : selectedMonth}
           monthOptions={monthOptions}
           data={{ tickets, logs: attendance, techs, staff, rates, shift }}
           attendanceFailed={attendanceFailed}
@@ -608,6 +582,7 @@ export default function CommissionPage() {
           techs={techs}
           staff={staff}
           monthLabel={monthLabel}
+          showCutoff={selectedMonth !== 'all'}
           onClose={() => setAllJobsOpen(false)}
         />
       )}
@@ -701,12 +676,13 @@ function PayeeRow({ payee, stats, pay, regular, attendanceFailed, onOpen }) {
         ) : (
           <div className="flex flex-col items-end gap-0.5">
             <span className="font-mono text-sm text-gray-800">{PESO(pay.regularPay)}</span>
-            <span className="text-[11px] font-body text-gray-400">
-              {regular.days} day{regular.days !== 1 ? 's' : ''}
-              {regular.unpaidDays > 0 && (
-                <span className="text-amber-600 font-sans font-semibold"> · {regular.unpaidDays} unclosed</span>
-              )}
-            </span>
+            {/* No day count — but an unclosed day still shows, since it means
+                the figure above is short, not just a detail about it. */}
+            {regular.unpaidDays > 0 && (
+              <span className="text-[11px] font-sans font-semibold text-amber-600">
+                {regular.unpaidDays} unclosed
+              </span>
+            )}
           </div>
         )}
       </td>
@@ -762,7 +738,11 @@ function ModalShell({ icon, iconClass, title, subtitle, onClose, children, foote
             </div>
             <div className="min-w-0">
               <p className="font-sans font-bold text-gray-900 text-sm leading-none truncate">{title}</p>
-              <p className="text-xs font-body text-gray-400 mt-1 truncate">{subtitle}</p>
+              {/* Optional — a popup with nothing to add leaves the title alone
+                  rather than reserving an empty line under it. */}
+              {subtitle && (
+                <p className="text-xs font-body text-gray-400 mt-1 truncate">{subtitle}</p>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0" aria-label="Close">
@@ -856,8 +836,11 @@ function ModalTabs({ tabs, active, onChange }) {
  * footer carries both totals plus Total Pay on either tab, so switching tabs
  * changes the working shown, never the money reported.
  */
-function PayeeJobsModal({ payee, tickets, workDays, monthLabel, regular, dailyRate, shift, onClose }) {
+function PayeeJobsModal({
+  payee, tickets, workDays, monthLabel, monthKey, showCutoff, regular, dailyRate, shift, onClose,
+}) {
   const [tab, setTab] = useState('commission')
+  const [collapsedCutoffs, toggleCutoff] = useCollapsedCutoffs()
 
   const rows    = useMemo(() => payeeJobs(tickets, payee.role, payee.username), [tickets, payee])
   const total   = rows.reduce((s, r) => s + (r.commission ?? 0), 0)
@@ -870,9 +853,27 @@ function PayeeJobsModal({ payee, tickets, workDays, monthLabel, regular, dailyRa
     [workDays, dailyRate, shift],
   )
 
-  const subtitle = tab === 'commission'
-    ? `${payee.role} · ${monthLabel} · ${rows.length} job${rows.length !== 1 ? 's' : ''}${pending > 0 ? ` · ${pending} pending` : ''}`
-    : `${payee.role} · ${monthLabel} · ${PESO(dailyRate)}/day over ${shiftHoursCap(shift)} hours`
+  /**
+   * What this person is owed on each of the month's two paydays — the figure
+   * an Admin actually hands over, since payroll is released twice a month and
+   * never as one monthly sum.
+   *
+   * Partitioned from the very rows the footer totals are built from (the jobs
+   * and the days already on screen), so the two halves always add back up to
+   * Total Pay instead of being a second, independently-derived number.
+   */
+  const cutoffSplit = useMemo(() => {
+    if (!showCutoff) return null
+    return payoutByCutoff(monthKey, rows, r => commissionDate(r.ticket), dayRows, d => d.firstIn)
+  }, [showCutoff, rows, dayRows, monthKey])
+
+  // Just who and when. The counts and rates this used to carry are all on the
+  // tab below it — the job list, the rate strip, the per-cutoff sections — so
+  // repeating them in the header only made it change shape per tab. The one
+  // thing kept is the pending flag: that's an action the Admin still owes,
+  // not a readout.
+  const subtitle = `${payee.role} · ${monthLabel}` +
+    (tab === 'commission' && pending > 0 ? ` · ${pending} pending` : '')
 
   return (
     <ModalShell
@@ -897,6 +898,49 @@ function PayeeJobsModal({ payee, tickets, workDays, monthLabel, regular, dailyRa
         </div>
       }
     >
+      {/* ── What to pay on each payday ──
+          Sits above the tabs because it applies to both: the tabs below are
+          the working, these two figures are the payout. */}
+      {cutoffSplit && (
+        <section className="border-b border-gray-200">
+          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+            <p className="text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">
+              Payout per cutoff
+            </p>
+          </div>
+          {/* One section per payday, split by a real divider — vertical when
+              they sit side by side, horizontal once they stack. These are two
+              separate handovers, not one figure shown twice. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
+            {cutoffSplit.map(c => {
+              // Same colour language as CutoffBadge and the group headers, so
+              // a period keeps one identity everywhere it appears — now as the
+              // card's own tint rather than just its heading text.
+              const style = CUTOFF_STYLE[c.half]
+              return (
+                <div key={c.key} className={`px-4 py-3.5 ${style.band}`}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className={`text-xs font-sans font-semibold uppercase tracking-wider ${style.text}`}>
+                      {cutoffName(c.half)}
+                    </p>
+                    <p className="text-[11px] font-body text-gray-400">{cutoffRangeLabel(c.key)}</p>
+                  </div>
+                  <p className="font-mono text-xl font-bold text-gray-900 mt-1">{PESO(c.totalPay)}</p>
+                  {(c.pending > 0 || c.unclosed > 0) && (
+                    <p className="text-[11px] font-sans font-semibold text-amber-600 mt-1">
+                      {[
+                        c.pending  > 0 && `${c.pending} commission${c.pending !== 1 ? 's' : ''} pending`,
+                        c.unclosed > 0 && `${c.unclosed} day${c.unclosed !== 1 ? 's' : ''} unclosed`,
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
       <ModalTabs
         active={tab}
         onChange={setTab}
@@ -911,37 +955,57 @@ function PayeeJobsModal({ payee, tickets, workDays, monthLabel, regular, dailyRa
           <ModalEmpty text={`No commissionable jobs assigned to this ${payee.role.toLowerCase()} in ${monthLabel.toLowerCase()}.`} />
         ) : (
           <table className="w-full text-sm min-w-[520px]">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Ticket</th>
-                {/* The date the month filter buckets on — see commission.js. */}
-                <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Date Paid</th>
-                <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Labor Fee</th>
-                <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Rate</th>
-                <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Cut</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map(({ ticket, fee, pct, commission }) => (
-                <tr key={ticket.id} className="hover:bg-gray-50/70 transition-colors">
-                  <td className="px-4 py-3 max-w-[220px]"><TicketCell ticket={ticket} /></td>
-                  <td className="px-4 py-3 text-xs font-body text-gray-500 whitespace-nowrap">
-                    {commissionDate(ticket) ? format(commissionDate(ticket), 'MMM d, yyyy') : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-xs text-gray-700">{PESO(fee)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-xs text-gray-500">{PCT(pct)}</td>
-                  <td className="px-4 py-3 text-right">
-                    {commission == null ? (
-                      <span className="text-xs font-sans font-semibold text-amber-600 whitespace-nowrap">
-                        {pendingLabel(payee.role, pct)}
-                      </span>
-                    ) : (
-                      <span className="font-mono text-xs font-bold text-gray-900">{PESO(commission)}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {/* No shared <thead> — headers live inside each cutoff's own
+                tbody instead, so folding a dropdown takes its column titles
+                with it rather than leaving them pinned above an empty table. */}
+            {groupByCutoff(rows, r => commissionDate(r.ticket), showCutoff).map(group => {
+              const isCollapsed = group.half != null && collapsedCutoffs.has(group.half)
+              return (
+                <tbody key={group.half ?? 'none'} className="divide-y divide-gray-200">
+                  {showCutoff && (
+                    <CutoffGroupRow
+                      half={group.half}
+                      colSpan={5}
+                      collapsed={isCollapsed}
+                      onToggle={group.half != null ? () => toggleCutoff(group.half) : undefined}
+                    />
+                  )}
+                  {!isCollapsed && (
+                    <tr className="border-b border-gray-100">
+                      <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Ticket</th>
+                      {/* The date the month filter buckets on — see commission.js. */}
+                      <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Date Paid</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Labor Fee</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Rate</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Cut</th>
+                    </tr>
+                  )}
+                  {!isCollapsed && group.rows.map(({ ticket, fee, pct, commission }) => (
+                    // A solid fill, not a tinted-white one — the modal card
+                    // itself is opaque white (see .card in index.css), so a
+                    // pale alpha tint over it still reads as white. gray-100
+                    // is the lightest step that stays visibly grey next to it.
+                    <tr key={ticket.id} className="bg-gray-100 hover:bg-gray-200 transition-colors">
+                      <td className="px-4 py-3 max-w-[220px]"><TicketCell ticket={ticket} /></td>
+                      <td className="px-4 py-3 text-xs font-body text-gray-500 whitespace-nowrap">
+                        {commissionDate(ticket) ? format(commissionDate(ticket), 'MMM d, yyyy') : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-gray-700">{PESO(fee)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-gray-500">{PCT(pct)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {commission == null ? (
+                          <span className="text-xs font-sans font-semibold text-amber-600 whitespace-nowrap">
+                            {pendingLabel(payee.role, pct)}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-xs font-bold text-gray-900">{PESO(commission)}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )
+            })}
           </table>
         )
       ) : (
@@ -951,6 +1015,7 @@ function PayeeJobsModal({ payee, tickets, workDays, monthLabel, regular, dailyRa
           shift={shift}
           regular={regular}
           monthLabel={monthLabel}
+          showCutoff={showCutoff}
         />
       )}
     </ModalShell>
@@ -961,8 +1026,9 @@ function PayeeJobsModal({ payee, tickets, workDays, monthLabel, regular, dailyRa
  * Day-by-day working behind an employee's regular pay: what they were docked
  * for arriving late and for leaving early, and what's left of the daily rate.
  */
-function RegularPayTab({ rows, dailyRate, shift, regular, monthLabel }) {
+function RegularPayTab({ rows, dailyRate, shift, regular, monthLabel, showCutoff }) {
   const perMinute = minuteRate(dailyRate, shift)
+  const [collapsedCutoffs, toggleCutoff] = useCollapsedCutoffs()
 
   if (rows.length === 0) {
     return <ModalEmpty text={`No attendance recorded for this employee in ${monthLabel.toLowerCase()}.`} />
@@ -970,62 +1036,219 @@ function RegularPayTab({ rows, dailyRate, shift, regular, monthLabel }) {
 
   return (
     <>
-      {/* How the rate breaks down — the constants every row below is derived from. */}
-      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center gap-x-5 gap-y-1.5 flex-wrap">
-        <RateFact label="Daily rate" value={PESO(dailyRate)} />
-        <RateFact label="Per hour"   value={`${PESO(hourlyRate(dailyRate, shift))} × ${shiftHoursCap(shift)}h`} />
-        <RateFact label="Per minute" value={PESO(perMinute)} />
-        <RateFact label="Shift"      value={`${fmtShiftHour(shift.start)} – ${fmtShiftHour(shift.end)}`} />
+      {/* How the rate breaks down — the constants every row below is derived
+          from. Three even columns rather than a run-on line of "label value"
+          pairs, so each figure gets its own space to be read instead of
+          competing for width with its neighbours. */}
+      <div className="border-b border-gray-100 bg-gray-50/60">
+        <div className="grid grid-cols-3 divide-x divide-gray-200">
+          <RateFact label="Daily rate" value={PESO(dailyRate)} />
+          <RateFact label="Per hour" value={PESO(hourlyRate(dailyRate, shift))} />
+          <RateFact label="Per minute" value={PESO(perMinute)} />
+        </div>
         {regular?.unpaidDays > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-sans font-semibold text-amber-600">
-            <AlertTriangle className="w-3 h-3" /> {regular.unpaidDays} unclosed day{regular.unpaidDays !== 1 ? 's' : ''}
-          </span>
+          <p className="flex items-center gap-1 px-4 py-2 text-[11px] font-sans font-semibold text-amber-600 border-t border-gray-200">
+            <AlertTriangle className="w-3 h-3 shrink-0" />
+            {regular.unpaidDays} unclosed day{regular.unpaidDays !== 1 ? 's' : ''}
+          </p>
         )}
       </div>
 
       <table className="w-full text-sm min-w-[620px]">
-        <thead>
-          <tr className="border-b border-gray-100">
-            <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Date</th>
-            <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">In / Out</th>
-            <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Late</th>
-            <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Undertime</th>
-            <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Daily Pay</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map(({ firstIn, lastOut, pay }) => (
-            <tr key={firstIn.getTime()} className="hover:bg-gray-50/70 transition-colors">
-              <td className="px-4 py-3 whitespace-nowrap">
-                <p className="text-xs font-sans font-semibold text-gray-800">{format(firstIn, 'MMM d, yyyy')}</p>
-                <p className="text-xs font-body text-gray-400 mt-0.5">{format(firstIn, 'EEEE')}</p>
-              </td>
-              <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">
-                {format(firstIn, 'hh:mm a')} → {lastOut ? format(lastOut, 'hh:mm a') : <span className="font-sans italic text-gray-300">unclosed</span>}
-              </td>
-              <td className="px-4 py-3 text-right"><DeductionCell minutes={pay?.lateMinutes} amount={pay?.lateDeduction} /></td>
-              <td className="px-4 py-3 text-right"><DeductionCell minutes={pay?.undertimeMinutes} amount={pay?.undertimeDeduction} /></td>
-              <td className="px-4 py-3 text-right">
-                {pay ? (
-                  <span className="font-mono text-xs font-bold text-gray-900">{PESO(pay.dailyPay)}</span>
-                ) : (
-                  <span className="text-xs font-sans font-semibold text-amber-600 whitespace-nowrap">Not clocked out</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
+        {/* No shared <thead> — see the Commission tab's table for why. */}
+        {groupByCutoff(rows, r => r.firstIn, showCutoff).map(group => {
+          const isCollapsed = group.half != null && collapsedCutoffs.has(group.half)
+          return (
+            <tbody key={group.half ?? 'none'} className="divide-y divide-gray-200">
+              {showCutoff && (
+                <CutoffGroupRow
+                  half={group.half}
+                  colSpan={5}
+                  collapsed={isCollapsed}
+                  onToggle={group.half != null ? () => toggleCutoff(group.half) : undefined}
+                />
+              )}
+              {!isCollapsed && (
+                <tr className="border-b border-gray-100">
+                  <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-2.5 text-left  text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">In / Out</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Late</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Undertime</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-sans font-semibold text-gray-400 uppercase tracking-wide">Daily Pay</th>
+                </tr>
+              )}
+              {!isCollapsed && group.rows.map(({ firstIn, lastOut, pay }) => (
+                <tr key={firstIn.getTime()} className="bg-gray-100 hover:bg-gray-200 transition-colors">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <p className="text-xs font-sans font-semibold text-gray-800">{format(firstIn, 'MMM d, yyyy')}</p>
+                    <p className="text-xs font-body text-gray-400 mt-0.5">{format(firstIn, 'EEEE')}</p>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">
+                    {format(firstIn, 'hh:mm a')} → {lastOut ? format(lastOut, 'hh:mm a') : <span className="font-sans italic text-gray-300">unclosed</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right"><DeductionCell minutes={pay?.lateMinutes} amount={pay?.lateDeduction} /></td>
+                  <td className="px-4 py-3 text-right"><DeductionCell minutes={pay?.undertimeMinutes} amount={pay?.undertimeDeduction} /></td>
+                  <td className="px-4 py-3 text-right">
+                    {pay ? (
+                      <span className="font-mono text-xs font-bold text-gray-900">{PESO(pay.dailyPay)}</span>
+                    ) : (
+                      <span className="text-xs font-sans font-semibold text-amber-600 whitespace-nowrap">Not clocked out</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          )
+        })}
       </table>
     </>
   )
 }
 
-/** One "label value" fact in the rate strip. */
+/**
+ * Split table rows into the month's two cutoffs, in payout order.
+ *
+ * Source rows arrive in whatever order their query returned — paid jobs come
+ * back by `created_at`, which is NOT the date they're bucketed on — so the two
+ * halves are interleaved and a "did the cutoff change since the last row?"
+ * divider would fire several times. Partitioning first makes each half one
+ * contiguous run with exactly one divider between them.
+ *
+ * Empty halves are dropped (a heading over nothing is noise). A row whose date
+ * doesn't parse belongs to no cutoff and is surfaced in its own trailing group
+ * rather than disappearing out of a money table.
+ *
+ * @param {(row) => Date|null} dateOf  the date the row is paid on
+ * @param {boolean} showCutoff  false outside a single pay month — All Time has
+ *                              no two halves to divide, so one flat group
+ */
+/**
+ * Which cutoff groups are folded, per table. A Set of half numbers (1 or 2) —
+ * never the `null` "no pay period" group, which has no toggle to begin with.
+ * Local to whichever table calls it, so folding the Commission tab doesn't
+ * fold the Regular Pay tab underneath it — they're different questions with
+ * different answers.
+ */
+function useCollapsedCutoffs() {
+  // Folded by default — the popup opens on the totals, and a cutoff's rows are
+  // the working behind them, not the first thing worth seeing.
+  const [collapsed, setCollapsed] = useState(() => new Set([1, 2]))
+  const toggle = half => setCollapsed(s => {
+    const next = new Set(s)
+    if (next.has(half)) next.delete(half)
+    else next.add(half)
+    return next
+  })
+  return [collapsed, toggle]
+}
+
+function groupByCutoff(rows, dateOf, showCutoff) {
+  if (!showCutoff) return [{ half: null, rows }]
+  const groups = [1, 2].map(half => ({
+    half,
+    rows: rows.filter(r => cutoffOf(dateOf(r))?.half === half),
+  }))
+  const unbucketed = rows.filter(r => cutoffOf(dateOf(r)) == null)
+  if (unbucketed.length > 0) groups.push({ half: null, rows: unbucketed })
+  return groups.filter(g => g.rows.length > 0)
+}
+
+/**
+ * Per-cutoff colour: brand purple for the 1st half, accent magenta for the 2nd.
+ * Same pairing CutoffBadge uses, so a period keeps one identity everywhere it
+ * appears. `none` is the fallback for rows that belong to no pay period — grey,
+ * because it is an anomaly to notice rather than a third period.
+ *
+ * Two bands, not one: `band` (100-step) is for the headline "Payout per
+ * cutoff" cards — the numbers the popup opens on. `foldBand` (50-step) is for
+ * the fold controls inside each tab. Giving both the same 100-step tint made
+ * the fold rows look like a second copy of the headline cards instead of the
+ * per-branch detail underneath them; the softer tint keeps the colour identity
+ * without competing for the same visual weight.
+ */
+const CUTOFF_STYLE = {
+  1:    { band: 'bg-brand-100',  foldBand: 'bg-brand-50',  text: 'text-brand-700' },
+  2:    { band: 'bg-accent-100', foldBand: 'bg-accent-50', text: 'text-accent-600' },
+  none: { band: 'bg-gray-100',   foldBand: 'bg-gray-50',   text: 'text-gray-500' },
+}
+
+/**
+ * The divider between one cutoff's lines and the next. Carries the period name
+ * so the band says which half it opens, rather than leaving the reader to infer
+ * it from the dates. The tinted band alone is the separator — no left bar, no
+ * top rule, either of which only drew a second line right against the colour
+ * break the tint already makes.
+ *
+ * Doubles as a fold control when `onToggle` is given — the group's own rows
+ * are its detail, the payday name and its dates are what the reader wants
+ * without them. The "No pay period" group (a date that didn't parse) gets no
+ * toggle: those rows are an anomaly to keep visible, not detail to hide.
+ */
+function CutoffGroupRow({ half, colSpan, collapsed, onToggle }) {
+  const style = CUTOFF_STYLE[half] ?? CUTOFF_STYLE.none
+  const label = half ? cutoffName(half) : 'No pay period'
+
+  if (!onToggle) {
+    return (
+      <tr>
+        <td colSpan={colSpan} className={`px-4 py-2 ${style.foldBand}`}>
+          <span className={`text-[11px] font-sans font-semibold uppercase tracking-wider ${style.text}`}>
+            {label}
+          </span>
+        </td>
+      </tr>
+    )
+  }
+
+  return (
+    <tr>
+      <td colSpan={colSpan} className={`p-0 ${style.foldBand}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          className="w-full flex items-center gap-1.5 px-4 py-2 text-left"
+        >
+          {collapsed
+            ? <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${style.text}`} />
+            : <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${style.text}`} />}
+          <span className={`text-[11px] font-sans font-semibold uppercase tracking-wider ${style.text}`}>
+            {label}
+          </span>
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+/**
+ * Which cutoff a line is paid in. A date that doesn't parse gets a dash, never
+ * a guessed period — cutoff.js returns null rather than defaulting it.
+ */
+function CutoffBadge({ date }) {
+  const half = cutoffOf(date)?.half
+  if (!half) return <span className="text-gray-300">—</span>
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-sans font-semibold whitespace-nowrap
+        ${half === 1 ? 'bg-brand-50 text-brand-700' : 'bg-accent-50 text-accent-600'}`}
+      title={cutoffName(half)}
+    >
+      {halfOrdinal(half)}
+    </span>
+  )
+}
+
+/**
+ * One rate figure in the strip above the day-by-day table: label above,
+ * value below, so it reads like a stat rather than a fragment of a sentence.
+ */
 function RateFact({ label, value }) {
   return (
-    <span className="text-xs font-body text-gray-400">
-      {label} <span className="font-mono text-gray-600">{value}</span>
-    </span>
+    <div className="px-4 py-2.5 text-center">
+      <p className="text-[10px] font-sans font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="font-mono text-sm font-semibold text-gray-800 mt-0.5">{value}</p>
+    </div>
   )
 }
 
@@ -1042,7 +1265,7 @@ function DeductionCell({ minutes, amount }) {
 }
 
 /** Every commissionable job in the period, broken down per employee credited on it. */
-function AllJobsModal({ tickets, techs, staff, monthLabel, onClose }) {
+function AllJobsModal({ tickets, techs, staff, monthLabel, showCutoff, onClose }) {
   const jobs = useMemo(
     () => tickets.map(t => ({ ticket: t, fee: laborFee(t), payees: ticketPayees(t, techs, staff) })),
     [tickets, techs, staff],
@@ -1083,6 +1306,9 @@ function AllJobsModal({ tickets, techs, staff, monthLabel, onClose }) {
                   <p className="text-xs font-body text-gray-400 mt-0.5">
                     {commissionDate(ticket) ? `Paid ${format(commissionDate(ticket), 'MMM d, yyyy')}` : '—'}
                   </p>
+                  {showCutoff && (
+                    <p className="mt-1"><CutoffBadge date={commissionDate(ticket)} /></p>
+                  )}
                 </div>
               </div>
 
@@ -1132,10 +1358,13 @@ function ExportMonthModal({
   defaultMonth, monthOptions, data, attendanceFailed, loadingHistory, onClose,
 }) {
   const [month,     setMonth]     = useState(defaultMonth)
+  // Which pay period the workbook covers. Whole month splits Total Pay into a
+  // column per cutoff; a single cutoff is the sheet handed over on a payday.
+  const [cutoff,    setCutoff]    = useState('all')
   const [exporting, setExporting] = useState(false)
   const [msg,       setMsg]       = useState(null)
 
-  const maxMonth = format(new Date(), 'yyyy-MM')
+  const maxMonth = payMonthOf(new Date())
   // Clearing the input leaves '', which would build an Invalid Date and make
   // every format() below throw mid-render. Parse defensively and let the rest
   // of the modal render in a "no month chosen" state instead.
@@ -1151,7 +1380,7 @@ function ExportMonthModal({
     setExporting(true)
     setMsg(null)
     try {
-      const res = await exportCommissionMonth({ ...data, monthDate })
+      const res = await exportCommissionMonth({ ...data, monthDate, cutoff })
       setMsg(res.jobs === 0 && res.days === 0
         ? { type: 'empty', text: 'That month has no commission or attendance data — an empty sheet was downloaded.' }
         : { type: 'ok', text: `Exported ${res.employees} employee${res.employees === 1 ? '' : 's'} · ${res.jobs} job${res.jobs === 1 ? '' : 's'} · ${res.days} day${res.days === 1 ? '' : 's'}.` })
@@ -1171,7 +1400,6 @@ function ExportMonthModal({
       icon={<FileSpreadsheet className="w-4 h-4" />}
       iconClass="bg-brand-50 text-brand-600"
       title="Export Payroll"
-      subtitle="Monthly commission + regular pay as Excel"
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1211,24 +1439,53 @@ function ExportMonthModal({
             onChange={e => { setMonth(e.target.value); setMsg(null) }}
             className="input-field"
           />
-          <p className="text-xs font-body text-gray-400 mt-2">
-            {!monthDate
-              ? 'Pick a month to export.'
-              : monthOptions.includes(month)
-                ? `${format(monthDate, 'MMMM yyyy')} — data recorded.`
-                : `${format(monthDate, 'MMMM yyyy')} — no tickets or attendance recorded in this month.`}
-          </p>
+          {/* Only speaks up when something is wrong: no month picked, or a
+              month that would export an empty workbook. A month that HAS data
+              needs no confirmation — the export itself is the confirmation. */}
+          {!monthDate ? (
+            <p className="text-xs font-body text-gray-400 mt-2">Pick a month to export.</p>
+          ) : !monthOptions.includes(month) ? (
+            <p className="text-xs font-sans font-semibold text-amber-600 mt-2">
+              {format(monthDate, 'MMMM yyyy')} — no tickets or attendance recorded in this month.
+            </p>
+          ) : null}
         </div>
 
-        <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
-          <p className="text-xs font-sans font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            The workbook contains
-          </p>
-          <ul className="space-y-1.5 text-xs font-body text-gray-500">
-            <li><span className="font-sans font-semibold text-gray-700">Payroll</span> — Commission Pay, Regular Pay and Total Pay per employee</li>
-            <li><span className="font-sans font-semibold text-gray-700">Commission</span> — every paid job, its rate and the cut earned</li>
-            <li><span className="font-sans font-semibold text-gray-700">Regular Pay</span> — every working day, its late/undertime deductions and daily pay</li>
-          </ul>
+        <div>
+          <span className="label">Pay period</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+            {[
+              { value: 'all', title: 'Whole month', hint: 'Both cutoffs, split per column' },
+              { value: 1, title: '1st cutoff', hint: 'Days 1–15 · paid the 15th' },
+              { value: 2, title: '2nd cutoff', hint: 'Days 16–30 · paid the 30th' },
+            ].map(opt => {
+              const active = cutoff === opt.value
+              return (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => { setCutoff(opt.value); setMsg(null) }}
+                  aria-pressed={active}
+                  className={`rounded-xl border px-3 py-2.5 text-left transition-colors
+                    ${active
+                      ? 'border-brand-500 bg-brand-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                >
+                  <p className={`text-xs font-sans font-semibold ${active ? 'text-brand-700' : 'text-gray-700'}`}>
+                    {opt.title}
+                  </p>
+                  <p className="text-[11px] font-body text-gray-400 mt-0.5">{opt.hint}</p>
+                </button>
+              )
+            })}
+          </div>
+          {/* Confirms the span a single-cutoff export covers. Nothing is shown
+              for a whole month — the option's own hint already says both. */}
+          {monthDate && cutoff !== 'all' && (
+            <p className="text-xs font-body text-gray-400 mt-2">
+              Covers {cutoffRangeLabel(monthCutoffKeys(month)[cutoff - 1])} ·{' '}
+              {cutoffPayDateLabel(monthCutoffKeys(month)[cutoff - 1]).toLowerCase()}.
+            </p>
+          )}
         </div>
       </div>
     </ModalShell>
@@ -1292,7 +1549,7 @@ function DailyRatesModal({ techs, staff, rates, shift, accountsIncomplete, onSav
       icon={<Coins className="w-4 h-4" />}
       iconClass="bg-brand-50 text-brand-600"
       title="Daily Rates"
-      subtitle={`Paid over ${payHours} hours a day · lunch already deducted`}
+      subtitle={`Paid over ${payHours} hours a day`}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3 flex-wrap">

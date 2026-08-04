@@ -879,27 +879,11 @@ export default function AttendancePage() {
 
       {/* Summary strip */}
       {!loading && (
-        <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 sm:gap-3">
-          <div className="col-span-3 flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white">
-            <Users className="w-4 h-4 text-brand-300 shrink-0" />
-            <div className="flex-1 sm:flex sm:items-center sm:gap-3">
-              <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Present</span>
-              <span className="font-mono font-bold text-2xl sm:text-xl leading-none block sm:inline">{totalPresent}</span>
-            </div>
-          </div>
-
-          <div className="h-8 w-px bg-gray-200 hidden sm:block" />
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2.5 sm:py-1.5 rounded-xl sm:rounded-lg bg-emerald-50 border border-emerald-200 items-center text-center sm:text-left">
-            <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span className="text-[10px] sm:text-xs font-sans font-semibold text-emerald-600 uppercase tracking-wide">Staff</span>
-            <span className="font-mono font-bold text-xl sm:text-base leading-none text-emerald-700">{uniqueStaff}</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2.5 sm:py-1.5 rounded-xl sm:rounded-lg bg-accent-50 border border-accent-200 items-center text-center sm:text-left">
-            <Wrench className="w-4 h-4 text-accent-500 shrink-0" />
-            <span className="text-[10px] sm:text-xs font-sans font-semibold text-accent-600 uppercase tracking-wide">Techs</span>
-            <span className="font-mono font-bold text-xl sm:text-base leading-none text-accent-700">{uniqueTechs}</span>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-800 text-white">
+          <Users className="w-4 h-4 text-brand-300 shrink-0" />
+          <div className="flex-1 sm:flex sm:items-center sm:gap-3">
+            <span className="text-xs font-sans font-semibold text-brand-200 uppercase tracking-wide">Present</span>
+            <span className="font-mono font-bold text-2xl sm:text-xl leading-none block sm:inline">{totalPresent}</span>
           </div>
         </div>
       )}
