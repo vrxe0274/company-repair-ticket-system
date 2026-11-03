@@ -10,29 +10,37 @@ import { combinePay } from './salary'
  *
  * THE SCHEDULE
  * ------------
- *   1st cutoff — paid on the 15th, covers days 1–15.
- *   2nd cutoff — paid on the 30th, covers days 16–30.
- *   Day 31 is NOT part of the month's 2nd cutoff. It rolls into the NEXT pay
- *   period, i.e. the following month's 1st cutoff.
+ *   1st cutoff — paid on the 15th, covers days 1–14.
+ *   2nd cutoff — paid on the 30th, covers days 15–29.
+ *   Days 30 and 31 are NOT part of the month's 2nd cutoff. They roll into the
+ *   NEXT pay period, i.e. the following month's 1st cutoff. (Weekends are
+ *   rarely paid, so no weekday test is needed — the roll is unconditional.)
  *
  * That last rule is why a "month" of payroll is not the same thing as a
- * calendar month. A 31-day month's last day is paid out with the next month's
- * first cutoff, and a month whose predecessor had 31 days starts its own 1st
+ * calendar month. A month's 30th/31st are paid out with the next month's
+ * first cutoff, and a month whose predecessor had a 30th starts its own 1st
  * cutoff on that borrowed day. `payMonthOf` reports the PAY month for exactly
  * this reason — filtering by calendar month would strand the 31st in a period
  * that has already been paid out, or double-count it in both.
  *
- * The borrowed day makes every cutoff a contiguous date range even so:
- * Jul 31 – Aug 15 is one unbroken span, not two pieces. Every calendar day
+ * The borrowed days make every cutoff a contiguous date range even so:
+ * Jul 30 – Aug 14 is one unbroken span, not two pieces. Every calendar day
  * belongs to exactly one cutoff.
  *
  * In February the 2nd cutoff ends on the 28th/29th and pays out that day —
- * there is no 30th to pay on.
+ * there is no 30th to pay on, and nothing is borrowed from it.
  */
 
-/** Last day covered by each cutoff. The 2nd never reaches a 31st. */
-export const FIRST_CUTOFF_END  = 15
-export const SECOND_CUTOFF_END = 30
+/** Last day covered by each cutoff. The 2nd never reaches the 30th/31st. */
+export const FIRST_CUTOFF_END  = 14
+export const SECOND_CUTOFF_END = 29
+
+/** Days from this day of the month on roll into the next pay period. */
+export const ROLLOVER_DAY = 30
+
+/** Day the 1st / 2nd cutoff is paid out (the 2nd caps at the month's last day). */
+export const FIRST_PAY_DAY  = 15
+export const SECOND_PAY_DAY = 30
 
 /** Days in the calendar month containing (year, monthIndex). */
 const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate()
@@ -44,7 +52,7 @@ export const cutoffKey = (year, month, half) =>
 /**
  * The cutoff a date is paid in.
  *
- * A 31st returns the FOLLOWING month's 1st cutoff — it is worked in one month
+ * A 30th or 31st returns the FOLLOWING month's 1st cutoff — it is worked in one month
  * and paid in the next, exactly like a repair collected after the period closed.
  *
  * @param {Date|string|null} date
@@ -64,10 +72,10 @@ export function cutoffOf(date) {
 
   if (day <= FIRST_CUTOFF_END) {
     half = 1
-  } else if (day <= SECOND_CUTOFF_END) {
+  } else if (day < ROLLOVER_DAY) {
     half = 2
   } else {
-    // The 31st: next pay period, which is next month's 1st cutoff.
+    // The 30th/31st: next pay period, which is next month's 1st cutoff.
     half = 1
     month += 1
     if (month > 11) { month = 0; year += 1 }
@@ -94,8 +102,8 @@ export const monthCutoffKeys = monthKey => [`${monthKey}-C1`, `${monthKey}-C2`]
 /**
  * The calendar span a cutoff covers, as day boundaries.
  *
- * A 1st cutoff starts on the previous month's 31st when it had one — that day
- * is worked before the period but paid inside it (see the file header).
+ * A 1st cutoff starts on the previous month's 30th when it had one — those
+ * days are worked before the period but paid inside it (see the file header).
  *
  * @returns {{start: Date, end: Date}|null}
  */
@@ -109,11 +117,10 @@ export function cutoffRange(key) {
     // new Date(y, m, 0) is the last day of the PREVIOUS month — and normalises
     // month -1 into December of the previous year on its own.
     const prevMonthLastDay = new Date(year, month, 0).getDate()
-    start = prevMonthLastDay === 31 ? new Date(year, month - 1, 31) : new Date(year, month, 1)
+    start = prevMonthLastDay >= ROLLOVER_DAY ? new Date(year, month - 1, ROLLOVER_DAY) : new Date(year, month, 1)
     end   = new Date(year, month, FIRST_CUTOFF_END)
   } else {
     start = new Date(year, month, FIRST_CUTOFF_END + 1)
-    // February has no 30th — the period ends (and pays) on its last day.
     end   = new Date(year, month, Math.min(SECOND_CUTOFF_END, daysInMonth(year, month)))
   }
 
@@ -128,8 +135,8 @@ export function cutoffPayDate(key) {
   if (!parsed) return null
   const { year, month, half } = parsed
   return half === 1
-    ? new Date(year, month, FIRST_CUTOFF_END)
-    : new Date(year, month, Math.min(SECOND_CUTOFF_END, daysInMonth(year, month)))
+    ? new Date(year, month, FIRST_PAY_DAY)
+    : new Date(year, month, Math.min(SECOND_PAY_DAY, daysInMonth(year, month)))
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -141,8 +148,8 @@ export const halfOrdinal = half => (half === 1 ? '1st' : '2nd')
 export const cutoffName = half => `${halfOrdinal(half)} cutoff`
 
 /**
- * The dates a cutoff covers, in words: `Aug 1–15, 2026`, or
- * `Jul 31 – Aug 15, 2026` when it borrows the previous month's 31st.
+ * The dates a cutoff covers, in words: `Aug 1–14, 2026`, or
+ * `Jul 30 – Aug 14, 2026` when it borrows the previous month's 30th/31st.
  */
 export function cutoffRangeLabel(key) {
   const range = cutoffRange(key)
@@ -157,7 +164,7 @@ export function cutoffRangeLabel(key) {
       : `${MONTHS[start.getMonth()]} ${start.getDate()}, ${start.getFullYear()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`
 }
 
-/** `1st cutoff · Aug 1–15, 2026` — the full description of a period. */
+/** `1st cutoff · Aug 1–14, 2026` — the full description of a period. */
 export function cutoffLabel(key) {
   const parsed = parseCutoffKey(key)
   if (!parsed) return ''

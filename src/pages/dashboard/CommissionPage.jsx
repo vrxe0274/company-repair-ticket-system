@@ -1456,8 +1456,8 @@ function ExportMonthModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
             {[
               { value: 'all', title: 'Whole month', hint: 'Both cutoffs, split per column' },
-              { value: 1, title: '1st cutoff', hint: 'Days 1–15 · paid the 15th' },
-              { value: 2, title: '2nd cutoff', hint: 'Days 16–30 · paid the 30th' },
+              { value: 1, title: '1st cutoff', hint: 'Days 1–14 · paid the 15th' },
+              { value: 2, title: '2nd cutoff', hint: 'Days 15–29 · paid the 30th' },
             ].map(opt => {
               const active = cutoff === opt.value
               return (
@@ -1538,8 +1538,9 @@ function DailyRatesModal({ techs, staff, rates, shift, accountsIncomplete, onSav
       await saveDailyRates(merged)
       onSave(merged)
       onClose()
-    } catch {
-      setError('Could not save the rates. Please try again.')
+    } catch (err) {
+      console.error('saveDailyRates failed:', err)
+      setError(`Could not save the rates${err?.message ? `: ${err.message}` : '.'}`)
       setSaving(false)
     }
   }

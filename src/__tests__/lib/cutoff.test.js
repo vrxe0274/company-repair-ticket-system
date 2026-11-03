@@ -7,17 +7,18 @@ import {
 const at = (y, m, d) => new Date(y, m, d, 12, 0)
 
 describe('cutoffOf', () => {
-  it('puts days 1–15 in the 1st cutoff', () => {
+  it('puts days 1–14 in the 1st cutoff', () => {
     expect(cutoffOf(at(2026, 7, 1)).key).toBe('2026-08-C1')
-    expect(cutoffOf(at(2026, 7, 15)).key).toBe('2026-08-C1')
+    expect(cutoffOf(at(2026, 7, 14)).key).toBe('2026-08-C1')
   })
 
-  it('puts days 16–30 in the 2nd cutoff', () => {
-    expect(cutoffOf(at(2026, 7, 16)).key).toBe('2026-08-C2')
-    expect(cutoffOf(at(2026, 7, 30)).key).toBe('2026-08-C2')
+  it('puts days 15–29 in the 2nd cutoff', () => {
+    expect(cutoffOf(at(2026, 7, 15)).key).toBe('2026-08-C2')
+    expect(cutoffOf(at(2026, 7, 29)).key).toBe('2026-08-C2')
   })
 
-  it('rolls a 31st into the NEXT pay period, not the current one', () => {
+  it('rolls the 30th and 31st into the NEXT pay period, not the current one', () => {
+    expect(cutoffOf(at(2026, 7, 30)).key).toBe('2026-09-C1')
     expect(cutoffOf(at(2026, 7, 31)).key).toBe('2026-09-C1')
   })
 
@@ -27,7 +28,8 @@ describe('cutoffOf', () => {
 
   it('leaves a short month\'s last day in its own 2nd cutoff', () => {
     expect(cutoffOf(at(2026, 1, 28)).key).toBe('2026-02-C2') // Feb 28
-    expect(cutoffOf(at(2026, 3, 30)).key).toBe('2026-04-C2') // Apr 30
+    expect(cutoffOf(at(2026, 3, 29)).key).toBe('2026-04-C2') // Apr 29
+    expect(cutoffOf(at(2026, 3, 30)).key).toBe('2026-05-C1') // Apr 30 rolls
   })
 
   it('returns null for a date that does not parse', () => {
@@ -37,21 +39,22 @@ describe('cutoffOf', () => {
 })
 
 describe('cutoffRange', () => {
-  it('covers days 1–15 when the previous month had no 31st', () => {
-    const { start, end } = cutoffRange('2026-07-C1') // June has 30 days
-    expect(start.getMonth()).toBe(6)
+  it('covers days 1–14 when the previous month had no 30th', () => {
+    const { start, end } = cutoffRange('2026-03-C1') // Feb has 28 days
+    expect(start.getMonth()).toBe(2)
     expect(start.getDate()).toBe(1)
-    expect(end.getDate()).toBe(15)
+    expect(end.getDate()).toBe(14)
   })
 
-  it('starts on the previous month\'s 31st when there was one', () => {
+  it('starts on the previous month\'s 30th when there was one', () => {
     const { start } = cutoffRange('2026-08-C1') // July has 31 days
     expect(start.getMonth()).toBe(6)
-    expect(start.getDate()).toBe(31)
+    expect(start.getDate()).toBe(30)
+    expect(cutoffRange('2026-07-C1').start.getDate()).toBe(30) // June has 30
   })
 
-  it('ends the 2nd cutoff on the 30th, never the 31st', () => {
-    expect(cutoffRange('2026-08-C2').end.getDate()).toBe(30)
+  it('ends the 2nd cutoff on the 29th, never the 30th/31st', () => {
+    expect(cutoffRange('2026-08-C2').end.getDate()).toBe(29)
   })
 
   it('ends February\'s 2nd cutoff on its real last day', () => {
@@ -63,7 +66,7 @@ describe('cutoffRange', () => {
     const { start } = cutoffRange('2026-01-C1')
     expect(start.getFullYear()).toBe(2025)
     expect(start.getMonth()).toBe(11)
-    expect(start.getDate()).toBe(31)
+    expect(start.getDate()).toBe(30)
   })
 
   it('returns null for a malformed key', () => {
@@ -81,8 +84,10 @@ describe('every calendar day belongs to exactly one cutoff', () => {
       expect(cutoffRange(key).start <= d && d <= cutoffRange(key).end).toBe(true)
       seen.set(day, key)
     }
-    expect(seen.get(15)).toBe('2026-08-C1')
-    expect(seen.get(16)).toBe('2026-08-C2')
+    expect(seen.get(14)).toBe('2026-08-C1')
+    expect(seen.get(15)).toBe('2026-08-C2')
+    expect(seen.get(29)).toBe('2026-08-C2')
+    expect(seen.get(30)).toBe('2026-09-C1')
     expect(seen.get(31)).toBe('2026-09-C1')
   })
 })
@@ -100,19 +105,19 @@ describe('cutoffPayDate', () => {
 
 describe('labels', () => {
   it('names a same-month span compactly', () => {
-    expect(cutoffRangeLabel('2026-08-C2')).toBe('Aug 16–30, 2026')
+    expect(cutoffRangeLabel('2026-08-C2')).toBe('Aug 15–29, 2026')
   })
 
-  it('spells out a span that borrows the previous month\'s 31st', () => {
-    expect(cutoffRangeLabel('2026-08-C1')).toBe('Jul 31 – Aug 15, 2026')
+  it('spells out a span that borrows the previous month\'s 30th/31st', () => {
+    expect(cutoffRangeLabel('2026-08-C1')).toBe('Jul 30 – Aug 14, 2026')
   })
 
-  it('shows both years when the borrowed 31st crosses a year boundary', () => {
-    expect(cutoffRangeLabel('2027-01-C1')).toBe('Dec 31, 2026 – Jan 15, 2027')
+  it('shows both years when the borrowed 30th crosses a year boundary', () => {
+    expect(cutoffRangeLabel('2027-01-C1')).toBe('Dec 30, 2026 – Jan 14, 2027')
   })
 
   it('describes the period in full', () => {
-    expect(cutoffLabel('2026-08-C1')).toBe('1st cutoff · Jul 31 – Aug 15, 2026')
+    expect(cutoffLabel('2026-08-C1')).toBe('1st cutoff · Jul 30 – Aug 14, 2026')
   })
 })
 

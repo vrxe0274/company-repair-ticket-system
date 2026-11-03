@@ -36,7 +36,7 @@ import { autoSize } from './xlsxStyle'
  * that reads as zero pesos is the one mistake a payroll sheet cannot make.
  *
  * CUTOFFS — a month is exported as its two semi-monthly pay periods (1st: days
- * 1–15, paid the 15th; 2nd: days 16–30, paid the 30th; see cutoff.js). A whole-
+ * 1–14, paid the 15th; 2nd: days 15–29, paid the 30th; see cutoff.js). A whole-
  * month workbook splits Total Pay into a column per cutoff so the two add up to
  * the month, and every detail line carries the cutoff it was paid in. A single
  * cutoff can also be exported on its own, which is the sheet actually handed
@@ -226,10 +226,10 @@ function cutoffFootnote(monthDate, cutoff) {
     .map(half => `${cutoffName(half)}: ${cutoffRangeLabel(keys[half - 1])}, ` +
                  `${cutoffPayDateLabel(keys[half - 1]).toLowerCase()}`)
   return cutoff === 'all'
-    ? `Cutoffs — ${spans.join('; ')}. A 31st is not part of that month's 2nd cutoff: ` +
-      'it is paid in the next period, the following month\'s 1st cutoff.'
+    ? `Cutoffs — ${spans.join('; ')}. The 30th and 31st are not part of that month's 2nd cutoff: ` +
+      'they are paid in the next period, the following month\'s 1st cutoff.'
     : `This sheet covers the ${spans[cutoff - 1]} only. ` +
-      'A 31st is paid in the next period, the following month\'s 1st cutoff.'
+      'The 30th and 31st are paid in the next period, the following month\'s 1st cutoff.'
 }
 
 /**
